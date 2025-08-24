@@ -29,7 +29,7 @@ repos:
         entry: terraform fmt -diff -write=true
         language: system
         types: [terraform]
-        pass_filenames: true
+        pass_filenames: false
       - id: terraform-validate
         name: terraform validate
         entry: terraform validate -json
