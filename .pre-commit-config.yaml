@@ -30,3 +30,8 @@ repos:
         language: system
         types: [terraform]
         pass_filenames: true
+      - id: terraform-validate
+        name: terraform validate
+        entry: terraform validate -json
+        language: system
+        pass_filenames: false
