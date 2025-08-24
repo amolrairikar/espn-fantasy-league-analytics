@@ -1,0 +1,37 @@
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-aws-credentials
+  # - repo: https://github.com/compilerla/conventional-pre-commit
+  #   rev: v4.2.0
+  #   hooks:
+  #     - id: conventional-pre-commit
+  #       stages: [commit-msg]
+  #       args: [--types, chore, docs, feat, fix, refactor, revert, test]
+  - repo: https://github.com/bridgecrewio/checkov.git
+    rev: 3.2.464
+    hooks:
+      - id: checkov
+        verbose: true
+        entry: pipenv run checkov -f ./infra/local/main.tf
+  - repo: local
+    hooks:
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: terraform fmt -diff -write=true
+        language: system
+        types: [terraform]
+        pass_filenames: true
+      - id: terraform-validate
+        name: terraform validate
+        entry: terraform validate -json
+        language: system
+        pass_filenames: false
