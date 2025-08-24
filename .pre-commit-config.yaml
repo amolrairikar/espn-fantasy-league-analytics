@@ -22,6 +22,9 @@ repos:
       - id: checkov
         verbose: true
         entry: pipenv run checkov -f ./infra/local/main.tf
+      - id: checkov
+        verbose: true
+        entry: pipenv run checkov -f ./infra/aws/main.tf
   - repo: local
     hooks:
       - id: terraform-fmt
