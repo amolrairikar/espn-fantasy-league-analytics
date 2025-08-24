@@ -7,5 +7,7 @@ name = "pypi"
 python_version = "3.12"
 
 [dev-packages]
+asteval = ">=1.0.6"
 checkov = "*"
 pre-commit = "*"
+urllib3 = ">=2.5.0"
