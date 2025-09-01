@@ -6,12 +6,7 @@ name = "pypi"
 [requires]
 python_version = "3.12"
 
-[dev-packages]
-asteval = ">=1.0.6"
-checkov = "*"
+[packages]
 pandas = "*"
-pre-commit = "*"
 python-dotenv = "*"
 requests = "*"
-ruff = "*"
-urllib3 = ">=2.5.0"

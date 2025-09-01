@@ -10,12 +10,18 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: detect-aws-credentials
-  # - repo: https://github.com/compilerla/conventional-pre-commit
-  #   rev: v4.2.0
-  #   hooks:
-  #     - id: conventional-pre-commit
-  #       stages: [commit-msg]
-  #       args: [--types, chore, docs, feat, fix, refactor, revert, test]
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [chore, docs, feat, fix, refactor, revert, test]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.10
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format
   - repo: https://github.com/bridgecrewio/checkov.git
     rev: 3.2.464
     hooks:
