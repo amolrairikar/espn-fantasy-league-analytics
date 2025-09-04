@@ -15,10 +15,6 @@ data "aws_caller_identity" "current" {}
 
 # S3 bucket to hold state for rest of project
 resource "aws_s3_bucket" "state_bucket" {
-  # checkov:skip=CKV2_AWS_62:Ensure S3 buckets should have event notifications enabled
-  # checkov:skip=CKV_AWS_18:Ensure the S3 bucket has access logging enabled
-  # checkov:skip=CKV_AWS_144:Ensure that S3 bucket has cross-region replication enabled
-  # checkov:skip=CKV_AWS_145:Ensure that S3 buckets are encrypted with KMS by default
   bucket = "${data.aws_caller_identity.current.account_id}-fantasy-analytics-app-terraform-state-bucket"
 
   tags = {

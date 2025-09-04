@@ -213,3 +213,8 @@ __marimo__/
 terraform.tfstate
 terraform.tfstate.backup
 backend.hcl
+terraform.tfvars
+
+# Lambda zip
+deployment_package.zip
+deployment_package
