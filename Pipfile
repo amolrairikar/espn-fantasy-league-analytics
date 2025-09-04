@@ -15,8 +15,6 @@ python-dotenv = "*"
 requests = "*"
 
 [dev-packages]
-asteval = ">=1.0.6"
-checkov = "*"
 httpx = "*"
 pandas = "*"
 pre-commit = "*"
