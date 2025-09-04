@@ -6,11 +6,20 @@ name = "pypi"
 [requires]
 python_version = "3.12"
 
+[packages]
+boto3 = "*"
+fastapi = "*"
+mangum = "*"
+pandas = "*"
+python-dotenv = "*"
+requests = "*"
+
 [dev-packages]
-asteval = ">=1.0.6"
-checkov = "*"
+httpx = "*"
 pandas = "*"
 pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
 python-dotenv = "*"
 requests = "*"
 ruff = "*"

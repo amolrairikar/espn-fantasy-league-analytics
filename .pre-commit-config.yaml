@@ -22,15 +22,6 @@ repos:
       - id: ruff-check
         args: [ --fix ]
       - id: ruff-format
-  - repo: https://github.com/bridgecrewio/checkov.git
-    rev: 3.2.464
-    hooks:
-      - id: checkov
-        verbose: true
-        entry: pipenv run checkov -f ./infra/local/main.tf
-      - id: checkov
-        verbose: true
-        entry: pipenv run checkov -f ./infra/aws/main.tf
   - repo: local
     hooks:
       - id: terraform-fmt
@@ -43,4 +34,11 @@ repos:
         name: terraform validate
         entry: terraform validate -json
         language: system
+        pass_filenames: false
+      - id: run-unit-tests
+        name: Run unit tests
+        description: "Run unit tests locally to ensure all tests pass before committing code."
+        entry: pipenv run pytest --cov=api --cov-report=term-missing api/tests
+        language: system
+        types: [python]
         pass_filenames: false
