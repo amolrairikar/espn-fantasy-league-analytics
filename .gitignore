@@ -218,3 +218,6 @@ terraform.tfvars
 # Lambda zip
 deployment_package.zip
 deployment_package
+
+# New Relic config
+new_relic_license_key.txt

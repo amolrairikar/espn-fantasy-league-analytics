@@ -16,12 +16,6 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: [chore, docs, feat, fix, refactor, revert, test]
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.10
-    hooks:
-      - id: ruff-check
-        args: [ --fix ]
-      - id: ruff-format
   - repo: local
     hooks:
       - id: terraform-fmt
@@ -42,3 +36,15 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: ruff-check
+        name: Ruff linter
+        description: "Uses Ruff to lint and fix Python code."
+        entry: pipenv run ruff check --fix .
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: Ruff formatter
+        description: "Uses Ruff to format Python code using standard conventions."
+        entry: pipenv run ruff format .
+        language: system
+        types: [python]
