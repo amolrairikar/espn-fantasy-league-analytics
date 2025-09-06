@@ -4,19 +4,17 @@ verify_ssl = true
 name = "pypi"
 
 [requires]
-python_version = "3.12"
+python_version = "3.13"
 
 [packages]
 boto3 = "*"
 fastapi = "*"
 mangum = "*"
-pandas = "*"
 python-dotenv = "*"
 requests = "*"
 
 [dev-packages]
 httpx = "*"
-pandas = "*"
 pre-commit = "*"
 pytest = "*"
 pytest-cov = "*"
