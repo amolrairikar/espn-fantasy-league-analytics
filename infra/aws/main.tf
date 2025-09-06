@@ -26,12 +26,12 @@ resource "aws_dynamodb_table" "application_table" {
   }
 
   attribute {
-    name = "leagueSeason"
+    name = "entity"
     type = "S"
   }
 
   attribute {
-    name = "dataCategory"
+    name = "entityId"
     type = "S"
   }
 
