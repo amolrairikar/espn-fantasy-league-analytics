@@ -11,6 +11,10 @@ provider "aws" {
   region = "us-east-2"
 }
 
+###############################################################################
+############################### Database ######################################
+###############################################################################
+
 resource "aws_dynamodb_table" "application_table" {
   name         = "fantasy-analytics-app-db"
   billing_mode = "PAY_PER_REQUEST"
@@ -36,6 +40,10 @@ resource "aws_dynamodb_table" "application_table" {
     Environment = "PROD"
   }
 }
+
+###############################################################################
+################################# API #########################################
+###############################################################################
 
 data "aws_iam_policy_document" "lambda_assume_role_policy" {
   statement {
@@ -297,4 +305,141 @@ resource "aws_iam_role" "api_gateway_cloudwatch_role" {
 resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_role_attach" {
   role       = aws_iam_role.api_gateway_cloudwatch_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+###############################################################################
+############################### Frontend ######################################
+###############################################################################
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_s3_bucket" "react_site" {
+  bucket = "${data.aws_caller_identity.current.account_id}-fantasy-insights-app-react-site"
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "bucket_ownership_controls" {
+  bucket = aws_s3_bucket.react_site.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "public_access_block" {
+  bucket                  = aws_s3_bucket.react_site.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "versioning_config" {
+  bucket = aws_s3_bucket.react_site.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "react_site_lifecycle" {
+  bucket = aws_s3_bucket.react_site.id
+
+  rule {
+    id     = "delete-noncurrent-versions"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
+resource "aws_cloudfront_origin_access_control" "oac" {
+  name                              = "fantasy-insights-react-app-oac"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_distribution" "react_distribution" {
+  enabled             = true
+  default_root_object = "index.html"
+
+  origin {
+    domain_name              = aws_s3_bucket.react_site.bucket_regional_domain_name
+    origin_id                = "react-app-s3"
+    origin_access_control_id = aws_cloudfront_origin_access_control.oac.id
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "react-app-s3"
+    viewer_protocol_policy = "redirect-to-https"
+
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods  = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = true
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  price_class = "PriceClass_100"
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  custom_error_response {
+    error_code         = 404
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 403
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+    Name        = "fantasy-insights-app-cloudfront-distribution"
+  }
+}
+
+resource "aws_s3_bucket_policy" "bucket_policy" {
+  bucket = aws_s3_bucket.react_site.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.react_site.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.react_distribution.arn
+          }
+        }
+      }
+    ]
+  })
 }
