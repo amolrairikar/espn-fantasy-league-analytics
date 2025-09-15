@@ -104,8 +104,8 @@ resource "aws_lambda_function" "api_lambda" {
   function_name    = "fantasy-analytics-api-lambda"
   description      = "Lambda function containing API for fantasy analytics app"
   role             = aws_iam_role.lambda_role.arn
-  handler          = "main.handler"
-  runtime          = "python3.12"
+  handler          = "api.main.handler"
+  runtime          = "python3.13"
   filename         = "../../api/deployment_package.zip"
   source_code_hash = filebase64sha256("../../api/deployment_package.zip")
   timeout          = 10
