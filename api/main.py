@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-from .routers import health, league_metadata
+from api.routers import health, league_metadata
 
 import os
 
