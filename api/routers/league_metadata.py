@@ -170,6 +170,7 @@ def get_league_metadata(
 @router.post(
     "/",
     response_model=APIResponse,
+    status_code=status.HTTP_201_CREATED,
     response_model_exclude_none=True,
     responses={
         404: {"model": APIError, "description": "Resource not found"},

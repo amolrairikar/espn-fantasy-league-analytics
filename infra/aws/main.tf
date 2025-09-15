@@ -172,6 +172,24 @@ resource "aws_api_gateway_integration_response" "proxy_integration_response" {
   status_code = aws_api_gateway_method_response.proxy_response.status_code
 }
 
+# OPTIONS method for CORS preflight
+resource "aws_api_gateway_method" "proxy_options" {
+  rest_api_id      = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id      = aws_api_gateway_resource.proxy.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
+  api_key_required = false
+}
+
+resource "aws_api_gateway_integration" "proxy_options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id             = aws_api_gateway_resource.proxy.id
+  http_method             = aws_api_gateway_method.proxy_options.http_method
+  type                    = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri                     = aws_lambda_function.api_lambda.invoke_arn
+}
+
 resource "aws_api_gateway_stage" "production" {
   depends_on    = [aws_cloudwatch_log_group.api_prod_log_group]
   deployment_id = aws_api_gateway_deployment.deployment.id
@@ -254,6 +272,11 @@ resource "aws_api_gateway_usage_plan_key" "plan_key" {
 
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
+
+  # # Comment this part out if a redeploy is not needed
+  # lifecycle {
+  #   create_before_destroy = true
+  # }
 
   depends_on = [
     aws_api_gateway_integration.lambda_integration
