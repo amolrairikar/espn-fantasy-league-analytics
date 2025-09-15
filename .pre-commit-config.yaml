@@ -32,7 +32,7 @@ repos:
       - id: run-unit-tests
         name: Run unit tests
         description: "Run unit tests locally to ensure all tests pass before committing code."
-        entry: pipenv run pytest --cov=api --cov-report=term-missing api/tests
+        entry: pipenv run pytest --cov=api --cov-report=term-missing tests
         language: system
         types: [python]
         pass_filenames: false

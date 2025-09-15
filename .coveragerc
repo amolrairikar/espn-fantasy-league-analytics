@@ -1,4 +1,3 @@
 [run]
 omit =
     api/tests/*
-    api/__init__.py

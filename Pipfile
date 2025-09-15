@@ -12,6 +12,7 @@ fastapi = "*"
 mangum = "*"
 python-dotenv = "*"
 requests = "*"
+uvicorn = "*"
 
 [dev-packages]
 httpx = "*"

@@ -18,20 +18,20 @@ provider "aws" {
 resource "aws_dynamodb_table" "application_table" {
   name         = "fantasy-analytics-app-db"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "leagueSeason"
-  range_key    = "dataCategory"
+  hash_key     = "PK"
+  range_key    = "SK"
 
   point_in_time_recovery {
     enabled = true
   }
 
   attribute {
-    name = "leagueSeason"
+    name = "PK"
     type = "S"
   }
 
   attribute {
-    name = "dataCategory"
+    name = "SK"
     type = "S"
   }
 
@@ -104,8 +104,8 @@ resource "aws_lambda_function" "api_lambda" {
   function_name    = "fantasy-analytics-api-lambda"
   description      = "Lambda function containing API for fantasy analytics app"
   role             = aws_iam_role.lambda_role.arn
-  handler          = "main.handler"
-  runtime          = "python3.12"
+  handler          = "api.main.handler"
+  runtime          = "python3.13"
   filename         = "../../api/deployment_package.zip"
   source_code_hash = filebase64sha256("../../api/deployment_package.zip")
   timeout          = 10
@@ -170,6 +170,24 @@ resource "aws_api_gateway_integration_response" "proxy_integration_response" {
   resource_id = aws_api_gateway_resource.proxy.id
   http_method = aws_api_gateway_method.proxy_any.http_method
   status_code = aws_api_gateway_method_response.proxy_response.status_code
+}
+
+# OPTIONS method for CORS preflight
+resource "aws_api_gateway_method" "proxy_options" {
+  rest_api_id      = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id      = aws_api_gateway_resource.proxy.id
+  http_method      = "OPTIONS"
+  authorization    = "NONE"
+  api_key_required = false
+}
+
+resource "aws_api_gateway_integration" "proxy_options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id             = aws_api_gateway_resource.proxy.id
+  http_method             = aws_api_gateway_method.proxy_options.http_method
+  type                    = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri                     = aws_lambda_function.api_lambda.invoke_arn
 }
 
 resource "aws_api_gateway_stage" "production" {
@@ -254,6 +272,11 @@ resource "aws_api_gateway_usage_plan_key" "plan_key" {
 
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
+
+  # # Comment this part out if a redeploy is not needed
+  # lifecycle {
+  #   create_before_destroy = true
+  # }
 
   depends_on = [
     aws_api_gateway_integration.lambda_integration
