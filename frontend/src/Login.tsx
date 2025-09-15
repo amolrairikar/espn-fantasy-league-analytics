@@ -75,8 +75,7 @@ function Login({ onLoginSuccess }: LoginProps) {
             toast.warning('League not onboarded, please onboard your league first.');
             setShowOnboardDialog(true);
           } else {
-            console.log('League found!');
-            toast.success('League found!');
+            console.log('League found');
             onLoginSuccess({
               leagueId,
               platform,
@@ -150,7 +149,6 @@ function Login({ onLoginSuccess }: LoginProps) {
         },
       );
       if (response.status === 201) {
-        toast.success('Successfully onboarded league!');
         setShowOnboardDialog(false);
         onLoginSuccess({
           leagueId,
