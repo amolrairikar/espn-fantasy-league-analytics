@@ -36,7 +36,7 @@ if API_KEY is None:
     error_message = "API_KEY environment variable not set."
     logger.error(error_message)
     raise RuntimeError(error_message)
-API_KEY_NAME = "X-API-Key"
+API_KEY_NAME = "x-api-key"
 
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
