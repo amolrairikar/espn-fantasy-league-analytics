@@ -130,10 +130,8 @@ def get_league_metadata(
             item = {k: deserializer.deserialize(v) for k, v in response["Item"].items()}
             logger.info("Retrieved item: %s", item)
             return APIResponse(message="success", detail=log_message, data=item)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=APIError(message="error", detail="League ID not found").model_dump(),
-        )
+        log_message = f"League with ID {league_id} not found in database."
+        return APIResponse(message="success", detail=log_message)
     except botocore.exceptions.ClientError as e:
         exception_mappings = {
             404: [
