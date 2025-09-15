@@ -18,20 +18,20 @@ provider "aws" {
 resource "aws_dynamodb_table" "application_table" {
   name         = "fantasy-analytics-app-db"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "leagueSeason"
-  range_key    = "dataCategory"
+  hash_key     = "PK"
+  range_key    = "SK"
 
   point_in_time_recovery {
     enabled = true
   }
 
   attribute {
-    name = "entity"
+    name = "PK"
     type = "S"
   }
 
   attribute {
-    name = "entityId"
+    name = "SK"
     type = "S"
   }
 
