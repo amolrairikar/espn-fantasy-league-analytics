@@ -1,0 +1,6 @@
+# Ignore ShadCN-generated UI components
+src/components/ui/**
+
+# Optional: ignore build outputs
+dist/
+node_modules/

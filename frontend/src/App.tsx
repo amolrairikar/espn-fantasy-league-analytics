@@ -11,12 +11,11 @@ import Login from "./Login"
 import Home from "./Home"
 import { Toaster } from "sonner"
 import { useEffect, useState } from "react"
-import { useNavigate } from "react-router-dom";
 import type { LeagueData } from "./components/types/league_data"
 import { ThemeProvider } from "@/components/themes/theme_provider"
 import { ModeToggle } from "./components/themes/mode_toggle"
 import { Info, Link, LogOut } from "lucide-react"
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom"
 
 function App() {
   return (
@@ -26,34 +25,37 @@ function App() {
   )
 }
 
+function useLocalStorage<T>(key: string, initialValue: T | null) {
+    const [state, setState] = useState<T | null>(() => {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : initialValue;
+    });
+
+    useEffect(() => {
+      if (state) localStorage.setItem(key, JSON.stringify(state));
+      else localStorage.removeItem(key);
+    }, [key, state]);
+
+    return [state, setState] as const;
+  }
+
 function AppContent() {
 
-  const [leagueData, setLeagueData] = useState<LeagueData | null>(() => {
-    const stored = localStorage.getItem("leagueData");
-    return stored ? JSON.parse(stored) : null;
-  });
-
+  const [leagueData, setLeagueData] = useLocalStorage<LeagueData>("leagueData", null);
   const navigate = useNavigate();
 
-  // Keep localStorage in sync
-  useEffect(() => {
-    if (leagueData) {
-      localStorage.setItem("leagueData", JSON.stringify(leagueData));
-    } else {
-      localStorage.removeItem("leagueData");
-    }
-  }, [leagueData]);
-
   return (
-    <div>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <div>
         <Toaster position="top-center" />
-          <div className="relative flex items-center justify-center px-4 py-2">
-            {/* Centered title */}
-            <h1 className="text-3xl font-bold">Fantasy League History Visualizer</h1>
+          <div className="relative flex items-center px-4 py-2 w-full">
+            {/* Title, absolutely centered */}
+            <h1 className="absolute left-1/2 transform -translate-x-1/2 text-3xl font-bold">
+              Fantasy League History Visualizer
+            </h1>
 
-            {/* Right-side icons */}
-            <div className="absolute right-4 flex items-center gap-4">
+            {/* Icons, right-aligned */}
+            <div className="ml-auto flex items-center gap-4">
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Info" className="cursor-pointer">
@@ -69,15 +71,15 @@ function AppContent() {
                   <p>Paragraph content -- change later</p>
                 </DialogContent>
               </Dialog>
-              <a
-                href="https://github.com/amolrairikar/espn-fantasy-league-analytics"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="ghost" size="icon" aria-label="GitHub" className="cursor-pointer">
+              <Button asChild variant="ghost" size="icon" aria-label="GitHub" className="cursor-pointer">
+                <a
+                  href="https://github.com/amolrairikar/espn-fantasy-league-analytics"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Link className="h-5 w-5" />
-                </Button>
-              </a>
+                </a>
+              </Button>
               {leagueData && (
                 <Button
                   variant="ghost"
@@ -114,12 +116,14 @@ function AppContent() {
             <Route
               path="/home"
               element={
-                leagueData ? <Home /> : <Navigate to="/login" />
+                <div className="mt-8">
+                  {leagueData ? <Home /> : <Navigate to="/login" />}
+                </div>
               }
             />
           </Routes>
-      </ThemeProvider>
-    </div>
+      </div>
+    </ThemeProvider>
   )
 }
 
