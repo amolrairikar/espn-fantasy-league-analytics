@@ -1,29 +1,10 @@
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +13,12 @@ import type { LeagueData } from './components/types/league_data';
 type LoginProps = {
   onLoginSuccess: (data: LeagueData) => void;
 };
+
+interface ApiResponse {
+  message: string;
+  detail: string;
+  data: string[];
+}
 
 function Login({ onLoginSuccess }: LoginProps) {
   const [leagueId, setLeagueId] = useState<string>('');
@@ -60,7 +47,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     // if no errors, proceed with API call
     if (Object.keys(newErrors).length === 0) {
       try {
-        const response = await axios.get(
+        const response = await axios.get<ApiResponse>(
           `${import.meta.env.VITE_API_BASE_URL}/leagues/${leagueId}?platform=${platform}`,
           {
             headers: {
@@ -83,14 +70,12 @@ function Login({ onLoginSuccess }: LoginProps) {
               swidCookie,
               espnS2Cookie,
             }); // Notify App.tsx of successful login
-            navigate('/home');
+            void navigate('/home');
           }
         }
-      } catch (error: any) {
+      } catch (error) {
         if (axios.isAxiosError(error) && error.response) {
-          toast.error(
-            'An unexpected error occurred. Please try again, and if the error persists contact us.',
-          );
+          toast.error('An unexpected error occurred. Please try again, and if the error persists contact us.');
         }
       }
     }
@@ -116,11 +101,9 @@ function Login({ onLoginSuccess }: LoginProps) {
       if (response.status === 200) {
         return true;
       }
-    } catch (error: any) {
+    } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        toast.error(
-          'Invalid league information provided. Please double check all the form fields and try again.',
-        );
+        toast.error('Invalid league information provided. Please double check all the form fields and try again.');
         setShowOnboardDialog(false);
         return false;
       }
@@ -157,9 +140,9 @@ function Login({ onLoginSuccess }: LoginProps) {
           swidCookie,
           espnS2Cookie,
         }); // Notify App.tsx of successful onboarding
-        navigate('/home');
+        void navigate('/home');
       }
-    } catch (error: any) {
+    } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         toast.error(
           'An error occurred while onboarding your league. Please try again, and if the error persists contact us.',
@@ -174,8 +157,7 @@ function Login({ onLoginSuccess }: LoginProps) {
         <CardHeader>
           <CardTitle>Provide your league information</CardTitle>
           <CardDescription>
-            Enter your league ID, platform, privacy settings, and optional cookies (if your league
-            is private).
+            Enter your league ID, platform, privacy settings, and optional cookies (if your league is private).
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
@@ -188,9 +170,7 @@ function Login({ onLoginSuccess }: LoginProps) {
               value={leagueId}
               onChange={(e) => setLeagueId(e.target.value)}
             />
-            {loginFormErrors.leagueId && (
-              <p className="text-red-500 text-sm">{loginFormErrors.leagueId}</p>
-            )}
+            {loginFormErrors.leagueId && <p className="text-red-500 text-sm">{loginFormErrors.leagueId}</p>}
           </div>
           <div className="grid gap-3">
             <Label htmlFor="platform">Platform</Label>
@@ -202,9 +182,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                 <SelectItem value="ESPN">ESPN</SelectItem>
               </SelectContent>
             </Select>
-            {loginFormErrors.platform && (
-              <p className="text-red-500 text-sm">{loginFormErrors.platform}</p>
-            )}
+            {loginFormErrors.platform && <p className="text-red-500 text-sm">{loginFormErrors.platform}</p>}
           </div>
           <div className="grid gap-3">
             <Label htmlFor="privacy">League Privacy</Label>
@@ -217,13 +195,16 @@ function Login({ onLoginSuccess }: LoginProps) {
                 <SelectItem value="Private">Private</SelectItem>
               </SelectContent>
             </Select>
-            {loginFormErrors.privacy && (
-              <p className="text-red-500 text-sm">{loginFormErrors.privacy}</p>
-            )}
+            {loginFormErrors.privacy && <p className="text-red-500 text-sm">{loginFormErrors.privacy}</p>}
           </div>
         </CardContent>
         <CardFooter className="flex items-center justify-between">
-          <Button onClick={checkLeagueExists} className="cursor-pointer">
+          <Button
+            onClick={() => {
+              void checkLeagueExists();
+            }}
+            className="cursor-pointer"
+          >
             Login
           </Button>
         </CardFooter>
@@ -233,8 +214,8 @@ function Login({ onLoginSuccess }: LoginProps) {
           <DialogHeader>
             <DialogTitle>League Information</DialogTitle>
             <DialogDescription>
-              Fill in your fantasy league information to onboard your league. Instructions on how to
-              find your ESPN cookies can be found{' '}
+              Fill in your fantasy league information to onboard your league. Instructions on how to find your ESPN
+              cookies can be found{' '}
               <a href="https://www.espn.com" target="_blank" className="text-blue-600">
                 here
               </a>
@@ -284,7 +265,12 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
             </CardContent>
             <CardFooter className="flex items-center justify-between">
-              <Button onClick={onboardLeague} className="cursor-pointer">
+              <Button
+                onClick={() => {
+                  void onboardLeague();
+                }}
+                className="cursor-pointer"
+              >
                 Submit
               </Button>
             </CardFooter>
