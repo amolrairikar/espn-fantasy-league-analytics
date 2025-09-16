@@ -1,11 +1,5 @@
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import Login from './Login';
 import Home from './Home';
@@ -50,7 +44,11 @@ function AppContent() {
               </DialogContent>
             </Dialog>
             <Button asChild variant="ghost" size="icon" aria-label="GitHub" className="cursor-pointer">
-              <a href="https://github.com/amolrairikar/espn-fantasy-league-analytics" target="_blank" rel="noopener noreferrer">
+              <a
+                href="https://github.com/amolrairikar/espn-fantasy-league-analytics"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Link className="h-5 w-5" />
               </a>
             </Button>
@@ -61,7 +59,7 @@ function AppContent() {
                 aria-label="Logout"
                 onClick={() => {
                   setLeagueData(null); // clear state
-                  navigate('/login'); // redirect to login page
+                  void navigate('/login'); // redirect to login page
                 }}
                 className="cursor-pointer"
               >
@@ -73,10 +71,7 @@ function AppContent() {
         </div>
         <Separator />
         <Routes>
-          <Route
-            path="/"
-            element={leagueData ? <Navigate to="/home" /> : <Navigate to="/login" />}
-          />
+          <Route path="/" element={leagueData ? <Navigate to="/home" /> : <Navigate to="/login" />} />
           <Route
             path="/login"
             element={
