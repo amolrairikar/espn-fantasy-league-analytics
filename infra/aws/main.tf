@@ -466,3 +466,167 @@ resource "aws_s3_bucket_policy" "bucket_policy" {
     ]
   })
 }
+
+###############################################################################
+####################### Onboarding Step Functions #############################
+###############################################################################
+
+resource "aws_iam_role" "step_functions_role" {
+  name = "league-onboarding-sfn-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "states.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Policy for invoking Lambda and writing logs
+resource "aws_iam_role_policy" "step_functions_policy" {
+  name = "league-onboarding-sfn-policy"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = [
+          aws_lambda_function.league_members_lambda.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_sfn_state_machine" "league_onboarding" {
+  name     = "league-onboarding"
+  role_arn = aws_iam_role.step_functions_role.arn
+
+  definition = <<EOF
+{
+  "Comment": "Fantasy League Onboarding Workflow",
+  "StartAt": "MapSeasons",
+  "States": {
+    "MapSeasons": {
+      "Type": "Map",
+      "ItemsPath": "$.seasons",
+      "MaxConcurrency": 15,
+      "Parameters": {
+        "leagueId": "$.leagueId",
+        "platform": "$.platform",
+        "swidCookie": "$.swidCookie",
+        "espnS2Cookie": "$.espnS2Cookie",
+        "season": "$$.Map.Item.Value"
+      },
+      "Iterator": {
+        "StartAt": "SeasonParallel",
+        "States": {
+          "SeasonParallel": {
+            "Type": "Parallel",
+            "Branches": [
+              {
+                "StartAt": "FetchMembers",
+                "States": {
+                  "FetchMembers": {
+                    "Type": "Task",
+                    "Resource": "${aws_lambda_function.league_members_lambda.arn}",
+                    "Retry": [
+                      {
+                        "ErrorEquals": ["States.ALL"],
+                        "IntervalSeconds": 2,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "ResultPath": null,
+                    "End": true
+                  }
+                }
+              },
+              {
+                "StartAt": "FetchScores",
+                "States": {
+                  "FetchScores": {
+                    "Type": "Task",
+                    "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
+                    "Retry": [
+                      {
+                        "ErrorEquals": ["States.ALL"],
+                        "IntervalSeconds": 2,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "ResultPath": null,
+                    "End": true
+                  }
+                }
+              }
+            ],
+            "End": true
+          }
+        }
+      },
+      "End": true
+    }
+  }
+}
+EOF
+
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_members_lambda" {
+  function_name    = "fantasy-analytics-league-members-lambda"
+  description      = "Lambda function to get league member and teams information for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_members/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
+  timeout          = 10
+  memory_size      = 256
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_scores_lambda" {
+  function_name    = "fantasy-analytics-league-scores-lambda"
+  description      = "Lambda function to get league matchup score information for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
+  timeout          = 10
+  memory_size      = 256
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
