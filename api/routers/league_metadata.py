@@ -77,7 +77,7 @@ def validate_league_info(
                 detail=APIError(message="error", detail=error_message).model_dump(),
             )
         else:
-            logger.exception("Unexpected error: %s", e)
+            logger.exception("Unexpected error")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=APIError(
@@ -148,9 +148,10 @@ def get_league_metadata(
             500: "Internal server error",
         }
         error_code = e.response["Error"]["Code"]
+        # TODO: turn this into a reusable function for the API
         for status_code, dynamo_errors in exception_mappings.items():
             if error_code in dynamo_errors:
-                logger.error("%d error: %s", status_code, e)
+                logger.exception("%d error", status_code)
                 raise HTTPException(
                     status_code=status_code,
                     detail=APIError(
@@ -158,7 +159,7 @@ def get_league_metadata(
                         detail=status_messages[status_code] + f" ({error_code})",
                     ).model_dump(),
                 )
-        logger.error("Unexpected DynamoDB client error: %s", e)
+        logger.exception("Unexpected DynamoDB client error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
@@ -236,7 +237,7 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
         error_code = e.response["Error"]["Code"]
         for status_code, dynamo_errors in exception_mappings.items():
             if error_code in dynamo_errors:
-                logger.error("%d error: %s", status_code, e)
+                logger.exception("%d error", status_code)
                 raise HTTPException(
                     status_code=status_code,
                     detail=APIError(

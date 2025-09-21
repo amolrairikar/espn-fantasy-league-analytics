@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Make sure to run this from the API directory
+# Make sure to run this from the root directory
 
 if [ -f "api/deployment_package.zip" ]; then
     rm api/deployment_package.zip
