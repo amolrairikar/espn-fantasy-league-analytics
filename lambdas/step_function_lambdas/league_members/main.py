@@ -68,20 +68,28 @@ def get_league_members_and_teams(
         if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         try:
-            url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+            params = {
+                "view": "mTeam",
+            }
+            if int(season) >= 2018:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+            else:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
+                params["seasonId"] = season
 
             # League members
             logger.info("Making request for league member info to URL: %s", url)
             members_response = session.get(
                 url=url,
-                params={
-                    "view": "mTeam",
-                },
+                params=params,
                 cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
             )
             members_response.raise_for_status()
             logger.info("Successfully got league member info")
-            members = members_response.json().get("members", [])
+            if int(season) >= 2018:
+                members = members_response.json().get("members", [])
+            else:
+                members = members_response.json()[0].get("members", [])
             logger.info("Found %d members in league", len(members))
 
             # League teams
@@ -92,7 +100,10 @@ def get_league_members_and_teams(
             )
             teams_response.raise_for_status()
             logger.info("Successfully got league teams info")
-            teams = members_response.json().get("teams", [])
+            if int(season) >= 2018:
+                teams = members_response.json().get("teams", [])
+            else:
+                teams = members_response.json()[0].get("teams", [])
             logger.info("Found %d teams in league", len(teams))
             return members, teams
         except requests.RequestException:
@@ -126,9 +137,7 @@ def join_league_members_to_teams(
     """
     # Load data with relevant columns
     df_members = pd.DataFrame(data=members)
-    df_members_refined = df_members.drop(
-        columns=["displayName", "notificationSettings"]
-    )
+    df_members_refined = df_members[["displayName", "firstName", "lastName", "id"]]
     df_teams = pd.DataFrame(data=teams)
     df_teams_refined = df_teams[["abbrev", "id", "name", "owners"]]
 
@@ -259,15 +268,3 @@ def lambda_handler(event, context):
         data_to_write=output_data, league_id=league_id, platform=platform, season=season
     )
     logger.info("Successfully wrote data to DynamoDB.")
-
-
-lambda_handler(
-    event={
-        "leagueId": "1770206",
-        "platform": "ESPN",
-        "season": "2024",
-        "swidCookie": "{5C607AAE-F39B-4BF7-8306-BEE68C48A53B}",
-        "espnS2Cookie": "AEAthm7fmGgnLxG%2FM0T%2BJ4G3fyY7zn75kaS0rMHxErPoFadQ65NecB1ii8PlAcGtgxE2VSY%2BrZV%2BTW77u3xpdBdjbFlJCbbfSpd6%2B5z1g2lwfK3L2bVCiAO4Ehm%2Fa%2F5JZCsEOtbgMuDE0o8TmiACB6bkJiAgA%2Ff%2B1ZVkUv5Coa7ZI8szgAoVN0Rcc6Fb2%2FAvcV%2BdjrM3V5Lru7XJvpCGATCqZe%2BqaQqSilDqEa0l3KB9acbsNQnz%2F1V5OI88UnJSlMAKws3v5n0NdDZcLxzHSIRRlm8yYofsSXoSR%2FkDena55EbrNnhjBLR5oMbKM9Nu1dc%3D",
-    },
-    context="test",
-)
