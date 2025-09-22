@@ -128,6 +128,9 @@ def get_league_metadata(
             log_message = f"League with ID {league_id} found in database."
             logger.info(log_message)
             item = {k: deserializer.deserialize(v) for k, v in response["Item"].items()}
+
+            # Sort the seasons for organizational purposes
+            item["seasons"] = sorted(item["seasons"])
             logger.info("Retrieved item: %s", item)
             return APIResponse(message="success", detail=log_message, data=item)
         log_message = f"League with ID {league_id} not found in database."
@@ -205,6 +208,7 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
                     .isoformat(timespec="seconds")
                     .replace("+00:00", "Z")
                 },
+                "seasons": {"SS": data.seasons},
             },
         )
         log_message = f"League with ID {data.league_id} added to database."

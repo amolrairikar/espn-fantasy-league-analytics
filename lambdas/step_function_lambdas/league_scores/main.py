@@ -67,18 +67,26 @@ def get_league_scores(
         if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         try:
-            url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-            logger.info("Making request for league member info to URL: %s", url)
+            params = {
+                "view": "mMatchupScore",
+            }
+            if int(season) >= 2018:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+            else:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
+                params["seasonId"] = season
+            logger.info("Making request for league scores info to URL: %s", url)
             response = session.get(
                 url=url,
-                params={
-                    "view": "mMatchupScore",
-                },
+                params=params,
                 cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
             )
             response.raise_for_status()
             logger.info("Successfully got league score info")
-            scores = response.json().get("schedule", [])
+            if int(season) >= 2018:
+                scores = response.json().get("schedule", [])
+            else:
+                scores = response.json()[0].get("schedule", [])
             logger.info(
                 "Found %d matchups in league for season %s", len(scores), season
             )

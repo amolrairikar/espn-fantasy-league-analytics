@@ -69,13 +69,14 @@ resource "aws_iam_role" "lambda_role" {
   }
 }
 
-data "aws_iam_policy_document" "lambda_dynamodb_policy" {
+data "aws_iam_policy_document" "lambda_policy" {
   statement {
     effect = "Allow"
 
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
+      "dynamodb:BatchWriteItem",
       "dynamodb:UpdateItem",
       "dynamodb:DeleteItem",
       "dynamodb:Query",
@@ -87,12 +88,36 @@ data "aws_iam_policy_document" "lambda_dynamodb_policy" {
       "${aws_dynamodb_table.application_table.arn}/index/*"
     ]
   }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "states:StartExecution"
+    ]
+
+    resources = [
+      "arn:aws:states:us-east-2:${data.aws_caller_identity.current.account_id}:stateMachine:league-onboarding"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "states:DescribeExecution"
+    ]
+
+    resources = [
+      "arn:aws:states:us-east-2:${data.aws_caller_identity.current.account_id}:execution:league-onboarding:*"
+    ]
+  }
 }
 
-resource "aws_iam_role_policy" "lambda_dynamodb_role_policy" {
-  name   = "fantasy_analytics_app_lambda_dynamodb_access_policy"
+resource "aws_iam_role_policy" "lambda_role_policy" {
+  name   = "fantasy_analytics_app_lambda_access_policy"
   role   = aws_iam_role.lambda_role.id
-  policy = data.aws_iam_policy_document.lambda_dynamodb_policy.json
+  policy = data.aws_iam_policy_document.lambda_policy.json
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
@@ -112,7 +137,8 @@ resource "aws_lambda_function" "api_lambda" {
   memory_size      = 256
   environment {
     variables = {
-      API_KEY = var.api_key
+      API_KEY        = var.api_key
+      ACCOUNT_NUMBER = data.aws_caller_identity.current.account_id
     }
   }
   tags = {
@@ -502,7 +528,8 @@ resource "aws_iam_role_policy" "step_functions_policy" {
           "lambda:InvokeFunction"
         ]
         Resource = [
-          aws_lambda_function.league_members_lambda.arn
+          aws_lambda_function.league_members_lambda.arn,
+          aws_lambda_function.league_scores_lambda.arn
         ]
       },
       {
@@ -532,11 +559,12 @@ resource "aws_sfn_state_machine" "league_onboarding" {
       "ItemsPath": "$.seasons",
       "MaxConcurrency": 15,
       "Parameters": {
-        "leagueId": "$.leagueId",
-        "platform": "$.platform",
-        "swidCookie": "$.swidCookie",
-        "espnS2Cookie": "$.espnS2Cookie",
-        "season": "$$.Map.Item.Value"
+        "leagueId.$": "$.league_id",
+        "platform.$": "$.platform",
+        "privacy.$": "$.privacy",
+        "swidCookie.$": "$.swid_cookie",
+        "espnS2Cookie.$": "$.espn_s2_cookie",
+        "season.$": "$$.Map.Item.Value"
       },
       "Iterator": {
         "StartAt": "SeasonParallel",
@@ -603,7 +631,7 @@ resource "aws_lambda_function" "league_members_lambda" {
   function_name    = "fantasy-analytics-league-members-lambda"
   description      = "Lambda function to get league member and teams information for fantasy analytics app"
   role             = aws_iam_role.lambda_role.arn
-  handler          = "lambda_handler"
+  handler          = "main.lambda_handler"
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_members/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
@@ -619,7 +647,7 @@ resource "aws_lambda_function" "league_scores_lambda" {
   function_name    = "fantasy-analytics-league-scores-lambda"
   description      = "Lambda function to get league matchup score information for fantasy analytics app"
   role             = aws_iam_role.lambda_role.arn
-  handler          = "lambda_handler"
+  handler          = "main.lambda_handler"
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")

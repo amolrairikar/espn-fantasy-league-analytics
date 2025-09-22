@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-from api.routers import health, league_metadata
+from api.routers import health, league_metadata, onboarding
 
 import os
 
@@ -22,4 +22,5 @@ app.add_middleware(
 )
 app.include_router(health.router)
 app.include_router(league_metadata.router)
+app.include_router(onboarding.router)
 handler = Mangum(app)

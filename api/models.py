@@ -1,6 +1,6 @@
 """Pydantic models for API request and response bodies."""
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -22,3 +22,4 @@ class LeagueMetadata(BaseModel):
     privacy: str
     espn_s2: Optional[str]
     swid: Optional[str]
+    seasons: List[str]
