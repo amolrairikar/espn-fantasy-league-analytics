@@ -1,6 +1,6 @@
 """Pydantic models for API request and response bodies."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
@@ -13,7 +13,7 @@ class APIError(BaseModel):
 class APIResponse(BaseModel):
     message: str
     detail: str
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[Any] = None
 
 
 class LeagueMetadata(BaseModel):

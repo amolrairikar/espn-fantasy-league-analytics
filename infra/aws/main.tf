@@ -35,6 +35,24 @@ resource "aws_dynamodb_table" "application_table" {
     type = "S"
   }
 
+  # GSI1 is for league matchups
+  attribute {
+    name = "GSI1PK" # will be of format MATCHUP#{team_a}-vs-{team_b}
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI1SK" # will be of format LEAGUE#{league_id}#SEASON#{season}#WEEK#{week}
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "GSI1"
+    hash_key        = "GSI1PK"
+    range_key       = "GSI1SK"
+    projection_type = "ALL"
+  }
+
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"

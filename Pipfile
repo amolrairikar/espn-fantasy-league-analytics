@@ -16,6 +16,7 @@ requests = "*"
 uvicorn = "*"
 
 [dev-packages]
+boto3-stubs = "*"
 httpx = "*"
 pre-commit = "*"
 pytest = "*"
@@ -23,4 +24,5 @@ pytest-cov = "*"
 python-dotenv = "*"
 requests = "*"
 ruff = "*"
+types-requests = "*"
 urllib3 = ">=2.5.0"

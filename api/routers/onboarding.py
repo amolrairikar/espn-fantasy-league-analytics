@@ -90,7 +90,7 @@ def onboard_league(
             404: "Resource not found",
             500: "Internal server error",
         }
-        error_code = e.response["Error"]["Code"]
+        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
         # TODO: turn this into a reusable function for the API
         for status_code, dynamo_errors in exception_mappings.items():
             if error_code in dynamo_errors:
@@ -171,7 +171,7 @@ def check_onboarding_status(
             404: "Resource not found",
             500: "Internal server error",
         }
-        error_code = e.response["Error"]["Code"]
+        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
         # TODO: turn this into a reusable function for the API
         for status_code, dynamo_errors in exception_mappings.items():
             if error_code in dynamo_errors:
