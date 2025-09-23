@@ -101,6 +101,22 @@ def get_league_scores(
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
 
+def safe_int(team_id: str) -> int:
+    """
+    Convert team_id to int if possible, else use a very large int.
+
+    Args:
+        team_id (str): The team_id to convert to an integer. Can be a valid number or empty string "".
+
+    Returns:
+        int: The team_id converted to its integer value or a large number.
+    """
+    try:
+        return int(team_id)
+    except (ValueError, TypeError):
+        return 10**12
+
+
 def process_league_scores(matchups: list[dict[str, Any]]) -> list:
     """
     Extracts relevant fields from fantasy matchup scores.
@@ -114,19 +130,39 @@ def process_league_scores(matchups: list[dict[str, Any]]) -> list:
     """
     processed_matchup_results = []
     for matchup in matchups:
-        matchup_result = {}
-        matchup_result["away_team"] = matchup.get("away", {}).get("teamId", "")
-        matchup_result["away_score"] = matchup.get("away", {}).get(
-            "totalPoints", "0.00"
-        )
-        matchup_result["home_team"] = matchup.get("home", {}).get("teamId", "")
-        matchup_result["home_score"] = matchup.get("home", {}).get(
-            "totalPoints", "0.00"
-        )
-        matchup_result["playoff_tier_type"] = matchup.get("playoffTierType", "")
-        matchup_result["winner"] = matchup.get("winner", "")
-        matchup_result["matchup_week"] = matchup.get("matchupPeriodId", "")
+        home_team = matchup.get("home", {}).get("teamId", "")
+        home_score = matchup.get("home", {}).get("totalPoints", "0.00")
+        away_team = matchup.get("away", {}).get("teamId", "")
+        away_score = matchup.get("away", {}).get("totalPoints", "0.00")
+
+        # Canonicalize: team_a ID < team_b ID
+        team_a, team_b = sorted([home_team, away_team], key=safe_int)
+        if team_a == home_team:
+            team_a_score = home_score
+            team_b_score = away_score
+        else:
+            team_a_score = away_score
+            team_b_score = home_score
+
+        # Determine winner in terms of team_a/team_b
+        if float(team_a_score) > float(team_b_score):
+            winner: str | int = team_a
+        elif float(team_b_score) > float(team_a_score):
+            winner = team_b
+        else:
+            winner = "TIE"
+
+        matchup_result = {
+            "team_a": team_a,
+            "team_b": team_b,
+            "team_a_score": team_a_score,
+            "team_b_score": team_b_score,
+            "playoff_tier_type": matchup.get("playoffTierType", ""),
+            "winner": winner,
+            "matchup_week": matchup.get("matchupPeriodId", ""),
+        }
         processed_matchup_results.append(matchup_result)
+
     return processed_matchup_results
 
 
@@ -211,14 +247,20 @@ def batch_write_to_dynamodb(
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {
-                            "S": f"MATCHUPS#WEEK#{str(item['matchup_week'])}#ID#{str(item['away_team'])}-vs-{str(item['home_team'])}"
+                            "S": f"MATCHUP#{str(item['team_a'])}-vs-{str(item['team_b'])}#WEEK#{str(item['matchup_week'])}"
                         },
-                        "away_team": {"S": str(item["away_team"])},
-                        "away_score": {"N": str(item["away_score"])},
-                        "home_team": {"S": str(item["home_team"])},
-                        "home_score": {"N": str(item["home_score"])},
+                        "GSI1PK": {
+                            "S": f"MATCHUP#{item['team_a']}-vs-{item['team_b']}"
+                        },
+                        "GSI1SK": {
+                            "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
+                        },
+                        "team_a": {"S": str(item["team_a"])},
+                        "team_a_score": {"N": str(item["team_a_score"])},
+                        "team_b": {"S": str(item["team_b"])},
+                        "team_b_score": {"N": str(item["team_b_score"])},
                         "week": {"S": str(item["matchup_week"])},
-                        "winner": {"S": item["winner"]},
+                        "winner": {"S": str(item["winner"])},
                         "playoff_tier_type": {"S": item["playoff_tier_type"]},
                     }
                 }
@@ -295,3 +337,16 @@ def lambda_handler(event, context):
         data_to_write=output_data, league_id=league_id, platform=platform, season=season
     )
     logger.info("Successfully wrote data to DynamoDB.")
+
+
+lambda_handler(
+    event={
+        "leagueId": "1770206",
+        "platform": "ESPN",
+        "privacy": "Private",
+        "swidCookie": "{5C607AAE-F39B-4BF7-8306-BEE68C48A53B}",
+        "espnS2Cookie": "AECS%2Fm2P8g7pbnggkucc8qDrpgHgQ22PkiTn8ia8%2FNpb5AaWTjiYw1fc%2FjMtPaCDzWqLEPpD1yz%2BlCZ7rbZSrCcyV5LmaeM9qYwdOz30AcZnC8ZRolRGvP2%2BfMgME0L26v41DrytOJdvXM9rwGA8Mau1DJmuHjedA55tdQlzzTm5WqPkGeZbLB35C96v8UUBEDiq6WuzDvjMaOVnZVExD1U9HjhgGZp4jsUi58BTTPIkjMYIt3nfIeiItIs4hQjyRWYfhZW9jrpEPzX%2BCtuLpqdWNhjfU4l6tP%2BYfE0S1Ih84YDtmXhFTkzKj7oXwKSAuPQ%3D",
+        "season": "2024",
+    },
+    context="",
+)
