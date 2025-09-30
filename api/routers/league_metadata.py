@@ -1,10 +1,11 @@
 """FastAPI router for league metadata endpoints."""
 
 import datetime
+from typing import Optional
 
 import botocore.exceptions
 import requests
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from api.dependencies import (
     build_api_request_headers,
@@ -22,8 +23,8 @@ router = APIRouter(
 )
 
 
-@router.post(
-    "/validate/{season}",
+@router.get(
+    "/validate",
     response_model=APIResponse,
     response_model_exclude_none=True,
     responses={
@@ -34,9 +35,15 @@ router = APIRouter(
     },
 )
 def validate_league_info(
-    season: str = Path(description="Most recent active season for the league."),
-    data: LeagueMetadata = Body(
-        description="The league information (ID, cookies, platform) to validate."
+    league_id: str = Query(description="Unique ID for the league."),
+    platform: str = Query(description="Platform the fantasy league is on."),
+    privacy: str = Query(description="League privacy settings (public/private)."),
+    season: str = Query(description="Season to validate league information for."),
+    swid_cookie: Optional[str] = Query(
+        default=None, description="League privacy settings (public/private)."
+    ),
+    espn_s2_cookie: Optional[str] = Query(
+        default=None, description="League privacy settings (public/private)."
     ),
 ) -> APIResponse:
     """
@@ -54,36 +61,53 @@ def validate_league_info(
     Raises:
         HTTPException: 400, 401, 404, or 500 errors if an exception occurs.
     """
-    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{data.league_id}"
-    headers = build_api_request_headers(data=data)
-    try:
-        response = requests.get(url=url, headers=headers)
-        response.raise_for_status()
-        log_message = "League information validated successfully."
-        logger.info(log_message)
-        return APIResponse(message="success", detail=log_message)
-    except requests.RequestException as e:
-        status_code = getattr(e.response, "status_code", None)
-        errors = {
-            400: "Bad request",
-            401: "Unauthorized",
-            404: "League ID not found",
-        }
-        if status_code in errors:
-            error_message = errors[status_code]
-            logger.error(error_message)
-            raise HTTPException(
-                status_code=status_code,
-                detail=APIError(message="error", detail=error_message).model_dump(),
-            )
-        else:
-            logger.exception("Unexpected error")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=APIError(
-                    message="error", detail="Internal server error"
-                ).model_dump(),
-            )
+    if platform == "ESPN":
+        logger.info("Validating ESPN league")
+        url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+        headers = build_api_request_headers(
+            privacy=privacy,
+            cookies={
+                "swid": swid_cookie,
+                "espn_s2": espn_s2_cookie,
+            },
+        )
+        logger.info("API headers: %s", headers)
+        try:
+            response = requests.get(url=url, headers=headers)
+            response.raise_for_status()
+            log_message = "League information validated successfully."
+            logger.info(log_message)
+            return APIResponse(message="success", detail=log_message)
+        except requests.RequestException as e:
+            status_code = getattr(e.response, "status_code", None)
+            errors = {
+                400: "Bad request",
+                401: "Unauthorized",
+                404: "League ID not found",
+            }
+            if status_code in errors:
+                error_message = errors[status_code]
+                logger.error(error_message)
+                raise HTTPException(
+                    status_code=status_code,
+                    detail=APIError(message="error", detail=error_message).model_dump(),
+                )
+            else:
+                logger.exception(
+                    "Unexpected error while validating league information."
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=APIError(
+                        message="error", detail="Internal server error"
+                    ).model_dump(),
+                )
+    else:
+        logger.warning("Platforms besides ESPN not currently supported.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=APIError(message="error", detail="Platform not found"),
+        )
 
 
 @router.get(
@@ -200,6 +224,8 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
             Item={
                 "PK": {"S": f"LEAGUE#{data.league_id}#PLATFORM#{data.platform}"},
                 "SK": {"S": "METADATA"},
+                "league_id": {"S": data.league_id},
+                "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},
                 "espn_s2_cookie": {"S": data.espn_s2},
                 "swid_cookie": {"S": data.swid},

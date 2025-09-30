@@ -3,6 +3,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 import boto3
 from boto3.dynamodb.types import TypeDeserializer
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
 
-from api.models import LeagueMetadata
+from api.models import APIError
 
 # Set up standardized logger for entire API
 logger = logging.getLogger(__name__)
@@ -50,7 +51,9 @@ def get_api_key(api_key_header: str = Security(api_key_header)):
     return api_key_header
 
 
-def build_api_request_headers(data: LeagueMetadata) -> dict[str, str]:
+def build_api_request_headers(
+    privacy: str, cookies: dict[str, Optional[str]]
+) -> Optional[dict]:
     """
     Builds headers for API requests sent to fantasy platform APIs.
 
@@ -60,11 +63,14 @@ def build_api_request_headers(data: LeagueMetadata) -> dict[str, str]:
     Returns:
         dict (str, str): A dictionary with cookies in the request header
     """
-    if data.platform == "ESPN" and data.privacy == "Private":
-        if not (data.espn_s2 and data.swid):
+    if privacy == "private":
+        if not (cookies["espn_s2"] and cookies["swid"]):
             raise HTTPException(
                 status_code=400,
-                detail="Private ESPN league requires espn_s2 and swid cookies.",
+                detail=APIError(
+                    message="error",
+                    detail="Private ESPN league requires espn_s2 and swid cookies.",
+                ).model_dump(),
             )
-        return {"Cookie": f"espn_s2={data.espn_s2}; SWID={data.swid};"}
+        return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
     return {}
