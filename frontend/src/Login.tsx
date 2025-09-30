@@ -6,27 +6,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { LeagueData } from './components/types/league_data';
+import apiHeader from './components/utils/api_header';
+import type { ApiResponse } from './components/types/api_response';
 
 type LoginProps = {
   onLoginSuccess: (data: LeagueData) => void;
 };
 
-interface ApiResponse {
-  message: string;
-  detail: string;
-  data: string[];
-}
-
 function Login({ onLoginSuccess }: LoginProps) {
-  const [leagueId, setLeagueId] = useState<string>('');
-  const [platform, setPlatform] = useState<string>('ESPN');
-  const [privacy, setPrivacy] = useState<string>('');
-  const [mostRecentSeason, setMostRecentSeason] = useState<string>('');
-  const [swidCookie, setSwidCookie] = useState<string>('');
-  const [espnS2Cookie, setEspnS2Cookie] = useState<string>('');
+  const [formData, setFormData] = useState({
+    leagueId: '',
+    platform: 'ESPN',
+    privacy: '',
+    oldestSeason: '',
+    mostRecentSeason: '',
+    swidCookie: '',
+    espnS2Cookie: '',
+  });
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
   const [showOnboardDialog, setShowOnboardDialog] = useState(false);
   const [loginFormErrors, setLoginFormErrors] = useState<{
     leagueId?: string;
@@ -35,69 +37,70 @@ function Login({ onLoginSuccess }: LoginProps) {
   }>({});
 
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const seasons = useMemo(() => {
+    const start = Number(formData.oldestSeason);
+    const end = Number(formData.mostRecentSeason);
+    if (!start || !end || isNaN(start) || isNaN(end)) return [];
+    return Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
+  }, [formData.oldestSeason, formData.mostRecentSeason]);
 
   const checkLeagueExists = async () => {
-    const newErrors: typeof loginFormErrors = {};
-    if (!leagueId) newErrors.leagueId = 'Please enter your league ID';
-    if (!platform) newErrors.platform = 'Please select which platform your league is on';
-    if (!privacy) newErrors.privacy = 'Please indicate your league privacy settings';
+    setLoading(true);
+    try {
+      const newErrors: typeof loginFormErrors = {};
+      if (!formData.leagueId) newErrors.leagueId = 'Please enter your league ID';
+      if (!formData.platform) newErrors.platform = 'Please select which platform your league is on';
+      if (!formData.privacy) newErrors.privacy = 'Please indicate your league privacy settings';
 
-    setLoginFormErrors(newErrors);
+      setLoginFormErrors(newErrors);
 
-    // if no errors, proceed with API call
-    if (Object.keys(newErrors).length === 0) {
-      try {
+      // if no errors, proceed with API call
+      if (Object.keys(newErrors).length === 0) {
         const response = await axios.get<ApiResponse>(
-          `${import.meta.env.VITE_API_BASE_URL}/leagues/${leagueId}?platform=${platform}`,
+          `${import.meta.env.VITE_API_BASE_URL}/leagues/${formData.leagueId}?platform=${formData.platform}`,
           {
-            headers: {
-              'x-api-Key': import.meta.env.VITE_API_KEY,
-            },
+            headers: apiHeader,
           },
         );
         if (response.status === 200) {
+          // Empty data object means league isn't onboarded yet
           if (!response.data?.data) {
-            // No data object, open onboard dialog
-            console.log('No data returned');
-            toast.warning('League not onboarded, please onboard your league first.');
+            console.log('League does not exist');
             setShowOnboardDialog(true);
           } else {
             console.log('League found');
             onLoginSuccess({
-              leagueId,
-              platform,
-              privacy,
-              swidCookie,
-              espnS2Cookie,
+              leagueId: formData.leagueId,
+              platform: formData.platform,
             }); // Notify App.tsx of successful login
             void navigate('/home');
           }
         }
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response) {
-          toast.error('An unexpected error occurred. Please try again, and if the error persists contact us.');
-        }
+      } else {
+        toast.error('Please fill in all form fields before clicking "Login".');
       }
+    } catch {
+      toast.error('An unexpected error occurred. Please try again, and if the error persists contact us.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const checkValidLeagueInfo = async () => {
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/leagues/validate/${mostRecentSeason}`,
-        {
-          league_id: leagueId,
-          platform: platform,
-          privacy: privacy,
-          espn_s2: espnS2Cookie,
-          swid: swidCookie,
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/leagues/validate`, {
+        params: {
+          league_id: formData.leagueId,
+          platform: formData.platform,
+          privacy: formData.privacy.toLowerCase(),
+          season: formData.mostRecentSeason,
+          swid_cookie: formData.swidCookie,
+          espn_s2_cookie: formData.espnS2Cookie,
         },
-        {
-          headers: {
-            'x-api-Key': import.meta.env.VITE_API_KEY,
-          },
-        },
-      );
+        headers: apiHeader,
+      });
       if (response.status === 200) {
         return true;
       }
@@ -110,35 +113,34 @@ function Login({ onLoginSuccess }: LoginProps) {
     }
   };
 
-  const onboardLeague = async () => {
-    const validLeagueInfo = await checkValidLeagueInfo();
-    if (!validLeagueInfo) {
-      return;
-    }
+  const onboardLeagueMetadata = async () => {
+    setLoading(true);
     try {
+      const validLeagueInfo = await checkValidLeagueInfo();
+      if (!validLeagueInfo) {
+        // No API call made to onboard league metadata if invalid info
+        return;
+      }
       const response = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/leagues/`,
         {
-          league_id: leagueId,
-          platform: platform,
-          privacy: privacy,
-          espn_s2: espnS2Cookie,
-          swid: swidCookie,
+          league_id: formData.leagueId,
+          platform: formData.platform,
+          privacy: formData.privacy,
+          espn_s2: formData.espnS2Cookie,
+          swid: formData.swidCookie,
+          seasons: seasons,
         },
         {
-          headers: {
-            'x-api-Key': import.meta.env.VITE_API_KEY,
-          },
+          headers: apiHeader,
         },
       );
       if (response.status === 201) {
         setShowOnboardDialog(false);
+        toast.success('Successfully onboarded league!');
         onLoginSuccess({
-          leagueId,
-          platform,
-          privacy,
-          swidCookie,
-          espnS2Cookie,
+          leagueId: formData.leagueId,
+          platform: formData.platform,
         }); // Notify App.tsx of successful onboarding
         void navigate('/home');
       }
@@ -148,6 +150,8 @@ function Login({ onLoginSuccess }: LoginProps) {
           'An error occurred while onboarding your league. Please try again, and if the error persists contact us.',
         );
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -167,14 +171,14 @@ function Login({ onLoginSuccess }: LoginProps) {
               id="league-id"
               type="text"
               placeholder="12345"
-              value={leagueId}
-              onChange={(e) => setLeagueId(e.target.value)}
+              value={formData.leagueId}
+              onChange={(e) => updateField('leagueId', e.target.value)}
             />
             {loginFormErrors.leagueId && <p className="text-red-500 text-sm">{loginFormErrors.leagueId}</p>}
           </div>
           <div className="grid gap-3">
             <Label htmlFor="platform">Platform</Label>
-            <Select onValueChange={(value) => setPlatform(value)} value={platform}>
+            <Select onValueChange={(value) => updateField('platform', value)} value={formData.platform}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a platform" />
               </SelectTrigger>
@@ -186,7 +190,7 @@ function Login({ onLoginSuccess }: LoginProps) {
           </div>
           <div className="grid gap-3">
             <Label htmlFor="privacy">League Privacy</Label>
-            <Select onValueChange={(value) => setPrivacy(value)} value={privacy}>
+            <Select onValueChange={(value) => updateField('privacy', value)} value={formData.privacy}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="League privacy setting" />
               </SelectTrigger>
@@ -203,6 +207,7 @@ function Login({ onLoginSuccess }: LoginProps) {
             onClick={() => {
               void checkLeagueExists();
             }}
+            disabled={loading}
             className="cursor-pointer"
           >
             Login
@@ -210,10 +215,10 @@ function Login({ onLoginSuccess }: LoginProps) {
         </CardFooter>
       </Card>
       <Dialog open={showOnboardDialog} onOpenChange={setShowOnboardDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[90vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>League Information</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-center">Your league hasn't been onboarded yet</DialogTitle>
+            <DialogDescription className="text-center">
               Fill in your fantasy league information to onboard your league. Instructions on how to find your ESPN
               cookies can be found{' '}
               <a href="https://www.espn.com" target="_blank" className="text-blue-600">
@@ -226,23 +231,32 @@ function Login({ onLoginSuccess }: LoginProps) {
             <CardContent className="grid gap-6">
               <div className="grid gap-3">
                 <Label htmlFor="league-id">League ID</Label>
-                <Input id="league-id" type="text" value={leagueId} readOnly />
+                <Input id="league-id" type="text" value={formData.leagueId} readOnly />
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="league-platform">League Platform</Label>
-                <Input id="league-platform" type="text" value={platform} readOnly />
+                <Input id="league-platform" type="text" value={formData.platform} readOnly />
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="league-privacy">League Privacy Setting</Label>
-                <Input id="league-privacy" type="text" value={privacy} readOnly />
+                <Input id="league-privacy" type="text" value={formData.privacy} readOnly />
+              </div>
+              <div className="grid gap-3">
+                <Label htmlFor="swid-cookie">First Season</Label>
+                <Input
+                  id="oldest-season"
+                  type="text"
+                  value={formData.oldestSeason}
+                  onChange={(e) => updateField('oldestSeason', e.target.value)}
+                />
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="swid-cookie">Most Recent Season</Label>
                 <Input
                   id="most-recent-season"
                   type="text"
-                  value={mostRecentSeason}
-                  onChange={(e) => setMostRecentSeason(e.target.value)}
+                  value={formData.mostRecentSeason}
+                  onChange={(e) => updateField('mostRecentSeason', e.target.value)}
                 />
               </div>
               <div className="grid gap-3">
@@ -250,8 +264,8 @@ function Login({ onLoginSuccess }: LoginProps) {
                 <Input
                   id="swid-cookie"
                   type="text"
-                  value={swidCookie}
-                  onChange={(e) => setSwidCookie(e.target.value)}
+                  value={formData.swidCookie}
+                  onChange={(e) => updateField('swidCookie', e.target.value)}
                 />
               </div>
               <div className="grid gap-3">
@@ -259,17 +273,18 @@ function Login({ onLoginSuccess }: LoginProps) {
                 <Input
                   id="espn-s2-cookie"
                   type="text"
-                  value={espnS2Cookie}
-                  onChange={(e) => setEspnS2Cookie(e.target.value)}
+                  value={formData.espnS2Cookie}
+                  onChange={(e) => updateField('espnS2Cookie', e.target.value)}
                 />
               </div>
             </CardContent>
             <CardFooter className="flex items-center justify-between">
               <Button
                 onClick={() => {
-                  void onboardLeague();
+                  void onboardLeagueMetadata();
                 }}
                 className="cursor-pointer"
+                disabled={loading}
               >
                 Submit
               </Button>
