@@ -11,7 +11,7 @@ function safeJSONParse<T>(value: string, fallback: T): T {
 export function useLocalStorage<T>(key: string, initialValue: T | null) {
   const [state, setState] = useState<T | null>(() => {
     const stored = localStorage.getItem(key);
-    return stored ? safeJSONParse<T>(stored, initialValue as T) : initialValue;
+    return stored ? safeJSONParse<T>(stored, initialValue ?? ({} as T)) : initialValue;
   });
 
   useEffect(() => {
