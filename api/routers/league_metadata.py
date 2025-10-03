@@ -23,7 +23,9 @@ router = APIRouter(
 )
 
 
-@router.get("/validate", status_code=status.HTTP_200_OK)
+@router.get(
+    "/validate", status_code=status.HTTP_200_OK, response_model_exclude_none=True
+)
 def validate_league_info(
     league_id: str = Query(description="Unique ID for the league."),
     platform: str = Query(description="Platform the fantasy league is on."),
