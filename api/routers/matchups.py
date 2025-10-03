@@ -20,30 +20,18 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/",
-    response_model=APIResponse,
-    response_model_exclude_none=True,
-    responses={
-        404: {"model": APIError, "description": "Matchup(s) not found"},
-        429: {"model": APIError, "description": "Too many requests"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+@router.get("/", status_code=status.HTTP_200_OK)
 def get_matchups(
     team1_id: str = Query(description="The ID of team 1 in the matchup."),
     team2_id: str = Query(description="The ID of team 2 in the matchup."),
-    league_id: str = Query(
-        None, description="The ID of the league the matchup occurred in."
-    ),
-    platform: str = Query(
-        description="The platform the league is on (e.g., ESPN, Sleeper)."
-    ),
+    league_id: str = Query(description="The ID of the league the matchup occurred in."),
+    platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
     week_number: Optional[str] = Query(
-        None, description="The week the matchup occurred in."
+        default=None, description="The week the matchup occurred in."
     ),
     season: Optional[str] = Query(
-        None, description="The fantasy football season year."
+        default=None, description="The fantasy football season year."
     ),
 ) -> APIResponse:
     """
@@ -52,9 +40,9 @@ def get_matchups(
     Args:
         team1_id (str): The ID of team 1 in the matchup.
         team2_id (str): The ID of team 2 in the matchup.
-        week_number (str): The week the matchup occurred in.
         league_id (str): The ID of the league the team is in.
-        platform (str): The platform the league is on (e.g., ESPN, Sleeper).
+        platform (str): The platform the league is on (e.g., ESPN).
+        week_number (str): The week the matchup occurred in.
         season (str): The fantasy football season year.
     """
     try:
@@ -84,19 +72,23 @@ def get_matchups(
                 for item in response.get("Items", [])
             ]
             if not items:
+                error_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season week {week_number}"
+                logger.warning(error_message)
                 raise HTTPException(
-                    status_code=404,
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail=APIError(
-                        message="error", detail="Matchups not found"
+                        status="error",
+                        detail="Matchups not found",
+                        developer_detail=error_message,
                     ).model_dump(),
                 )
             return APIResponse(
-                message="success",
-                detail="Found matchups",
+                status="success",
+                detail="Found matchup",
                 data=items,
             )
         # Get all matchups in a season
-        elif not week_number and season:
+        if not week_number and season:
             response = dynamodb_client.query(
                 TableName=table_name,
                 KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
@@ -121,81 +113,64 @@ def get_matchups(
             ]
             logger.info("Items: %s", items)
             if not items:
+                log_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season"
+                logger.warning(log_message)
                 raise HTTPException(
-                    status_code=404,
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail=APIError(
-                        message="error", detail="Matchups not found"
+                        status="error",
+                        detail="Matchups not found",
+                        developer_detail=log_message,
                     ).model_dump(),
                 )
             return APIResponse(
-                message="success",
-                detail="Found matchups",
+                status="success",
+                detail=f"Found {len(items)} matchups",
                 data=items,
             )
         # Get all matchups across all seasons
-        else:
-            response = dynamodb_client.query(
-                TableName=table_name,
-                IndexName="GSI1",
-                KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
-                ExpressionAttributeValues={
-                    ":pk": {"S": f"MATCHUP#{team1_id}-vs-{team2_id}"},
-                    ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
-                },
+        response = dynamodb_client.query(
+            TableName=table_name,
+            IndexName="GSI1",
+            KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
+            ExpressionAttributeValues={
+                ":pk": {"S": f"MATCHUP#{team1_id}-vs-{team2_id}"},
+                ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
+            },
+        )
+        logger.info(
+            "Found %d matchups between team %s and team %s",
+            len(response["Items"]),
+            team1_id,
+            team2_id,
+        )
+        items = [
+            {k: deserializer.deserialize(v) for k, v in item.items()}
+            for item in response.get("Items", [])
+        ]
+        if not items:
+            log_message = f"No matchups between team {team1_id} and team {team2_id}"
+            logger.warning(log_message)
+            raise HTTPException(
+                status_code=404,
+                detail=APIError(
+                    status="error",
+                    detail="Matchups not found",
+                    developer_detail=log_message,
+                ).model_dump(),
             )
-            logger.info(
-                "Found %d matchups between team %s and team %s",
-                len(response["Items"]),
-                team1_id,
-                team2_id,
-            )
-            items = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
-                for item in response.get("Items", [])
-            ]
-            if not items:
-                raise HTTPException(
-                    status_code=404,
-                    detail=APIError(
-                        message="error", detail="Matchups not found"
-                    ).model_dump(),
-                )
-            return APIResponse(
-                message="success",
-                detail="Found matchups",
-                data=items,
-            )
+        return APIResponse(
+            status="success",
+            detail=f"Found {len(items)} matchups",
+            data=items,
+        )
     except botocore.exceptions.ClientError as e:
-        exception_mappings = {
-            404: [
-                "ResourceNotFoundException",
-            ],
-            429: [
-                "RequestLimitExceeded",
-                "ThrottlingException",
-            ],
-        }
-        status_messages = {
-            404: "Resource not found",
-            429: "Too many requests",
-            500: "Internal server error",
-        }
-        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
-        # TODO: turn this into a reusable function for the API
-        for status_code, dynamo_errors in exception_mappings.items():
-            if error_code in dynamo_errors:
-                logger.exception("%d error", status_code)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=APIError(
-                        message="error",
-                        detail=status_messages[status_code] + f" ({error_code})",
-                    ).model_dump(),
-                )
-        logger.exception("Unexpected DynamoDB client error")
+        logger.exception("Unexpected error while getting matchups")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
-                message="error", detail=status_messages[500] + f" ({error_code})"
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
             ).model_dump(),
         )

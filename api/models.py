@@ -6,12 +6,13 @@ from pydantic import BaseModel
 
 
 class APIError(BaseModel):
-    message: str
+    status: str
     detail: str
+    developer_detail: str
 
 
 class APIResponse(BaseModel):
-    message: str
+    status: str
     detail: str
     data: Optional[Any] = None
 
