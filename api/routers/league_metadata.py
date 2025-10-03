@@ -23,17 +23,7 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/validate",
-    response_model=APIResponse,
-    response_model_exclude_none=True,
-    responses={
-        400: {"model": APIError, "description": "Bad Request"},
-        401: {"model": APIError, "description": "Unauthorized"},
-        404: {"model": APIError, "description": "League ID not found"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+@router.get("/validate", status_code=status.HTTP_200_OK)
 def validate_league_info(
     league_id: str = Query(description="Unique ID for the league."),
     platform: str = Query(description="Platform the fantasy league is on."),
@@ -77,7 +67,10 @@ def validate_league_info(
             response.raise_for_status()
             log_message = "League information validated successfully."
             logger.info(log_message)
-            return APIResponse(message="success", detail=log_message)
+            return APIResponse(
+                status="success",
+                detail=log_message,
+            )
         except requests.RequestException as e:
             status_code = getattr(e.response, "status_code", None)
             errors = {
@@ -90,7 +83,11 @@ def validate_league_info(
                 logger.error(error_message)
                 raise HTTPException(
                     status_code=status_code,
-                    detail=APIError(message="error", detail=error_message).model_dump(),
+                    detail=APIError(
+                        status="error",
+                        detail=error_message,
+                        developer_detail=str(e),
+                    ).model_dump(),
                 )
             else:
                 logger.exception(
@@ -99,39 +96,35 @@ def validate_league_info(
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=APIError(
-                        message="error", detail="Internal server error"
+                        status="error",
+                        detail="Internal server error",
+                        developer_detail=str(e),
                     ).model_dump(),
                 )
     else:
-        logger.warning("Platforms besides ESPN not currently supported.")
+        log_message = "Platforms besides ESPN not currently supported."
+        logger.warning(log_message)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=APIError(message="error", detail="Platform not found"),
+            detail=APIError(
+                status="error",
+                detail="Platform not supported",
+                developer_detail=log_message,
+            ).model_dump(),
         )
 
 
-@router.get(
-    "/{league_id}",
-    response_model=APIResponse,
-    response_model_exclude_none=True,
-    responses={
-        404: {"model": APIError, "description": "League ID not found"},
-        429: {"model": APIError, "description": "Too many requests"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+@router.get("/{league_id}", status_code=status.HTTP_200_OK)
 def get_league_metadata(
     league_id: str = Path(description="The ID of the league to retrieve metadata for."),
-    platform: str = Query(
-        description="The platform the league is on (e.g., ESPN, Sleeper)."
-    ),
+    platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
 ) -> APIResponse:
     """
     Endpoint to check metadata for a league.
 
     Args:
         league_id (str): The ID of the league to retrieve metadata for.
-        platform (str): The platform the league is on (e.g., ESPN, Sleeper)
+        platform (str): The platform the league is on (e.g., ESPN).
 
     Returns:
         APIResponse: A JSON response with a message field indicating success/failure
@@ -156,57 +149,29 @@ def get_league_metadata(
             # Sort the seasons for organizational purposes
             item["seasons"] = sorted(item["seasons"])
             logger.info("Retrieved item: %s", item)
-            return APIResponse(message="success", detail=log_message, data=item)
+            return APIResponse(status="success", detail=log_message, data=item)
         log_message = f"League with ID {league_id} not found in database."
-        return APIResponse(message="success", detail=log_message)
+        logger.warning(log_message)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=APIError(
+                status="error",
+                detail="League not found",
+                developer_detail=log_message,
+            ).model_dump(),
+        )
     except botocore.exceptions.ClientError as e:
-        exception_mappings = {
-            404: [
-                "ResourceNotFoundException",
-            ],
-            429: [
-                "RequestLimitExceeded",
-                "ThrottlingException",
-            ],
-        }
-        status_messages = {
-            404: "Resource not found",
-            429: "Too many requests",
-            500: "Internal server error",
-        }
-        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
-        # TODO: turn this into a reusable function for the API
-        for status_code, dynamo_errors in exception_mappings.items():
-            if error_code in dynamo_errors:
-                logger.exception("%d error", status_code)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=APIError(
-                        message="error",
-                        detail=status_messages[status_code] + f" ({error_code})",
-                    ).model_dump(),
-                )
-        logger.exception("Unexpected DynamoDB client error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
-                message="error", detail=status_messages[500] + f" ({error_code})"
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
             ).model_dump(),
         )
 
 
-@router.post(
-    "/",
-    response_model=APIResponse,
-    status_code=status.HTTP_201_CREATED,
-    response_model_exclude_none=True,
-    responses={
-        404: {"model": APIError, "description": "Resource not found"},
-        409: {"model": APIError, "description": "Request conflict"},
-        429: {"model": APIError, "description": "Request limit exceeded"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def post_league_metadata(data: LeagueMetadata) -> APIResponse:
     """
     Endpoint to create metadata for a league.
@@ -240,45 +205,18 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
         log_message = f"League with ID {data.league_id} added to database."
         logger.info(log_message)
         return APIResponse(
-            message="success",
+            status="success",
             detail=log_message,
+            data={
+                "league_id": data.league_id,
+            },
         )
     except botocore.exceptions.ClientError as e:
-        exception_mappings = {
-            404: [
-                "ResourceNotFoundException",
-            ],
-            409: [
-                "ConditionalCheckFailedException",
-                "ItemCollectionSizeLimitExceededException",
-                "TransactionConflictException",
-            ],
-            429: [
-                "RequestLimitExceeded",
-                "ThrottlingException",
-            ],
-        }
-        status_messages = {
-            404: "Resource not found",
-            409: "Resource conflict",
-            429: "Too many requests",
-            500: "Internal server error",
-        }
-        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
-        for status_code, dynamo_errors in exception_mappings.items():
-            if error_code in dynamo_errors:
-                logger.exception("%d error", status_code)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=APIError(
-                        message="error",
-                        detail=status_messages[status_code] + f" ({error_code})",
-                    ).model_dump(),
-                )
-        logger.error("Unexpected DynamoDB client error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
-                message="error", detail=status_messages[500] + f" ({error_code})"
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
             ).model_dump(),
         )

@@ -19,16 +19,7 @@ router = APIRouter(
 )
 
 
-@router.post(
-    "/{league_id}",
-    response_model=APIResponse,
-    response_model_exclude_none=True,
-    responses={
-        400: {"model": APIError, "description": "Bad request"},
-        404: {"model": APIError, "description": "State machine not found"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+@router.post("/{league_id}", status_code=status.HTTP_201_CREATED)
 def onboard_league(
     league_id: str = Path(description="ID of league to onboard."),
     data: LeagueMetadata = Body(
@@ -67,60 +58,24 @@ def onboard_league(
             input=json.dumps(execution_input),
         )
         logger.info("Step Function response: %s", response)
-        api_response = {"execution_id": response["executionArn"].rsplit(":", 1)[-1]}
         return APIResponse(
-            message="success",
+            status="success",
             detail="Successfully triggered onboarding",
-            data=api_response,
+            data={"execution_id": response["executionArn"].rsplit(":", 1)[-1]},
         )
     except botocore.exceptions.ClientError as e:
-        exception_mappings = {
-            400: [
-                "InvalidArn",
-                "InvalidExecutionInput",
-                "InvalidName",
-            ],
-            404: [
-                "StateMachineDoesNotExist",
-                "StateMachineDeleting",
-            ],
-        }
-        status_messages = {
-            400: "Bad request",
-            404: "Resource not found",
-            500: "Internal server error",
-        }
-        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
-        # TODO: turn this into a reusable function for the API
-        for status_code, dynamo_errors in exception_mappings.items():
-            if error_code in dynamo_errors:
-                logger.exception("%d error", status_code)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=APIError(
-                        message="error",
-                        detail=status_messages[status_code] + f" ({error_code})",
-                    ).model_dump(),
-                )
-        logger.exception("Unexpected DynamoDB client error")
+        logger.exception("Unexpected error while triggering Step Function")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
-                message="error", detail=status_messages[500] + f" ({error_code})"
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
             ).model_dump(),
         )
 
 
-@router.get(
-    "/{onboarding_execution_id}",
-    response_model=APIResponse,
-    response_model_exclude_none=True,
-    responses={
-        400: {"model": APIError, "description": "Bad request"},
-        404: {"model": APIError, "description": "Onboarding execution not found"},
-        500: {"model": APIError, "description": "Internal server error"},
-    },
-)
+@router.get("/{onboarding_execution_id}", status_code=status.HTTP_200_OK)
 def check_onboarding_status(
     onboarding_execution_id: str = Path(
         description="Execution ID for the Step Function run."
@@ -153,40 +108,17 @@ def check_onboarding_status(
         logger.info("Execution status: %s", response)
         api_response = {"execution_status": response["status"]}
         return APIResponse(
-            message="success",
+            status="success",
             detail="Successfully retrieved onboarding status",
             data=api_response,
         )
     except botocore.exceptions.ClientError as e:
-        exception_mappings = {
-            400: [
-                "InvalidArn",
-            ],
-            404: [
-                "ExecutionDoesNotExist",
-            ],
-        }
-        status_messages = {
-            400: "Bad request",
-            404: "Resource not found",
-            500: "Internal server error",
-        }
-        error_code = e.response.get("Error", {}).get("Code", "UnknownError")
-        # TODO: turn this into a reusable function for the API
-        for status_code, dynamo_errors in exception_mappings.items():
-            if error_code in dynamo_errors:
-                logger.exception("%d error", status_code)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=APIError(
-                        message="error",
-                        detail=status_messages[status_code] + f" ({error_code})",
-                    ).model_dump(),
-                )
-        logger.exception("Unexpected DynamoDB client error")
+        logger.exception("Unexpected error while retrieving onboarding status")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=APIError(
-                message="error", detail=status_messages[500] + f" ({error_code})"
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
             ).model_dump(),
         )
