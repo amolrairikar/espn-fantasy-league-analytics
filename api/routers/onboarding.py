@@ -19,9 +19,8 @@ router = APIRouter(
 )
 
 
-@router.post("/{league_id}", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def onboard_league(
-    league_id: str = Path(description="ID of league to onboard."),
     data: LeagueMetadata = Body(
         description="The league information (ID, cookies, platform) required for onboarding."
     ),
@@ -51,7 +50,7 @@ def onboard_league(
             "espn_s2_cookie": data.espn_s2,
             "seasons": data.seasons,
         }
-        logger.info("Starting onboarding process for league %s", league_id)
+        logger.info("Starting onboarding process for league %s", data.league_id)
         # TODO: Remove region hardcoding if in future the Step Function is multi-region
         response = sfn.start_execution(
             stateMachineArn=f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:stateMachine:league-onboarding",

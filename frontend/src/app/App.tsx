@@ -1,13 +1,13 @@
 import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Outlet } from 'react-router-dom';
-import type { LeagueData } from './components/types/league_data';
+import type { LeagueData } from '@/components/types/league_data';
 import { ThemeProvider } from '@/components/themes/theme_provider';
 import { Separator } from '@/components/ui/separator';
-import Header from './Header';
-const Login = lazy(() => import('./Login'));
-const Home = lazy(() => import('./Home'));
-import { useLocalStorage } from './hooks/useLocalStorage';
+import Header from '@/features/header/components/Header';
+const Login = lazy(() => import('@/features/login/components/Login'));
+const Home = lazy(() => import('@/features/home/components/Home'));
+import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 
 interface ProtectedRouteProps {
   isAllowed: boolean;
