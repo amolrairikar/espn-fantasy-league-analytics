@@ -1,6 +1,5 @@
 """FastAPI router for league metadata endpoints."""
 
-import datetime
 from typing import Optional
 
 import botocore.exceptions
@@ -196,15 +195,58 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
                 "privacy": {"S": data.privacy},
                 "espn_s2_cookie": {"S": data.espn_s2},
                 "swid_cookie": {"S": data.swid},
-                "onboarded_date": {
-                    "S": datetime.datetime.now(tz=datetime.timezone.utc)
-                    .isoformat(timespec="seconds")
-                    .replace("+00:00", "Z")
-                },
                 "seasons": {"SS": data.seasons},
             },
         )
         log_message = f"League with ID {data.league_id} added to database."
+        logger.info(log_message)
+        return APIResponse(
+            status="success",
+            detail=log_message,
+            data={
+                "league_id": data.league_id,
+            },
+        )
+    except botocore.exceptions.ClientError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=APIError(
+                status="error",
+                detail="Internal server error",
+                developer_detail=str(e),
+            ).model_dump(),
+        )
+
+
+@router.put("/", status_code=status.HTTP_201_CREATED)
+def update_league_metadata(data: LeagueMetadata) -> APIResponse:
+    """
+    Endpoint to update metadata for a league.
+
+    Args:
+        data (LeagueMetadata): The JSON object containing updated league metadata.
+
+    Returns:
+        APIResponse: A JSON response with a message field indicating success/failure
+            and an optional data field to capture additional details.
+    """
+    try:
+        dynamodb_client.put_item(
+            TableName=table_name,
+            Item={
+                "PK": {"S": f"LEAGUE#{data.league_id}#PLATFORM#{data.platform}"},
+                "SK": {"S": "METADATA"},
+                "league_id": {"S": data.league_id},
+                "platform": {"S": data.platform},
+                "privacy": {"S": data.privacy},
+                "espn_s2_cookie": {"S": data.espn_s2},
+                "swid_cookie": {"S": data.swid},
+                "seasons": {"SS": data.seasons},
+                "onboarded_date": {"S": data.onboarded_date},
+                "onboarded_status": {"BOOL": True},
+            },
+        )
+        log_message = f"League with ID {data.league_id} updated in database."
         logger.info(log_message)
         return APIResponse(
             status="success",

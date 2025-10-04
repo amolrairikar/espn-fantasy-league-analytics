@@ -24,3 +24,5 @@ class LeagueMetadata(BaseModel):
     espn_s2: Optional[str]
     swid: Optional[str]
     seasons: List[str]
+    onboarding_status: Optional[bool] = None
+    onboarded_date: Optional[str] = None
