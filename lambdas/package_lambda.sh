@@ -19,7 +19,7 @@ docker rm temp-step-fn-lambda-packager
 
 rm Dockerfile
 
-# # Run Terraform plan and apply to deploy new Lambda package
-# cd ../../infra/aws
-# terraform plan -out=terraform.tfplan
-# terraform apply terraform.tfplan
+# Run Terraform plan and apply to deploy new Lambda package
+cd ../../../infra/aws
+terraform plan -out=terraform.tfplan
+terraform apply terraform.tfplan

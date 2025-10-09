@@ -7,6 +7,7 @@ from typing import Optional, Any
 
 import boto3
 import botocore.exceptions
+from boto3.dynamodb.types import TypeDeserializer
 from urllib3.util.retry import Retry
 
 import requests
@@ -36,6 +37,64 @@ session.mount("http://", adapter)
 session.mount("https://", adapter)
 
 DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
+deserializer = TypeDeserializer()
+
+
+def get_league_members(
+    league_id: str, platform: str, season: str
+) -> list[dict[str, Any]]:
+    """
+    Fetch all league members in a given season for a given league and platform.
+
+    Args:
+        league_id (str): The unique identifier for the fantasy league.
+        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
+        season (str): The season to get members for
+
+    Returns:
+        list: A list of mappings with members info for the season
+    """
+    try:
+        dynamodb = boto3.client("dynamodb")
+        response = dynamodb.query(
+            TableName=DYNAMODB_TABLE_NAME,
+            KeyConditionExpression="PK = :pk AND begins_with(SK, :sk_prefix)",
+            ExpressionAttributeValues={
+                ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"},
+                ":sk_prefix": {"S": "TEAM#"},
+            },
+        )
+        members = [
+            {
+                **{k: deserializer.deserialize(v) for k, v in item.items()},
+                "season": season,
+            }
+            for item in response.get("Items", [])
+        ]
+        return members
+    except botocore.exceptions.ClientError:
+        logger.exception("Unexpected error while fetching league members")
+        raise
+
+
+def create_team_id_member_id_mapping(
+    members_mapping: list[dict[str, Any]],
+) -> dict[str, str]:
+    """
+    Creates a mapping of a team ID to a member ID.
+
+    Args:
+        members_mapping (list[dict[str, Any]]): A list of mappings containing info about league members.
+
+    Returns:
+        dict: A mapping of team_id to member_id.
+    """
+    result: dict[str, str] = {}
+    for mapping in members_mapping:
+        team_id = mapping["SK"].split("#")[-1]
+        member_id = list(mapping["memberId"])[0]
+        result[team_id] = member_id
+    return result
 
 
 def get_league_scores(
@@ -134,6 +193,17 @@ def process_league_scores(matchups: list[dict[str, Any]]) -> list:
         home_score = matchup.get("home", {}).get("totalPoints", "0.00")
         away_team = matchup.get("away", {}).get("teamId", "")
         away_score = matchup.get("away", {}).get("totalPoints", "0.00")
+        week = matchup.get("matchupPeriodId", "")
+
+        # Skip matchups where both teams scored 0 (these are future weeks)
+        if float(home_score) == 0.0 and float(away_score) == 0.0:
+            logger.info(
+                "Skipping matchups between team %s and team %s for week %s",
+                home_team,
+                away_team,
+                week,
+            )
+            continue
 
         # Canonicalize: team_a ID < team_b ID
         team_a, team_b = sorted([home_team, away_team], key=safe_int)
@@ -146,11 +216,14 @@ def process_league_scores(matchups: list[dict[str, Any]]) -> list:
 
         # Determine winner in terms of team_a/team_b
         if float(team_a_score) > float(team_b_score):
-            winner: str | int = team_a
+            winner = team_a
+            loser = team_b
         elif float(team_b_score) > float(team_a_score):
             winner = team_b
+            loser = team_a
         else:
             winner = "TIE"
+            loser = "TIE"
 
         matchup_result = {
             "team_a": team_a,
@@ -159,86 +232,38 @@ def process_league_scores(matchups: list[dict[str, Any]]) -> list:
             "team_b_score": team_b_score,
             "playoff_tier_type": matchup.get("playoffTierType", ""),
             "winner": winner,
-            "matchup_week": matchup.get("matchupPeriodId", ""),
+            "loser": loser,
+            "matchup_week": week,
         }
         processed_matchup_results.append(matchup_result)
 
     return processed_matchup_results
 
 
-# def compile_league_standings(matchup_data: list[dict[str, Any]]) -> list:
-#     """
-#     Calculates league standings based on fantasy matchup scores.
-
-#     Args:
-#         matchup_data (list[dict[str, Any]]): A list of dictionary mappings containing
-#             matchup scores.
-
-#     Returns:
-#         list: A list of mappings containing standings information for each team.
-#     """
-#     pd.set_option('display.max_columns', None)
-#     df_matchup_data = pd.DataFrame(data=matchup_data)
-#     df_matchup_data["winning_team_id"] = np.where(df_matchup_data["winner"] == "AWAY", df_matchup_data["away_team"], df_matchup_data["home_team"])
-#     df_matchup_data["losing_team_id"] = np.where(df_matchup_data["winner"] == "AWAY", df_matchup_data["home_team"], df_matchup_data["away_team"])
-#     df_matchup_data["away_score"] = pd.to_numeric(df_matchup_data["away_score"], errors="coerce").fillna(0)
-#     df_matchup_data["home_score"] = pd.to_numeric(df_matchup_data["home_score"], errors="coerce").fillna(0)
-
-#     # Only get regular season matchups for now
-#     df_matchup_data = df_matchup_data[df_matchup_data["playoff_tier_type"] == "NONE"]
-
-#     # Step 1: Build a dataframe for "home stats"
-#     home_stats = df_matchup_data[["home_team", "home_score", "away_score"]].copy()
-#     home_stats.rename(columns={
-#         "home_team": "team_id",
-#         "home_score": "points_scored",
-#         "away_score": "points_allowed"
-#     }, inplace=True)
-
-#     # Step 2: Build a dataframe for "away stats"
-#     away_stats = df_matchup_data[["away_team", "away_score", "home_score"]].copy()
-#     away_stats.rename(columns={
-#         "away_team": "team_id",
-#         "away_score": "points_scored",
-#         "home_score": "points_allowed"
-#     }, inplace=True)
-
-#     # Step 3: Concatenate home and away stats
-#     all_stats = pd.concat([home_stats, away_stats])
-
-#     # Step 4: Aggregate points scored and allowed
-#     team_points = all_stats.groupby("team_id").sum()[["points_scored", "points_allowed"]]
-
-#     # Step 5: Count wins and losses
-#     wins = df_matchup_data["winning_team_id"].value_counts().rename("wins")
-#     losses = df_matchup_data["losing_team_id"].value_counts().rename("losses")
-
-#     # Step 6: Combine into a standings dataframe
-#     standings = team_points.join(wins).join(losses)
-#     standings.fillna(0, inplace=True)  # Fill teams with 0 wins/losses if missing
-#     standings = standings.astype({"wins": int, "losses": int})
-
-#     # Step 7: Reset index to return dataframe object
-#     standings = standings.reset_index()
-
-#     return standings.to_dict(orient="records")
-
-
 def batch_write_to_dynamodb(
-    data_to_write: list[dict[str, str]], league_id: str, platform: str, season: str
+    score_data: list[dict[str, str]],
+    member_mapping: dict[str, str],
+    league_id: str,
+    platform: str,
+    season: str,
 ) -> None:
     """
     Writes data in batches to DynamoDB with retries of unprocessed items using
     exponential backoff.
 
     Args:
-        data_to_write (dict[str, str]): Output data to write to DynamoDB.
+        score_data (list[dict[str, str]]): League scores data to write to DynamoDB.
+        member_mapping (dict[str, str]): A mapping of team_id to member_id.
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
         season (str): The NFL season to get data for.
     """
     batched_objects = []
-    for item in data_to_write:
+    for item in score_data:
+        team_a_member_id = member_mapping.get(str(item["team_a"]), "")
+        team_b_member_id = member_mapping.get(str(item["team_b"]), "")
+        winning_member_id = member_mapping.get(str(item["winner"]), "")
+        losing_member_id = member_mapping.get(str(item["loser"]), "")
         batched_objects.append(
             {
                 "PutRequest": {
@@ -247,20 +272,23 @@ def batch_write_to_dynamodb(
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {
-                            "S": f"MATCHUP#{str(item['team_a'])}-vs-{str(item['team_b'])}#WEEK#{str(item['matchup_week'])}"
+                            "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}#WEEK#{str(item['matchup_week'])}"
                         },
                         "GSI1PK": {
-                            "S": f"MATCHUP#{item['team_a']}-vs-{item['team_b']}"
+                            "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                         },
                         "GSI1SK": {
                             "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
                         },
                         "team_a": {"S": str(item["team_a"])},
+                        "team_a_member_id": {"S": team_a_member_id},
                         "team_a_score": {"N": str(item["team_a_score"])},
                         "team_b": {"S": str(item["team_b"])},
+                        "team_b_member_id": {"S": team_b_member_id},
                         "team_b_score": {"N": str(item["team_b_score"])},
                         "week": {"S": str(item["matchup_week"])},
-                        "winner": {"S": str(item["winner"])},
+                        "winner": {"S": winning_member_id},
+                        "loser": {"S": losing_member_id},
                         "playoff_tier_type": {"S": item["playoff_tier_type"]},
                     }
                 }
@@ -321,6 +349,13 @@ def lambda_handler(event, context):
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
 
+    members = get_league_members(
+        league_id=league_id,
+        platform=platform,
+        season=season,
+    )
+    member_id_mapping = create_team_id_member_id_mapping(members_mapping=members)
+
     matchups = get_league_scores(
         league_id=league_id,
         platform=platform,
@@ -334,19 +369,10 @@ def lambda_handler(event, context):
     logger.info("Processing raw matchup data")
     output_data = process_league_scores(matchups=matchups)
     batch_write_to_dynamodb(
-        data_to_write=output_data, league_id=league_id, platform=platform, season=season
+        score_data=output_data,
+        member_mapping=member_id_mapping,
+        league_id=league_id,
+        platform=platform,
+        season=season,
     )
     logger.info("Successfully wrote data to DynamoDB.")
-
-
-lambda_handler(
-    event={
-        "leagueId": "1770206",
-        "platform": "ESPN",
-        "privacy": "Private",
-        "swidCookie": "{5C607AAE-F39B-4BF7-8306-BEE68C48A53B}",
-        "espnS2Cookie": "AECS%2Fm2P8g7pbnggkucc8qDrpgHgQ22PkiTn8ia8%2FNpb5AaWTjiYw1fc%2FjMtPaCDzWqLEPpD1yz%2BlCZ7rbZSrCcyV5LmaeM9qYwdOz30AcZnC8ZRolRGvP2%2BfMgME0L26v41DrytOJdvXM9rwGA8Mau1DJmuHjedA55tdQlzzTm5WqPkGeZbLB35C96v8UUBEDiq6WuzDvjMaOVnZVExD1U9HjhgGZp4jsUi58BTTPIkjMYIt3nfIeiItIs4hQjyRWYfhZW9jrpEPzX%2BCtuLpqdWNhjfU4l6tP%2BYfE0S1Ih84YDtmXhFTkzKj7oXwKSAuPQ%3D",
-        "season": "2024",
-    },
-    context="",
-)
