@@ -25,4 +25,6 @@ app.include_router(league_metadata.router)
 app.include_router(matchups.router)
 app.include_router(onboarding.router)
 app.include_router(teams.router)
+# This router should only be used in DEV
+# app.include_router(utils.router)
 handler = Mangum(app)

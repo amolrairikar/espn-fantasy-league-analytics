@@ -76,19 +76,12 @@ function Home() {
       console.log('Onboarding execution id: ', onboardingExecutionId);
 
       // Poll for onboarding status
-      poll(() => getResource<GetLeagueOnboardingStatus>(`/onboard/${result.data.execution_id}`), {
+      await poll(() => getResource<GetLeagueOnboardingStatus>(`/onboard/${result.data.execution_id}`), {
         interval: 2000,
         timeout: 60000,
         validate: (status) => status.data.execution_status === 'SUCCEEDED',
-      })
-        .then((finalStatus) => {
-          console.log('Onboarding completed!', finalStatus);
-          setCurrentlyOnboarding(false);
-        })
-        .catch((err) => {
-          console.error('Polling failed or timed out', err);
-          setCurrentlyOnboarding(false);
-        });
+      });
+      console.log('Onboarding completed!');
 
       // Update metadata to set onboarded_status to true
       try {
@@ -109,6 +102,8 @@ function Home() {
       }
     } catch (error) {
       console.error('Error onboarding league:', error);
+      setCurrentlyOnboarding(false);
+    } finally {
       setCurrentlyOnboarding(false);
     }
   };
