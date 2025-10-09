@@ -68,8 +68,9 @@ def build_api_request_headers(
             raise HTTPException(
                 status_code=400,
                 detail=APIError(
-                    message="error",
+                    status="error",
                     detail="Private ESPN league requires espn_s2 and swid cookies.",
+                    developer_detail="Private ESPN league requires espn_s2 and swid cookies.",
                 ).model_dump(),
             )
         return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}

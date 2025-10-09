@@ -26,12 +26,12 @@ resource "aws_dynamodb_table" "application_table" {
   }
 
   attribute {
-    name = "PK"
+    name = "PK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}
     type = "S"
   }
 
   attribute {
-    name = "SK"
+    name = "SK" # format will vary based on the type of item being stored
     type = "S"
   }
 
@@ -547,7 +547,8 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         ]
         Resource = [
           aws_lambda_function.league_members_lambda.arn,
-          aws_lambda_function.league_scores_lambda.arn
+          aws_lambda_function.league_scores_lambda.arn,
+          aws_lambda_function.league_standings_lambda.arn
         ]
       },
       {
@@ -585,54 +586,52 @@ resource "aws_sfn_state_machine" "league_onboarding" {
         "season.$": "$$.Map.Item.Value"
       },
       "Iterator": {
-        "StartAt": "SeasonParallel",
+        "StartAt": "FetchMembers",
         "States": {
-          "SeasonParallel": {
-            "Type": "Parallel",
-            "Branches": [
+          "FetchMembers": {
+            "Type": "Task",
+            "Resource": "${aws_lambda_function.league_members_lambda.arn}",
+            "Retry": [
               {
-                "StartAt": "FetchMembers",
-                "States": {
-                  "FetchMembers": {
-                    "Type": "Task",
-                    "Resource": "${aws_lambda_function.league_members_lambda.arn}",
-                    "Retry": [
-                      {
-                        "ErrorEquals": ["States.ALL"],
-                        "IntervalSeconds": 2,
-                        "MaxAttempts": 3,
-                        "BackoffRate": 2.0
-                      }
-                    ],
-                    "ResultPath": null,
-                    "End": true
-                  }
-                }
-              },
-              {
-                "StartAt": "FetchScores",
-                "States": {
-                  "FetchScores": {
-                    "Type": "Task",
-                    "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
-                    "Retry": [
-                      {
-                        "ErrorEquals": ["States.ALL"],
-                        "IntervalSeconds": 2,
-                        "MaxAttempts": 3,
-                        "BackoffRate": 2.0
-                      }
-                    ],
-                    "ResultPath": null,
-                    "End": true
-                  }
-                }
+                "ErrorEquals": ["States.ALL"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
               }
             ],
+            "ResultPath": null,
+            "Next": "FetchScores"
+          },
+          "FetchScores": {
+            "Type": "Task",
+            "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
+            "Retry": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 3,
+                "BackoffRate": 2.0
+              }
+            ],
+            "ResultPath": null,
             "End": true
           }
         }
       },
+      "Next": "FetchStandings"
+    },
+    "FetchStandings": {
+      "Type": "Task",
+      "Resource": "${aws_lambda_function.league_standings_lambda.arn}",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "ResultPath": null,
       "End": true
     }
   }
@@ -669,6 +668,22 @@ resource "aws_lambda_function" "league_scores_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
+  timeout          = 10
+  memory_size      = 256
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_standings_lambda" {
+  function_name    = "fantasy-analytics-league-standings-lambda"
+  description      = "Lambda function to calculate league standings for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "main.lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
   timeout          = 10
   memory_size      = 256
   tags = {
