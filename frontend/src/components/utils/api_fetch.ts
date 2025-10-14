@@ -9,7 +9,6 @@ export async function request<T>(endpoint: string, options?: RequestInit): Promi
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': import.meta.env.VITE_API_KEY,
-      // 'Cache-Control': 'no-cache',
       ...options?.headers,
     },
     ...options,

@@ -355,11 +355,7 @@ resource "aws_api_gateway_usage_plan_key" "plan_key" {
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
 
-  # # Comment this part out if a redeploy is not needed
-  # triggers = {
-  #   redeploy_timestamp = timestamp()
-  # }
-
+  # Comment this part out if a redeploy is not needed
   lifecycle {
     create_before_destroy = true
   }

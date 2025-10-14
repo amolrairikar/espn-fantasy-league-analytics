@@ -1,6 +1,6 @@
 import { Info, Link, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { ModeToggle } from '@/components/themes/mode_toggle';
 import { queryClient } from '@/components/utils/query_client';
 import type { HeaderProps } from '@/features/header/types';
@@ -8,12 +8,12 @@ import type { HeaderProps } from '@/features/header/types';
 const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const handleLogout = () => {
     onLogout();
-    queryClient.clear(); // <-- clears all cached queries
+    queryClient.clear(); // clears all cached queries
   };
 
   return (
     <header className="flex items-center justify-center relative px-4 py-2 w-full">
-      <h1 className="text-3xl font-bold mx-auto">Fantasy League History Visualizer</h1>
+      <h1 className="text-3xl font-bold mx-auto">Fantasy League Recap Dashboard</h1>
       <div className="absolute right-4 flex items-center gap-4">
         <Dialog>
           <DialogTrigger asChild>
@@ -22,9 +22,6 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Info -- change later</DialogTitle>
-            </DialogHeader>
             <p>Paragraph content -- change later</p>
           </DialogContent>
         </Dialog>
@@ -38,13 +35,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
           </a>
         </Button>
         {leagueData && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Logout"
-            onClick={handleLogout} // <-- use wrapped handler
-            className="cursor-pointer"
-          >
+          <Button variant="ghost" size="icon" aria-label="Logout" onClick={handleLogout} className="cursor-pointer">
             <LogOut className="h-5 w-5" />
           </Button>
         )}
