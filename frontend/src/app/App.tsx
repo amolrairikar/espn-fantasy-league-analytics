@@ -1,12 +1,15 @@
 import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import type { LeagueData } from '@/components/types/league_data';
 import { ThemeProvider } from '@/components/themes/theme_provider';
 import { Separator } from '@/components/ui/separator';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import Header from '@/features/header/components/Header';
+import AppSidebar from '@/features/sidebar/components/app-sidebar';
 const Login = lazy(() => import('@/features/login/components/Login'));
 const Home = lazy(() => import('@/features/home/components/Home'));
+const Standings = lazy(() => import('@/features/standings/components/Standings'));
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 
 interface ProtectedRouteProps {
@@ -30,6 +33,9 @@ function App() {
 function AppContent() {
   const [leagueData, setLeagueData] = useLocalStorage<LeagueData | null>('leagueData', null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const showSidebar = location.pathname !== '/login';
 
   const handleLogout = () => {
     setLeagueData(null);
@@ -38,24 +44,47 @@ function AppContent() {
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <div>
-        <Header leagueData={leagueData} onLogout={handleLogout} />
-        <Separator />
-        <main className="mt-8 container mx-auto px-4">
-          <Suspense fallback={<div className="text-center">Loading...</div>}>
-            <Routes>
-              <Route path="/" element={<Navigate to={leagueData ? '/home' : '/login'} />} />
-              <Route path="/login" element={<Login onLoginSuccess={setLeagueData} />} />
+      <SidebarProvider>
+        <div className="flex h-screen w-screen">
+          {/* Sidebar only when logged in */}
+          {showSidebar && <AppSidebar />}
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <Header leagueData={leagueData} onLogout={handleLogout} />
+            <Separator />
 
-              {/* Protected routes wrapper */}
-              <Route element={<ProtectedRoute isAllowed={!!leagueData} redirectTo="/login" />}>
-                <Route path="/home" element={<Home />} />
-                {/* Add future protected pages here */}
-              </Route>
-            </Routes>
-          </Suspense>
-        </main>
-      </div>
+            {/* Main content area */}
+            <main
+              className={
+                showSidebar
+                  ? 'flex-1 mt-8 container mx-auto px-4 overflow-auto'
+                  : 'flex-1 flex items-center justify-center bg-background w-full h-full'
+              }
+            >
+              <Suspense fallback={<div className="text-center">Loading...</div>}>
+                <Routes>
+                  <Route path="/" element={<Navigate to={leagueData ? '/home' : '/login'} />} />
+
+                  {/* Wrap Login page to maintain normal width */}
+                  <Route
+                    path="/login"
+                    element={
+                      <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl px-6 -mt-32">
+                        <Login onLoginSuccess={setLeagueData} />
+                      </div>
+                    }
+                  />
+
+                  {/* Protected routes wrapper */}
+                  <Route element={<ProtectedRoute isAllowed={!!leagueData} redirectTo="/login" />}>
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/standings" element={<Standings />} />
+                  </Route>
+                </Routes>
+              </Suspense>
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
     </ThemeProvider>
   );
 }
