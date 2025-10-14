@@ -17,7 +17,7 @@ import { poll } from '@/features/home/utils/poll';
 
 function Home() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  const [onboardedStatus, setOnboardedStatus] = useState<boolean>(false);
+  const [onboardedStatus, setOnboardedStatus] = useState<boolean | null>(null); // null = loading
   const [currentlyOnboarding, setCurrentlyOnboarding] = useState<boolean>(false);
   const [onboardingExecutionId, setOnboardingExecutionId] = useState<string | null>(null);
 
@@ -28,6 +28,20 @@ function Home() {
   const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata>(`/leagues/${leagueData.leagueId}`, {
     platform: leagueData.platform,
   });
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchLeagueMetadata();
+        setOnboardedStatus(!!response.data?.data.onboarded_status);
+      } catch (err) {
+        console.error(err);
+        setOnboardedStatus(false);
+      }
+    };
+
+    void fetchStatus();
+  }, [refetchLeagueMetadata]);
 
   const checkLeagueOnboarded = useCallback(async () => {
     try {
@@ -110,10 +124,12 @@ function Home() {
 
   return (
     <div>
-      {onboardedStatus ? (
+      {onboardedStatus === null ? (
+        <p>Loading...</p>
+      ) : onboardedStatus ? (
         <h1>Welcome to the home page!</h1>
       ) : (
-        <div className="flex flex-col items-center gap-4 mt-8">
+        <div className="flex flex-col items-center gap-4">
           <h1 className="text-center">Nothing to see here. Click the button below to onboard your league data.</h1>
           <LoadingButton onClick={() => void onboardLeagueData()} loading={currentlyOnboarding}>
             Onboard
