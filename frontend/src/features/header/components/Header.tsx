@@ -1,6 +1,6 @@
 import { Info, Link, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ModeToggle } from '@/components/themes/mode_toggle';
 import { queryClient } from '@/components/utils/query_client';
 import type { HeaderProps } from '@/features/header/types';
@@ -22,7 +22,18 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <p>Paragraph content -- change later</p>
+            <DialogHeader>
+              <DialogTitle>About</DialogTitle>
+            </DialogHeader>
+            <p>
+              Welcome to Fantasy Football Recap, an app designed to provide fun charts and information about your
+              fantasy league to easily answer questions like:
+            </p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Who has scored the most points ever in a week, and how many points did they score?</li>
+              <li>What is my record against this team all-time?</li>
+              <li>Who had the best draft this past season?</li>
+            </ul>
           </DialogContent>
         </Dialog>
         <Button asChild variant="ghost" size="icon" aria-label="GitHub" className="cursor-pointer">
