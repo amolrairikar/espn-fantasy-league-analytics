@@ -5,7 +5,7 @@ import { getResource } from '@/components/hooks/genericGetRequest';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { usePostResource } from '@/components/hooks/genericPostRequest';
 import { putResource } from '@/components/hooks/genericPutRequest';
-import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/utils/loadingButton';
 import type { GetLeagueMetadata } from '@/features/login/types';
 import type { LeagueData } from '@/features/login/types';
 import type {
@@ -76,19 +76,12 @@ function Home() {
       console.log('Onboarding execution id: ', onboardingExecutionId);
 
       // Poll for onboarding status
-      poll(() => getResource<GetLeagueOnboardingStatus>(`/onboard/${result.data.execution_id}`), {
+      await poll(() => getResource<GetLeagueOnboardingStatus>(`/onboard/${result.data.execution_id}`), {
         interval: 2000,
         timeout: 60000,
         validate: (status) => status.data.execution_status === 'SUCCEEDED',
-      })
-        .then((finalStatus) => {
-          console.log('Onboarding completed!', finalStatus);
-          setCurrentlyOnboarding(false);
-        })
-        .catch((err) => {
-          console.error('Polling failed or timed out', err);
-          setCurrentlyOnboarding(false);
-        });
+      });
+      console.log('Onboarding completed!');
 
       // Update metadata to set onboarded_status to true
       try {
@@ -110,6 +103,8 @@ function Home() {
     } catch (error) {
       console.error('Error onboarding league:', error);
       setCurrentlyOnboarding(false);
+    } finally {
+      setCurrentlyOnboarding(false);
     }
   };
 
@@ -120,30 +115,9 @@ function Home() {
       ) : (
         <div className="flex flex-col items-center gap-4 mt-8">
           <h1 className="text-center">Nothing to see here. Click the button below to onboard your league data.</h1>
-          <Button
-            onClick={() => {
-              void onboardLeagueData();
-            }}
-            className="cursor-pointer flex items-center gap-2"
-            disabled={currentlyOnboarding}
-          >
-            {currentlyOnboarding ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                <span>Onboarding...</span>
-              </>
-            ) : (
-              'Onboard'
-            )}
-          </Button>
+          <LoadingButton onClick={() => void onboardLeagueData()} loading={currentlyOnboarding}>
+            Onboard
+          </LoadingButton>
         </div>
       )}
     </div>

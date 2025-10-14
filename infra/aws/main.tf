@@ -144,15 +144,16 @@ resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
 }
 
 resource "aws_lambda_function" "api_lambda" {
-  function_name    = "fantasy-analytics-api-lambda"
-  description      = "Lambda function containing API for fantasy analytics app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "api.main.handler"
-  runtime          = "python3.13"
-  filename         = "../../api/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../api/deployment_package.zip")
-  timeout          = 10
-  memory_size      = 256
+  function_name                  = "fantasy-analytics-api-lambda"
+  description                    = "Lambda function containing API for fantasy analytics app"
+  role                           = aws_iam_role.lambda_role.arn
+  handler                        = "api.main.handler"
+  runtime                        = "python3.13"
+  filename                       = "../../api/deployment_package.zip"
+  source_code_hash               = filebase64sha256("../../api/deployment_package.zip")
+  timeout                        = 10
+  memory_size                    = 256
+  reserved_concurrent_executions = 100
   environment {
     variables = {
       API_KEY        = var.api_key
@@ -168,6 +169,9 @@ resource "aws_lambda_function" "api_lambda" {
 resource "aws_api_gateway_rest_api" "fastapi_api" {
   name        = "fantasy-analytics-app-api"
   description = "REST API for fantasy analytics app using FastAPI running on Lambda"
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"
@@ -225,13 +229,47 @@ resource "aws_api_gateway_method" "proxy_options" {
   api_key_required = false
 }
 
-resource "aws_api_gateway_integration" "proxy_options_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.fastapi_api.id
-  resource_id             = aws_api_gateway_resource.proxy.id
-  http_method             = aws_api_gateway_method.proxy_options.http_method
-  type                    = "AWS_PROXY"
-  integration_http_method = "POST"
-  uri                     = aws_lambda_function.api_lambda.invoke_arn
+resource "aws_api_gateway_integration" "proxy_options_mock" {
+  rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id = aws_api_gateway_resource.proxy.id
+  http_method = aws_api_gateway_method.proxy_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "proxy_options_response" {
+  rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id = aws_api_gateway_resource.proxy.id
+  http_method = aws_api_gateway_method.proxy_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "proxy_options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id = aws_api_gateway_resource.proxy.id
+  http_method = aws_api_gateway_method.proxy_options.http_method
+  status_code = aws_api_gateway_method_response.proxy_options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers"     = "'x-api-key,Content-Type'"
+    "method.response.header.Access-Control-Allow-Methods"     = "'OPTIONS,GET,POST,PUT,DELETE'"
+    "method.response.header.Access-Control-Allow-Origin"      = "'http://localhost:5173'"
+    "method.response.header.Access-Control-Allow-Credentials" = "'true'"
+  }
+
+  response_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
 }
 
 resource "aws_api_gateway_stage" "production" {
@@ -276,7 +314,7 @@ resource "aws_api_gateway_method_settings" "all_endpoint_method_settings" {
 }
 
 resource "aws_api_gateway_api_key" "api_key" {
-  name    = "streamlit-app-api-key"
+  name    = "react-app-api-key"
   enabled = true
   tags = {
     Project     = "fantasy-analytics-app"
@@ -317,10 +355,10 @@ resource "aws_api_gateway_usage_plan_key" "plan_key" {
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
 
-  # # Comment this part out if a redeploy is not needed
-  # lifecycle {
-  #   create_before_destroy = true
-  # }
+  # Comment this part out if a redeploy is not needed
+  lifecycle {
+    create_before_destroy = true
+  }
 
   depends_on = [
     aws_api_gateway_integration.lambda_integration

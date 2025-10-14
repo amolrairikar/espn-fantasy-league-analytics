@@ -8,12 +8,12 @@ import type { HeaderProps } from '@/features/header/types';
 const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const handleLogout = () => {
     onLogout();
-    queryClient.clear(); // <-- clears all cached queries
+    queryClient.clear(); // clears all cached queries
   };
 
   return (
     <header className="flex items-center justify-center relative px-4 py-2 w-full">
-      <h1 className="text-3xl font-bold mx-auto">Fantasy League History Visualizer</h1>
+      <h1 className="text-3xl font-bold mx-auto">Fantasy League Recap Dashboard</h1>
       <div className="absolute right-4 flex items-center gap-4">
         <Dialog>
           <DialogTrigger asChild>
@@ -23,9 +23,17 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Info -- change later</DialogTitle>
+              <DialogTitle>About</DialogTitle>
             </DialogHeader>
-            <p>Paragraph content -- change later</p>
+            <p>
+              Welcome to Fantasy Football Recap, an app designed to provide fun charts and information about your
+              fantasy league to easily answer questions like:
+            </p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Who has scored the most points ever in a week, and how many points did they score?</li>
+              <li>What is my record against this team all-time?</li>
+              <li>Who had the best draft this past season?</li>
+            </ul>
           </DialogContent>
         </Dialog>
         <Button asChild variant="ghost" size="icon" aria-label="GitHub" className="cursor-pointer">
@@ -38,13 +46,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
           </a>
         </Button>
         {leagueData && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Logout"
-            onClick={handleLogout} // <-- use wrapped handler
-            className="cursor-pointer"
-          >
+          <Button variant="ghost" size="icon" aria-label="Logout" onClick={handleLogout} className="cursor-pointer">
             <LogOut className="h-5 w-5" />
           </Button>
         )}

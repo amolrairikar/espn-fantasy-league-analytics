@@ -8,7 +8,7 @@ export async function request<T>(endpoint: string, options?: RequestInit): Promi
   const res = await fetch(full_api_url, {
     headers: {
       'Content-Type': 'application/json',
-      'x-api-Key': import.meta.env.VITE_API_KEY,
+      'x-api-key': import.meta.env.VITE_API_KEY,
       ...options?.headers,
     },
     ...options,
