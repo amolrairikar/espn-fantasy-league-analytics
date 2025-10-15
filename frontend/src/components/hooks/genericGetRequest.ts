@@ -4,7 +4,7 @@ import { request } from '@/components/utils/api_fetch';
 
 export async function getResource<T>(
   basePath: string,
-  queryParams: Record<string, string | number | undefined> = {},
+  queryParams: Record<string, string | number | boolean | undefined> = {},
 ): Promise<T> {
   const search = new URLSearchParams(
     Object.entries(queryParams)
@@ -18,7 +18,7 @@ export async function getResource<T>(
 
 export function useGetResource<T>(
   basePath: string,
-  queryParams: Record<string, string | number | undefined> = {},
+  queryParams: Record<string, string | number | boolean | undefined> = {},
   queryOptions?: Omit<UseQueryOptions<T>, 'queryKey' | 'queryFn'>,
 ) {
   const search = new URLSearchParams(

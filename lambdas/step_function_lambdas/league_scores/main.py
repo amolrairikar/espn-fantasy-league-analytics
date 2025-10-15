@@ -92,7 +92,7 @@ def create_team_id_member_id_mapping(
     result: dict[str, str] = {}
     for mapping in members_mapping:
         team_id = mapping["SK"].split("#")[-1]
-        member_id = list(mapping["memberId"])[0]
+        member_id = mapping["memberId"][0]
         result[team_id] = member_id
     return result
 
@@ -286,6 +286,7 @@ def batch_write_to_dynamodb(
                         "team_b": {"S": str(item["team_b"])},
                         "team_b_member_id": {"S": team_b_member_id},
                         "team_b_score": {"N": str(item["team_b_score"])},
+                        "season": {"S": str(season)},
                         "week": {"S": str(item["matchup_week"])},
                         "winner": {"S": winning_member_id},
                         "loser": {"S": losing_member_id},
