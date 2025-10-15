@@ -193,7 +193,9 @@ def batch_write_to_dynamodb(
                         "lastName": {"S": f"{item['lastName']}"},
                         "abbrev": {"S": f"{item['abbrev']}"},
                         "teamName": {"S": f"{item['teamName']}"},
-                        "memberId": {"SS": item["memberId"]},
+                        "memberId": {
+                            "L": [{"S": member_id} for member_id in item["memberId"]]
+                        },
                     }
                 }
             }

@@ -105,7 +105,7 @@ def get_league_members(
 def compile_standings_data(
     matchup_data: list[dict[str, Any]],
     members_data: list[dict[str, Any]],
-) -> tuple[list, list, list]:
+) -> tuple[list, list, list, list]:
     """
     Calculates all-time league standings based on fantasy matchup scores.
 
@@ -114,10 +114,12 @@ def compile_standings_data(
             matchup scores.
 
     Returns:
-        tuple: A tuple of list of dictionary mappings containing standings
-            for each season, all-time, and head to head all-time.
+        tuple: A tuple of list of dictionary mappings containing unique league members,
+            standings for each season, all-time, and head to head all-time.
     """
+    # Mainly used for debugging/printing
     pd.set_option("display.max_columns", None)
+    pd.set_option("display.max_rows", None)
 
     # Load matchups data into DataFrames and perform pre-processing
     df_matchups = pd.DataFrame(matchup_data)
@@ -130,7 +132,7 @@ def compile_standings_data(
         df_members["firstName"] + " " + df_members["lastName"]
     )
     df_members["memberId"] = df_members["memberId"].apply(
-        lambda x: next(iter(x)) if isinstance(x, set) and len(x) > 0 else x
+        lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
     )
     df_members["memberId"] = df_members["memberId"].astype(str)
     df_members = df_members[["season", "team_id", "memberId", "owner_full_name"]]
@@ -301,10 +303,12 @@ def compile_standings_data(
         else 0.0,
         axis=1,
     ).round(3)
+    alltime_group["games_played"] = alltime_group["wins"] + alltime_group["losses"]
     alltime_standings = alltime_group[
         [
             "owner_full_name",
             "team_member_id",
+            "games_played",
             "wins",
             "losses",
             "win_pct",
@@ -372,6 +376,7 @@ def compile_standings_data(
         else 0.0,
         axis=1,
     ).round(3)
+    h2h_group["games_played"] = h2h_group["wins"] + h2h_group["losses"]
     h2h_group = h2h_group.drop(columns=["memberId", "memberId_opponent"])
     h2h_standings = h2h_group.rename(
         columns={
@@ -383,6 +388,7 @@ def compile_standings_data(
             "team_member_id",
             "opponent_full_name",
             "opponent_member_id",
+            "games_played",
             "wins",
             "losses",
             "win_pct",
@@ -392,22 +398,17 @@ def compile_standings_data(
     ]
 
     # Convert dataframes to list of dict
+    dict_unique_members = df_unique_members.to_dict(orient="records")
     dict_season_standings = season_standings.to_dict(orient="records")
     dict_alltime_standings = alltime_standings.to_dict(orient="records")
     dict_h2h_standings = h2h_standings.to_dict(orient="records")
 
-    return dict_season_standings, dict_alltime_standings, dict_h2h_standings
-
-
-def get_key(item):
-    """Extract (PK, SK) tuple from PutRequest or DeleteRequest."""
-    req = item.get("PutRequest") or item.get("DeleteRequest")
-    if not req:
-        return None
-    data = req.get("Item") or req.get("Key") or {}
-    pk = data.get("PK", {}).get("S")
-    sk = data.get("SK", {}).get("S")
-    return (pk, sk)
+    return (
+        dict_unique_members,
+        dict_season_standings,
+        dict_alltime_standings,
+        dict_h2h_standings,
+    )
 
 
 def batch_write_to_dynamodb(
@@ -429,7 +430,20 @@ def batch_write_to_dynamodb(
     """
     batched_objects = []
     for item in data_to_write:
-        if standings_data_type == "season":
+        if standings_data_type == "members":
+            batched_objects.append(
+                {
+                    "PutRequest": {
+                        "Item": {
+                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+                            "SK": {"S": f"MEMBERS#{item['memberId']}"},
+                            "name": {"S": item["owner_full_name"]},
+                            "member_id": {"S": item["memberId"]},
+                        }
+                    }
+                }
+            )
+        elif standings_data_type == "season":
             batched_objects.append(
                 {
                     "PutRequest": {
@@ -461,6 +475,7 @@ def batch_write_to_dynamodb(
                             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
                             "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_member_id']}"},
                             "owner_full_name": {"S": item["owner_full_name"]},
+                            "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
                             "win_pct": {"N": str(item["win_pct"])},
@@ -485,6 +500,7 @@ def batch_write_to_dynamodb(
                             },
                             "owner_full_name": {"S": item["owner_full_name"]},
                             "opponent_full_name": {"S": item["opponent_full_name"]},
+                            "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
                             "win_pct": {"N": str(item["win_pct"])},
@@ -566,10 +582,11 @@ def lambda_handler(event, context):
         all_members.extend(members)
     if not all_matchups or not all_members:
         raise ValueError("'all_matchups' and/or 'all_members' lists must not be empty.")
-    season_standings, alltime_standings, h2h_standings = compile_standings_data(
-        matchup_data=all_matchups, members_data=all_members
+    unique_members, season_standings, alltime_standings, h2h_standings = (
+        compile_standings_data(matchup_data=all_matchups, members_data=all_members)
     )
     standings_mapping = {
+        "members": unique_members,
         "season": season_standings,
         "all-time": alltime_standings,
         "h2h": h2h_standings,
