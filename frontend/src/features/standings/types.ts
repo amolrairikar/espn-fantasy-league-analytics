@@ -1,3 +1,6 @@
+import type React from 'react';
+import type { GridApi } from 'ag-grid-community';
+
 type GetAllTimeStandings = {
   status: string;
   detail: string;
@@ -84,8 +87,7 @@ type Team = {
   owner_full_name: string;
   opponent_full_name?: string;
   games_played?: number;
-  wins: number;
-  losses: number;
+  record: string;
   win_pct: number;
   points_for_per_game: number;
   points_against_per_game: number;
@@ -105,6 +107,10 @@ type Member = {
   member_id: string;
 };
 
+interface StandingsProps {
+  gridApiRef: React.RefObject<GridApi | null>;
+}
+
 export type {
   GetAllTimeStandings,
   GetH2HStandings,
@@ -113,5 +119,6 @@ export type {
   GetSeasonStandings,
   Matchup,
   Member,
+  StandingsProps,
   Team,
 };
