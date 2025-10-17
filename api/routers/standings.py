@@ -12,7 +12,7 @@ from api.dependencies import (
     table_name,
     logger,
 )
-from api.models import APIError, APIResponse
+from api.models import APIResponse
 
 router = APIRouter(
     prefix="/standings",
@@ -60,7 +60,6 @@ def get_matchups(
                 for item in response.get("Items", [])
             ]
             return APIResponse(
-                status="success",
                 detail=f"Found season standings for {season} season",
                 data=items,
             )
@@ -80,7 +79,6 @@ def get_matchups(
                 for item in response.get("Items", [])
             ]
             return APIResponse(
-                status="success",
                 detail="Found H2H standings",
                 data=items,
             )
@@ -99,7 +97,6 @@ def get_matchups(
             for item in response.get("Items", [])
         ]
         return APIResponse(
-            status="success",
             detail=f"Found all-time standings for {len(items)} teams",
             data=items,
         )
@@ -107,9 +104,5 @@ def get_matchups(
         logger.exception("Unexpected error while getting standings")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )

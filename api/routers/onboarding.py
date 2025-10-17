@@ -11,7 +11,7 @@ from api.dependencies import (
     get_api_key,
     logger,
 )
-from api.models import APIError, APIResponse, LeagueMetadata
+from api.models import APIResponse, LeagueMetadata
 
 router = APIRouter(
     prefix="/onboard",
@@ -19,7 +19,7 @@ router = APIRouter(
 )
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def onboard_league(
     data: LeagueMetadata = Body(
         description="The league information (ID, cookies, platform) required for onboarding."
@@ -58,7 +58,6 @@ def onboard_league(
         )
         logger.info("Step Function response: %s", response)
         return APIResponse(
-            status="success",
             detail="Successfully triggered onboarding",
             data={"execution_id": response["executionArn"].rsplit(":", 1)[-1]},
         )
@@ -66,11 +65,7 @@ def onboard_league(
         logger.exception("Unexpected error while triggering Step Function")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )
 
 
@@ -107,7 +102,6 @@ def check_onboarding_status(
         logger.info("Execution status: %s", response)
         api_response = {"execution_status": response["status"]}
         return APIResponse(
-            status="success",
             detail="Successfully retrieved onboarding status",
             data=api_response,
         )
@@ -115,9 +109,5 @@ def check_onboarding_status(
         logger.exception("Unexpected error while retrieving onboarding status")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )

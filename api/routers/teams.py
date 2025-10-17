@@ -12,7 +12,7 @@ from api.dependencies import (
     table_name,
     logger,
 )
-from api.models import APIError, APIResponse
+from api.models import APIResponse
 
 router = APIRouter(
     prefix="/teams",
@@ -20,7 +20,7 @@ router = APIRouter(
 )
 
 
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get("", status_code=status.HTTP_200_OK)
 def get_teams(
     league_id: str = Query(description="The ID of the league the team is in."),
     platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
@@ -54,7 +54,6 @@ def get_teams(
                     k: deserializer.deserialize(v) for k, v in response["Item"].items()
                 }
                 return APIResponse(
-                    status="success",
                     detail=f"Team with ID {team_id} found in league {league_id} for {season} season",
                     data=item,
                 )
@@ -63,11 +62,7 @@ def get_teams(
                 logger.warning(log_message)
                 raise HTTPException(
                     status_code=404,
-                    detail=APIError(
-                        status="error",
-                        detail="Team ID not found",
-                        developer_detail=log_message,
-                    ).model_dump(),
+                    detail=log_message,
                 )
         else:
             response = dynamodb_client.query(
@@ -91,14 +86,9 @@ def get_teams(
                 logger.warning(log_message)
                 raise HTTPException(
                     status_code=404,
-                    detail=APIError(
-                        status="error",
-                        detail="Teams not found",
-                        developer_detail=log_message,
-                    ).model_dump(),
+                    detail=log_message,
                 )
             return APIResponse(
-                status="success",
                 detail=f"Found teams for league {league_id} for {season} season",
                 data=items,
             )
@@ -106,9 +96,5 @@ def get_teams(
         logger.exception("Unexpected error fetching team(s)")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )

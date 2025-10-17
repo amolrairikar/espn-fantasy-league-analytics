@@ -5,14 +5,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel
 
 
-class APIError(BaseModel):
-    status: str
-    detail: str
-    developer_detail: str
-
-
 class APIResponse(BaseModel):
-    status: str
     detail: str
     data: Optional[Any] = None
 

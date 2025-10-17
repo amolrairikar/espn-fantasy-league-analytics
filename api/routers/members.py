@@ -10,7 +10,7 @@ from api.dependencies import (
     table_name,
     logger,
 )
-from api.models import APIError, APIResponse
+from api.models import APIResponse
 
 router = APIRouter(
     prefix="/members",
@@ -46,7 +46,6 @@ def get_members(
             for item in response.get("Items", [])
         ]
         return APIResponse(
-            status="success",
             detail=f"Found {len(items)} total unique members for league",
             data=items,
         )
@@ -54,9 +53,5 @@ def get_members(
         logger.exception("Unexpected error fetching unique members")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )

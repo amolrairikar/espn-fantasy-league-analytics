@@ -14,7 +14,7 @@ from api.dependencies import (
     table_name,
     logger,
 )
-from api.models import APIError, APIResponse, LeagueMetadata
+from api.models import APIResponse, LeagueMetadata
 
 router = APIRouter(
     prefix="/leagues",
@@ -68,10 +68,7 @@ def validate_league_info(
             response.raise_for_status()
             log_message = "League information validated successfully."
             logger.info(log_message)
-            return APIResponse(
-                status="success",
-                detail=log_message,
-            )
+            return APIResponse(detail=log_message)
         except requests.RequestException as e:
             status_code = getattr(e.response, "status_code", None)
             errors = {
@@ -81,14 +78,10 @@ def validate_league_info(
             }
             if status_code in errors:
                 error_message = errors[status_code]
-                logger.error(error_message)
+                logger.exception(error_message)
                 raise HTTPException(
                     status_code=status_code,
-                    detail=APIError(
-                        status="error",
-                        detail=error_message,
-                        developer_detail=str(e),
-                    ).model_dump(),
+                    detail=str(e),
                 )
             else:
                 logger.exception(
@@ -96,22 +89,14 @@ def validate_league_info(
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=APIError(
-                        status="error",
-                        detail="Internal server error",
-                        developer_detail=str(e),
-                    ).model_dump(),
+                    detail=f"Internal server error: {str(e)}",
                 )
     else:
         log_message = "Platforms besides ESPN not currently supported."
         logger.warning(log_message)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=APIError(
-                status="error",
-                detail="Platform not supported",
-                developer_detail=log_message,
-            ).model_dump(),
+            detail=log_message,
         )
 
 
@@ -150,29 +135,21 @@ def get_league_metadata(
             # Sort the seasons for organizational purposes
             item["seasons"] = sorted(item["seasons"])
             logger.info("Retrieved item: %s", item)
-            return APIResponse(status="success", detail=log_message, data=item)
+            return APIResponse(detail=log_message, data=item)
         log_message = f"League with ID {league_id} not found in database."
         logger.warning(log_message)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=APIError(
-                status="error",
-                detail="League not found",
-                developer_detail=log_message,
-            ).model_dump(),
+            detail=log_message,
         )
     except botocore.exceptions.ClientError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def post_league_metadata(data: LeagueMetadata) -> APIResponse:
     """
     Endpoint to create metadata for a league.
@@ -200,31 +177,25 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
         )
         log_message = f"League with ID {data.league_id} added to database."
         logger.info(log_message)
-        return APIResponse(
-            status="success",
-            detail=log_message,
-            data={
-                "league_id": data.league_id,
-            },
-        )
+        return APIResponse(detail=log_message)
     except botocore.exceptions.ClientError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )
 
 
-@router.put("/", status_code=status.HTTP_201_CREATED)
-def update_league_metadata(data: LeagueMetadata) -> APIResponse:
+@router.put("/{league_id}", status_code=status.HTTP_201_CREATED)
+def update_league_metadata(
+    data: LeagueMetadata,
+    league_id: str = Path(description="The ID of the league to retrieve metadata for."),
+) -> APIResponse:
     """
     Endpoint to update metadata for a league.
 
     Args:
         data (LeagueMetadata): The JSON object containing updated league metadata.
+        league_id (str): The ID of the league to update metadata for.
 
     Returns:
         APIResponse: A JSON response with a message field indicating success/failure
@@ -234,9 +205,9 @@ def update_league_metadata(data: LeagueMetadata) -> APIResponse:
         dynamodb_client.put_item(
             TableName=table_name,
             Item={
-                "PK": {"S": f"LEAGUE#{data.league_id}#PLATFORM#{data.platform}"},
+                "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{data.platform}"},
                 "SK": {"S": "METADATA"},
-                "league_id": {"S": data.league_id},
+                "league_id": {"S": league_id},
                 "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},
                 "espn_s2_cookie": {"S": data.espn_s2},
@@ -248,19 +219,9 @@ def update_league_metadata(data: LeagueMetadata) -> APIResponse:
         )
         log_message = f"League with ID {data.league_id} updated in database."
         logger.info(log_message)
-        return APIResponse(
-            status="success",
-            detail=log_message,
-            data={
-                "league_id": data.league_id,
-            },
-        )
+        return APIResponse(detail=log_message)
     except botocore.exceptions.ClientError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )
