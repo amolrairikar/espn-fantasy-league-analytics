@@ -11,8 +11,6 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
 
-from api.models import APIError
-
 # Set up standardized logger for entire API
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -67,11 +65,7 @@ def build_api_request_headers(
         if not (cookies["espn_s2"] and cookies["swid"]):
             raise HTTPException(
                 status_code=400,
-                detail=APIError(
-                    status="error",
-                    detail="Private ESPN league requires espn_s2 and swid cookies.",
-                    developer_detail="Private ESPN league requires espn_s2 and swid cookies.",
-                ).model_dump(),
+                detail="Missing required espn_s2 and swid cookies.",
             )
         return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
     return {}

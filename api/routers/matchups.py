@@ -12,7 +12,7 @@ from api.dependencies import (
     table_name,
     logger,
 )
-from api.models import APIError, APIResponse
+from api.models import APIResponse
 
 router = APIRouter(
     prefix="/matchups",
@@ -83,15 +83,10 @@ def get_matchups(
                 logger.warning(error_message)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=APIError(
-                        status="error",
-                        detail="Matchups not found",
-                        developer_detail=error_message,
-                    ).model_dump(),
+                    detail=error_message,
                 )
             return APIResponse(
-                status="success",
-                detail="Found matchup",
+                detail=f"Found matchup between team {team1_id} and team {team2_id} for {season} season week {week_number}",
                 data=items,
             )
         # Get all matchups in a season
@@ -126,15 +121,10 @@ def get_matchups(
                 logger.warning(log_message)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=APIError(
-                        status="error",
-                        detail="Matchups not found",
-                        developer_detail=log_message,
-                    ).model_dump(),
+                    detail=log_message,
                 )
             return APIResponse(
-                status="success",
-                detail=f"Found {len(items)} matchups",
+                detail=f"Found {len(items)} matchups between team {team1_id} and team {team2_id} for {season} season",
                 data=items,
             )
         # Get all matchups across all seasons
@@ -181,24 +171,15 @@ def get_matchups(
             logger.warning(log_message)
             raise HTTPException(
                 status_code=404,
-                detail=APIError(
-                    status="error",
-                    detail="Matchups not found",
-                    developer_detail=log_message,
-                ).model_dump(),
+                detail=log_message,
             )
         return APIResponse(
-            status="success",
-            detail=f"Found {len(items)} matchups",
+            detail=f"Found {len(items)} matchups between team {team1_id} and team {team2_id}",
             data=items,
         )
     except botocore.exceptions.ClientError as e:
         logger.exception("Unexpected error while getting matchups")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=APIError(
-                status="error",
-                detail="Internal server error",
-                developer_detail=str(e),
-            ).model_dump(),
+            detail=f"Internal server error: {str(e)}",
         )

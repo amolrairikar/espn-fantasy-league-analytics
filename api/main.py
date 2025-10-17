@@ -12,6 +12,7 @@ from api.routers import (
     onboarding,
     standings,
     teams,
+    utils,
 )
 
 import os
@@ -35,6 +36,5 @@ app.include_router(members.router)
 app.include_router(onboarding.router)
 app.include_router(standings.router)
 app.include_router(teams.router)
-# This router should only be used in DEV
-# app.include_router(utils.router)
+app.include_router(utils.router)
 handler = Mangum(app)
