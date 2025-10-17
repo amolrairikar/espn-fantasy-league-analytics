@@ -44,18 +44,18 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
   const [standingsData, setStandingsData] = useState<Team[]>([]);
   const [scoresData, setScoresData] = useState<Matchup[]>([]);
 
-  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers>(`/members`, {
+  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
 
-  const { refetch: refetchH2HStandings } = useGetResource<GetH2HStandings>(`/standings`, {
+  const { refetch: refetchH2HStandings } = useGetResource<GetH2HStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
     h2h_standings: 'true',
   });
 
-  const { refetch: refetchH2HMatchups } = useGetResource<GetMatchups>(`/matchups`, {
+  const { refetch: refetchH2HMatchups } = useGetResource<GetMatchups['data']>(`/matchups`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
     team1_id: selectedOwnerId,

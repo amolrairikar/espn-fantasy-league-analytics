@@ -1,116 +1,97 @@
-// import { toast } from 'sonner';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import { getResource } from '@/components/hooks/genericGetRequest';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
+import { getResource, useGetResource } from '@/components/hooks/genericGetRequest';
 import { usePostResource } from '@/components/hooks/genericPostRequest';
 import { putResource } from '@/components/hooks/genericPutRequest';
 import { LoadingButton } from '@/components/utils/loadingButton';
-import type { GetLeagueMetadata } from '@/features/login/types';
 import type { LeagueData } from '@/features/login/types';
+import type { GetLeagueMetadata } from '@/features/login/types';
 import type {
-  GetLeagueOnboardingStatus,
+  OnboardResponse,
+  OnboardStatusResponse,
   PostLeagueOnboardingPayload,
-  PostLeagueOnboardingResponse,
+  PutLeagueMetadataPayload,
 } from '@/features/home/types';
 import { poll } from '@/features/home/utils/poll';
 
 function Home() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  const [onboardedStatus, setOnboardedStatus] = useState<boolean | null>(null); // null = loading
   const [currentlyOnboarding, setCurrentlyOnboarding] = useState<boolean>(false);
-  const [onboardingExecutionId, setOnboardingExecutionId] = useState<string | null>(null);
 
-  if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
-    throw new Error('Invalid league metadata: missing leagueId and/or platform.');
+  const {
+    data,
+    refetch: refetchLeagueMetadata,
+    isLoading,
+    isError,
+  } = useGetResource<GetLeagueMetadata['data']>(
+    leagueData ? `/leagues/${leagueData.leagueId}` : '',
+    { platform: leagueData?.platform },
+    { enabled: !!leagueData?.leagueId && !!leagueData?.platform },
+  );
+
+  const { mutateAsync: PostOnboarding } = usePostResource<PostLeagueOnboardingPayload, OnboardResponse>('/onboard');
+
+  if (isLoading) {
+    return <p>Loading...</p>;
   }
 
-  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata>(`/leagues/${leagueData.leagueId}`, {
-    platform: leagueData.platform,
-  });
+  if (isError || !data?.data) {
+    return (
+      <p>
+        Unable to retrieve your fantasy football league information. Please try refreshing and if the issue persists,
+        raise a GitHub issue.
+      </p>
+    );
+  }
 
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await refetchLeagueMetadata();
-        setOnboardedStatus(!!response.data?.data.onboarded_status);
-      } catch (err) {
-        console.error(err);
-        setOnboardedStatus(false);
-      }
-    };
+  const { league_id, platform, privacy, espn_s2_cookie, swid_cookie, seasons, onboarded_date, onboarded_status } =
+    data.data;
 
-    void fetchStatus();
-  }, [refetchLeagueMetadata]);
-
-  const checkLeagueOnboarded = useCallback(async () => {
-    try {
-      const response = await refetchLeagueMetadata();
-      console.log('League Metadata:', response.data);
-      if (!response.data?.data.onboarded_status) {
-        console.log('League not onboarded yet');
-      } else {
-        setOnboardedStatus(true);
-        console.log('League is already onboarded');
-      }
-    } catch (error) {
-      console.error('Error fetching league metadata:', error);
-    }
-  }, [refetchLeagueMetadata]);
-
-  // Run checkLeagueOnboarded when the page loads or is refreshed
-  useEffect(() => {
-    void checkLeagueOnboarded();
-  }, [checkLeagueOnboarded]);
-
-  const { mutateAsync: PostOnboarding } = usePostResource<PostLeagueOnboardingPayload, PostLeagueOnboardingResponse>(
-    '/onboard/',
-  );
+  const onboarded = Boolean(onboarded_status && onboarded_date);
 
   const onboardLeagueData = async () => {
     setCurrentlyOnboarding(true);
     try {
-      const leagueMetadata = await refetchLeagueMetadata();
-      if (!leagueMetadata.data) {
-        const errorMessage =
-          'Unable to fetch league metadata to trigger onboarding. Please raise a GitHub issue if this persists.';
-        console.error(errorMessage);
-        throw new Error(errorMessage);
-      }
       const payload = {
-        league_id: leagueMetadata.data?.data.league_id,
-        platform: leagueMetadata.data?.data.platform,
-        privacy: leagueMetadata.data?.data.privacy,
-        espn_s2: leagueMetadata.data?.data.espn_s2_cookie,
-        swid: leagueMetadata.data?.data.swid_cookie,
-        seasons: leagueMetadata.data?.data.seasons,
+        league_id,
+        platform,
+        privacy,
+        espn_s2: espn_s2_cookie,
+        swid: swid_cookie,
+        seasons,
       };
       const result = await PostOnboarding(payload);
-      setOnboardingExecutionId(result.data.execution_id);
-      console.log('Onboarding execution id: ', onboardingExecutionId);
+      if (!result.data?.execution_id) {
+        const errorMessage = 'Onboarding response missing execution_id';
+        console.error(errorMessage);
+        toast.error(errorMessage);
+        return;
+      }
+      const execution_id = result.data.execution_id;
+      console.log('Onboarding execution id: ', execution_id);
 
-      // Poll for onboarding status
-      await poll(() => getResource<GetLeagueOnboardingStatus>(`/onboard/${result.data.execution_id}`), {
+      await poll(() => getResource<OnboardStatusResponse>(`/onboard/${execution_id}`), {
         interval: 2000,
         timeout: 60000,
-        validate: (status) => status.data.execution_status === 'SUCCEEDED',
+        validate: (status) => status.data?.execution_status === 'SUCCEEDED',
       });
       console.log('Onboarding completed!');
 
       // Update metadata to set onboarded_status to true
       try {
-        await putResource<PostLeagueOnboardingPayload, PostLeagueOnboardingResponse>(`/leagues/`, {
-          league_id: leagueMetadata.data?.data.league_id,
-          platform: leagueMetadata.data?.data.platform,
-          privacy: leagueMetadata.data?.data.privacy,
-          espn_s2: leagueMetadata.data?.data.espn_s2_cookie,
-          swid: leagueMetadata.data?.data.swid_cookie,
-          seasons: leagueMetadata.data?.data.seasons,
+        await putResource<PutLeagueMetadataPayload, OnboardResponse>(`/leagues/${league_id}`, {
+          league_id,
+          platform,
+          privacy,
+          espn_s2: espn_s2_cookie,
+          swid: swid_cookie,
+          seasons,
           onboarded_date: new Date().toISOString(),
           onboarded_status: true,
         });
         console.log('Updated league metadata to set onboarded_status to true');
-        setOnboardedStatus(true);
+        await refetchLeagueMetadata();
       } catch (error) {
         console.error('Error updating league metadata:', error);
       }
@@ -122,19 +103,26 @@ function Home() {
     }
   };
 
+  if (isError || !league_id || !platform || !privacy || !espn_s2_cookie || !swid_cookie || !seasons) {
+    return (
+      <p>
+        Unable to retrieve your fantasy football league information. Please try refreshing and if the issue persists,
+        raise a GitHub issue.
+      </p>
+    );
+  }
+
   return (
-    <div>
-      {onboardedStatus === null ? (
-        <p>Loading...</p>
-      ) : onboardedStatus ? (
+    <div className="flex flex-col items-center gap-4">
+      {onboarded ? (
         <h1>Welcome to the home page!</h1>
       ) : (
-        <div className="flex flex-col items-center gap-4">
+        <>
           <h1 className="text-center">Nothing to see here. Click the button below to onboard your league data.</h1>
           <LoadingButton onClick={() => void onboardLeagueData()} loading={currentlyOnboarding}>
             Onboard
           </LoadingButton>
-        </div>
+        </>
       )}
     </div>
   );

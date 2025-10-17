@@ -29,7 +29,7 @@ function AllTimeStandings({ gridApiRef }: StandingsProps) {
   // const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
   const [standingsData, setStandingsData] = useState<Team[]>([]);
 
-  const { refetch: refetchAllTimeStandings } = useGetResource<GetAllTimeStandings>(`/standings`, {
+  const { refetch: refetchAllTimeStandings } = useGetResource<GetAllTimeStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });

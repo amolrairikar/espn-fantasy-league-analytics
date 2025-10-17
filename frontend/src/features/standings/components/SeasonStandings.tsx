@@ -32,11 +32,14 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
   const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
   const [standingsData, setStandingsData] = useState<Team[]>([]);
 
-  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata>(`/leagues/${leagueData.leagueId}`, {
-    platform: leagueData.platform,
-  });
+  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata['data']>(
+    `/leagues/${leagueData.leagueId}`,
+    {
+      platform: leagueData.platform,
+    },
+  );
 
-  const { refetch: refetchSeasonStandings } = useGetResource<GetSeasonStandings>(`/standings`, {
+  const { refetch: refetchSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
     season: selectedSeason,
@@ -46,7 +49,7 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
     const fetchStatus = async () => {
       try {
         const response = await refetchLeagueMetadata();
-        const fetchedSeasons = response.data?.data.seasons ?? [];
+        const fetchedSeasons = response.data?.data?.seasons ?? [];
         if (fetchedSeasons.length > 0) {
           setSeasons(fetchedSeasons);
           const latestSeason = fetchedSeasons.sort((a, b) => Number(b) - Number(a))[0];

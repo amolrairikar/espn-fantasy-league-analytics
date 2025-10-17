@@ -1,12 +1,13 @@
 import { useMutation } from '@tanstack/react-query';
 import type { UseMutationOptions } from '@tanstack/react-query';
 import { request } from '@/components/utils/api_fetch';
+import type { APIResponse } from '@/components/types/api_response_types';
 
 export async function putResource<Payload, ResponseData>(
   path: string,
   payload: Payload,
   queryParams: Record<string, string | number | undefined> = {},
-): Promise<ResponseData> {
+): Promise<APIResponse<ResponseData>> {
   const search = new URLSearchParams(
     Object.entries(queryParams)
       .filter(([, v]) => v !== undefined)
@@ -14,23 +15,25 @@ export async function putResource<Payload, ResponseData>(
   );
 
   const apiPath = `${path}${search.size ? `?${search}` : ''}`;
-
-  return request<ResponseData>(apiPath, {
+  const res = await request<ResponseData>(apiPath, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+  return res;
 }
 
 export function usePutResource<Payload, ResponseData>(
   path: string,
-  mutationOptions?: Omit<UseMutationOptions<ResponseData, Error, Payload>, 'mutationFn'>,
+  mutationOptions?: Omit<UseMutationOptions<APIResponse<ResponseData>, Error, Payload>, 'mutationFn'>,
 ) {
-  return useMutation<ResponseData, Error, Payload>({
-    mutationFn: (payload: Payload) =>
-      request<ResponseData>(path, {
+  return useMutation<APIResponse<ResponseData>, Error, Payload>({
+    mutationFn: async (payload: Payload) => {
+      const res = await request<ResponseData>(path, {
         method: 'PUT',
         body: JSON.stringify(payload),
-      }),
+      });
+      return res;
+    },
     ...mutationOptions,
   });
 }
