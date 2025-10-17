@@ -1,3 +1,7 @@
+type OnboardResponse = { execution_id: string };
+
+type OnboardStatusResponse = { execution_status: string };
+
 type PostLeagueOnboardingPayload = {
   league_id: string;
   platform: string;
@@ -5,24 +9,17 @@ type PostLeagueOnboardingPayload = {
   espn_s2: string;
   swid: string;
   seasons: string[];
-  onboarded_status?: boolean;
-  onboarded_date?: string;
 };
 
-type PostLeagueOnboardingResponse = {
-  status: string;
-  detail: string;
-  data: {
-    execution_id: string;
-  };
-};
-
-type GetLeagueOnboardingStatus = {
-  status: string;
-  detail: string;
-  data: {
-    execution_status: string;
-  };
+type PutLeagueMetadataPayload = {
+  league_id: string;
+  platform: string;
+  privacy: string;
+  espn_s2: string;
+  swid: string;
+  seasons: string[];
+  onboarded_status: boolean;
+  onboarded_date: string;
 };
 
 type PollOptions<T> = {
@@ -31,4 +28,10 @@ type PollOptions<T> = {
   validate: (result: T) => boolean; // function to check if polling should stop
 };
 
-export type { PostLeagueOnboardingPayload, PostLeagueOnboardingResponse, GetLeagueOnboardingStatus, PollOptions };
+export type {
+  OnboardResponse,
+  OnboardStatusResponse,
+  PutLeagueMetadataPayload,
+  PostLeagueOnboardingPayload,
+  PollOptions,
+};

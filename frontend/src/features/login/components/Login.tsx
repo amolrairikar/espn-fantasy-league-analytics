@@ -9,14 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { usePostResource } from '@/components/hooks/genericPostRequest';
 import { LoadingButton } from '@/components/utils/loadingButton';
-import type { GetLeagueMetadata } from '@/features/login/types';
-import type { ValidateLeagueReponse } from '@/features/login/types';
-import type { PostLeagueMetadataPayload, PostLeagueMetadataResponse } from '@/features/login/types';
-import type { LeagueData } from '@/features/login/types';
-
-type LoginProps = {
-  onLoginSuccess: (data: LeagueData) => void;
-};
+import type {
+  GetLeagueMetadata,
+  LoginProps,
+  PostLeagueMetadataPayload,
+  PostLeagueMetadataResponse,
+  ValidateLeagueReponse,
+} from '@/features/login/types';
 
 function Login({ onLoginSuccess }: LoginProps) {
   const [formData, setFormData] = useState({
@@ -64,7 +63,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     swid_cookie: formData.swidCookie,
     espn_s2_cookie: formData.espnS2Cookie,
   });
-  const { mutateAsync } = usePostResource<PostLeagueMetadataPayload, PostLeagueMetadataResponse>('/leagues/');
+  const { mutateAsync } = usePostResource<PostLeagueMetadataPayload, PostLeagueMetadataResponse>('/leagues');
 
   const checkLeagueExists = async () => {
     setLoading(true);
@@ -132,13 +131,11 @@ function Login({ onLoginSuccess }: LoginProps) {
             seasons: seasons,
           };
           try {
-            const result = await mutateAsync(payload);
-            if (result.status === 'success') {
-              toast.success('League successfully reigstered!');
-              setShowOnboardDialog(false);
-              onLoginSuccess({ leagueId: formData.leagueId, platform: formData.platform });
-              void navigate('/home');
-            }
+            await mutateAsync(payload);
+            toast.success('League successfully reigstered!');
+            setShowOnboardDialog(false);
+            onLoginSuccess({ leagueId: formData.leagueId, platform: formData.platform });
+            void navigate('/home');
           } catch (error) {
             console.error('Error registering league:', error);
             toast.error('An error occurred while registering the league. Please try again.');

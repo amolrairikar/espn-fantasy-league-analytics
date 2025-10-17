@@ -1,5 +1,4 @@
 type ValidateLeagueReponse = {
-  status: string;
   detail: string;
 };
 
@@ -9,7 +8,6 @@ type LeagueData = {
 };
 
 type GetLeagueMetadata = {
-  status: string;
   detail: string;
   data: {
     league_id: string;
@@ -19,7 +17,7 @@ type GetLeagueMetadata = {
     espn_s2_cookie: string;
     seasons: string[];
     onboarded_date?: string;
-    onboarded_status?: string;
+    onboarded_status?: boolean;
     PK: string;
     SK: string;
   };
@@ -42,10 +40,15 @@ type PostLeagueMetadataResponse = {
   };
 };
 
+type LoginProps = {
+  onLoginSuccess: (data: LeagueData) => void;
+};
+
 export type {
   GetLeagueMetadata,
-  ValidateLeagueReponse,
+  LeagueData,
+  LoginProps,
   PostLeagueMetadataPayload,
   PostLeagueMetadataResponse,
-  LeagueData,
+  ValidateLeagueReponse,
 };

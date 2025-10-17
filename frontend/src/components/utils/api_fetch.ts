@@ -1,8 +1,8 @@
 import { BASE_URL } from '@/components/utils/constants';
-import type { ErrorResponse, ErrorResponseDetail } from '@/components/utils/types';
+import type { APIResponse, ErrorResponse } from '@/components/types/api_response_types';
 
 // Generic fetch wrapper
-export async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+export async function request<T>(endpoint: string, options?: RequestInit): Promise<APIResponse<T>> {
   const full_api_url: string = `${BASE_URL}${endpoint}`;
   console.log('Making request to URL: ', full_api_url);
   const res = await fetch(full_api_url, {
@@ -16,33 +16,20 @@ export async function request<T>(endpoint: string, options?: RequestInit): Promi
 
   // Handle HTTP errors
   if (!res.ok) {
-    let message: string = String(res.status);
-    console.log(`Error code: ${message}`);
-
+    let message = `HTTP ${res.status}`;
     try {
-      const data: unknown = await res.json();
-      if (data && typeof data === 'object' && data != null && 'detail' in data) {
-        const detailObj = (data as ErrorResponse).detail;
-        const keys: (keyof ErrorResponseDetail)[] = ['status', 'detail', 'developer_detail'];
-        if (keys.every((key) => key in detailObj && typeof detailObj[key] === 'string')) {
-          message = detailObj.detail;
-          console.log('Error detail:', message);
-        }
-      }
-    } catch (err) {
-      // JSON parse failed, keep default message
-      console.error('Failed to parse error response JSON:', err);
-      const text = await res.text();
-      console.error('Error response text:', text);
+      const err = (await res.json()) as unknown as ErrorResponse;
+      if (typeof err.detail === 'string') message = err.detail;
+    } catch {
+      console.error('Failed to parse error JSON');
     }
 
-    // Throw an error with the status code attached
-    const errorWithStatus = new Error(message) as Error & { status?: number };
-    errorWithStatus.status = res.status;
-    throw errorWithStatus;
+    const error = new Error(message) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
 
   // Parse JSON for successful response
-  const data: unknown = await res.json();
-  return data as T;
+  const data = (await res.json()) as unknown as APIResponse<T>;
+  return data;
 }
