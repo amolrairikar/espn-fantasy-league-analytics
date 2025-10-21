@@ -452,6 +452,12 @@ def batch_write_to_dynamodb(
                                 "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}"
                             },
                             "SK": {"S": f"STANDINGS#SEASON#{item['team_member_id']}"},
+                            "GSI2PK": {
+                                "S": f"STANDINGS#SEASON#TEAM#{item['team_member_id']}"
+                            },
+                            "GSI2SK": {
+                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}"
+                            },
                             "season": {"S": item["season"]},
                             "owner_full_name": {"S": item["owner_full_name"]},
                             "wins": {"N": str(item["wins"])},

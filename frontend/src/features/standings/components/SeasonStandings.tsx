@@ -1,36 +1,78 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { GetSeasonStandings, StandingsProps, Team } from '@/features/standings/types';
+import { useEffect, useState } from 'react';
+import { type ColumnDef } from '@tanstack/react-table';
+import type { GetSeasonStandings, StandingsSeason } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
 import type { GetLeagueMetadata } from '@/features/login/types';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
+import { DataTable } from '@/components/utils/dataTable';
+import { SortableHeader } from '@/components/utils/sortableColumnHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSidebar } from '@/components/ui/sidebar';
-import { AgGridReact } from 'ag-grid-react';
-import {
-  ModuleRegistry,
-  AllCommunityModule,
-  type GridReadyEvent,
-  type ValueGetterParams,
-  type ValueFormatterParams,
-} from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any
-(ModuleRegistry as any).registerModules([AllCommunityModule]);
-
-function SeasonStandings({ gridApiRef }: StandingsProps) {
+function SeasonStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  const { open: sidebarOpen } = useSidebar();
-
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
-  const [standingsData, setStandingsData] = useState<Team[]>([]);
+  const [standingsData, setStandingsData] = useState<StandingsSeason[]>([]);
+  const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
+
+  const columns: ColumnDef<StandingsSeason>[] = [
+    {
+      accessorKey: 'owner_full_name',
+      header: 'Owner',
+      cell: ({ row }) => {
+        const isSelected = row.original.owner_full_name === selectedOwnerName;
+        return (
+          <div
+            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
+                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
+            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
+          >
+            {row.original.owner_full_name}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'record',
+      header: () => <div className="w-full text-center">Record</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.record}</div>,
+    },
+    {
+      accessorKey: 'win_pct',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[100px]">
+          <SortableHeader column={column} label="Win %" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.win_pct.toFixed(3)}</div>,
+      minSize: 100,
+    },
+    {
+      accessorKey: 'points_for_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PF / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_for_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+    {
+      accessorKey: 'points_against_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PA / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_against_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+  ];
 
   const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata['data']>(
     `/leagues/${leagueData.leagueId}`,
@@ -42,6 +84,7 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
   const { refetch: refetchSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
+    standings_type: 'season',
     season: selectedSeason,
   });
 
@@ -60,7 +103,7 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
       }
     };
     void fetchStatus();
-  }, [refetchLeagueMetadata, seasons]);
+  }, [refetchLeagueMetadata]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -68,7 +111,7 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
         const response = await refetchSeasonStandings();
         if (response?.data?.data) {
           console.log(response.data.data);
-          const transformedData: Team[] = response.data.data.map((team) => {
+          const transformedData: StandingsSeason[] = response.data.data.map((team) => {
             const wins = Number(team.wins);
             const losses = Number(team.losses);
             return {
@@ -88,86 +131,6 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
 
     void fetchStatus();
   }, [refetchSeasonStandings, selectedSeason]);
-
-  const onGridReady = useCallback(
-    (params: GridReadyEvent) => {
-      const autoSizePinnedColumns = () => {
-        if (!gridApiRef.current) return;
-
-        const allColumns = gridApiRef.current.getColumns() ?? [];
-        const pinnedColumns = allColumns.filter((col) => col.getPinned() === 'left');
-        const columnIds = pinnedColumns.map((col) => col.getId());
-
-        if (columnIds.length) {
-          gridApiRef.current.autoSizeColumns(columnIds, false);
-        }
-      };
-
-      gridApiRef.current = params.api;
-      autoSizePinnedColumns();
-    },
-    [gridApiRef],
-  );
-
-  // Whenever sidebar is toggled, resize the grid
-  useEffect(() => {
-    if (!gridApiRef.current) return;
-
-    const timeout = setTimeout(() => {
-      const allColumns = gridApiRef.current!.getColumns() ?? [];
-      const pinnedColumns = allColumns.filter((col) => col.getPinned() !== 'left');
-      const columnIds = pinnedColumns.map((col) => col.getId());
-
-      if (columnIds.length) {
-        gridApiRef?.current?.autoSizeColumns(columnIds, false);
-      }
-    }, 350); // matches sidebar transition duration
-
-    return () => clearTimeout(timeout);
-  }, [sidebarOpen, gridApiRef]);
-
-  const DESC = 'desc' as const;
-  const LEFT = 'left' as const;
-
-  const columns = [
-    { field: 'owner_full_name' as keyof Team, headerName: 'Owner', sortable: true, pinned: LEFT, minWidth: 180 },
-    { field: 'record' as keyof Team, headerName: 'Record', flex: 1, minWidth: 80 },
-    {
-      field: 'win_pct' as keyof Team,
-      headerName: 'Win %',
-      sortable: true,
-      sort: DESC,
-      valueFormatter: (params: { value: number }) => (params.value != null ? params.value.toFixed(3) : ''),
-      flex: 1,
-      minWidth: 90,
-    },
-    {
-      field: 'points_for_per_game' as keyof Team,
-      headerName: 'PF / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_for_per_game;
-        return value ?? null; // return number, not string
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-    {
-      field: 'points_against_per_game' as keyof Team,
-      headerName: 'PA / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_against_per_game;
-        return value ?? null;
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-  ];
 
   return (
     <div className="space-y-4 my-4">
@@ -194,20 +157,14 @@ function SeasonStandings({ gridApiRef }: StandingsProps) {
           </SelectContent>
         </Select>
       </div>
-
-      {selectedSeason && standingsData ? (
-        <div className="ag-theme-alpine my-2" style={{ overflowX: 'auto', maxWidth: '620px', width: '100%' }}>
-          <AgGridReact
-            rowData={standingsData}
-            columnDefs={columns}
-            defaultColDef={{ resizable: true }}
-            domLayout="autoHeight"
-            onGridReady={onGridReady}
-          />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground italic"> Please select a season to view standings. </p>
-      )}
+      <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+      <p className="text-sm text-muted-foreground">
+        {selectedOwnerName ? (
+          `Selected Owner: ${selectedOwnerName}`
+        ) : (
+          <p className="italic">TODO: Click on an owner's name to display their season schedule results!</p>
+        )}
+      </p>
     </div>
   );
 }

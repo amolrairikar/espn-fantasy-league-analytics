@@ -21,15 +21,19 @@ router = APIRouter(
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-def get_matchups(
+def get_standings(
     league_id: str = Query(description="The ID of the league the matchup occurred in."),
     platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
-    season: Optional[str] = Query(
-        default=None, description="The fantasy football season to get standings for."
+    standings_type: str = Query(
+        description="The type of standings to pull (season, H2H, etc.)."
     ),
-    h2h_standings: Optional[str] = Query(
+    season: Optional[str] = Query(
         default=None,
-        description="Optional parameter indicating whether to pull H2H standings.",
+        description="The fantasy football season to get standings for. Only used for season standings_type.",
+    ),
+    team: Optional[str] = Query(
+        default=None,
+        description="The team to get standings across all seasons for. Only used for season standings_type.",
     ),
 ) -> APIResponse:
     """
@@ -38,11 +42,37 @@ def get_matchups(
     Args:
         league_id (str): The ID of the league the team is in.
         platform (str): The platform the league is on (e.g., ESPN).
-        season (Optional[str]): The fantasy football season to get standings for.
-        h2h_standings (Optional[str]): Optional parameter indicating whether to pull H2H standings.
+        standings_type (str): The type of standings to pull (season, H2H, etc.).
+        season (Optional[str]): The fantasy football season to get standings for. Only used for season standings_type.
+        team (Optional[str]): The team to get standings across all seasons for. Only used for season standings_type.
     """
     try:
-        if season:
+        if standings_type == "season":
+            if not season and not team:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Missing `season` parameter which is required to pull season standings.",
+                )
+            if team:
+                response = dynamodb_client.query(
+                    TableName=table_name,
+                    IndexName="GSI2",
+                    KeyConditionExpression="GSI2PK = :pk AND begins_with(GSI2SK, :prefix)",
+                    ExpressionAttributeValues={
+                        ":pk": {"S": f"STANDINGS#SEASON#TEAM#{team}"},
+                        ":prefix": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}",
+                        },
+                    },
+                )
+                items = [
+                    {k: deserializer.deserialize(v) for k, v in item.items()}
+                    for item in response.get("Items", [])
+                ]
+                return APIResponse(
+                    detail=f"Found season standings for team {team}",
+                    data=items,
+                )
             response = dynamodb_client.query(
                 TableName=table_name,
                 KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
@@ -63,7 +93,7 @@ def get_matchups(
                 detail=f"Found season standings for {season} season",
                 data=items,
             )
-        elif h2h_standings:
+        elif standings_type == "h2h":
             response = dynamodb_client.query(
                 TableName=table_name,
                 KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
@@ -82,24 +112,30 @@ def get_matchups(
                 detail="Found H2H standings",
                 data=items,
             )
-        response = dynamodb_client.query(
-            TableName=table_name,
-            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues={
-                ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                ":prefix": {
-                    "S": "STANDINGS#ALL-TIME",
+        elif standings_type == "all_time":
+            response = dynamodb_client.query(
+                TableName=table_name,
+                KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
+                ExpressionAttributeValues={
+                    ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+                    ":prefix": {
+                        "S": "STANDINGS#ALL-TIME",
+                    },
                 },
-            },
-        )
-        items = [
-            {k: deserializer.deserialize(v) for k, v in item.items()}
-            for item in response.get("Items", [])
-        ]
-        return APIResponse(
-            detail=f"Found all-time standings for {len(items)} teams",
-            data=items,
-        )
+            )
+            items = [
+                {k: deserializer.deserialize(v) for k, v in item.items()}
+                for item in response.get("Items", [])
+            ]
+            return APIResponse(
+                detail=f"Found all-time standings for {len(items)} teams",
+                data=items,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid standings_type. Should be one of all_time, h2h, season",
+            )
     except botocore.exceptions.ClientError as e:
         logger.exception("Unexpected error while getting standings")
         raise HTTPException(

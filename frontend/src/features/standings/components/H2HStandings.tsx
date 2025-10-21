@@ -1,39 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { type ColumnDef } from '@tanstack/react-table';
 import type {
   GetH2HStandings,
   GetLeagueMembers,
   GetMatchups,
   Matchup,
   Member,
-  StandingsProps,
-  Team,
+  StandingsH2H,
 } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
+import { DataTable } from '@/components/utils/dataTable';
+import { SortableHeader } from '@/components/utils/sortableColumnHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSidebar } from '@/components/ui/sidebar';
-import { AgGridReact } from 'ag-grid-react';
-import {
-  ModuleRegistry,
-  AllCommunityModule,
-  type GridReadyEvent,
-  type ValueGetterParams,
-  type ValueFormatterParams,
-} from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any
-(ModuleRegistry as any).registerModules([AllCommunityModule]);
-
-function H2HStandings({ gridApiRef }: StandingsProps) {
+function H2HStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
-
-  const { open: sidebarOpen } = useSidebar();
 
   type memberConfig = { name: string; member_id: string };
   const [members, setMembers] = useState<memberConfig[]>([]);
@@ -41,8 +27,100 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
   const selectedOwnerName = members.find((m) => m.member_id === selectedOwnerId)?.name ?? null;
   const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null);
   const selectedOpponentId = members.find((m) => m.name === selectedOpponentName)?.member_id ?? undefined;
-  const [standingsData, setStandingsData] = useState<Team[]>([]);
+  const [standingsData, setStandingsData] = useState<StandingsH2H[]>([]);
   const [scoresData, setScoresData] = useState<Matchup[]>([]);
+
+  const columnsH2HStandings: ColumnDef<StandingsH2H>[] = [
+    {
+      accessorKey: 'owner_full_name',
+      header: () => <div className="w-full text-left">Owner</div>,
+      cell: ({ row }) => <div className="text-left px-2">{row.original.owner_full_name}</div>,
+    },
+    {
+      accessorKey: 'opponent_full_name',
+      header: 'Opponent',
+      cell: ({ row }) => {
+        const isSelected = row.original.opponent_full_name === selectedOpponentName;
+        return (
+          <div
+            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
+                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
+            onClick={() => setSelectedOpponentName(row.original.opponent_full_name)}
+          >
+            {row.original.opponent_full_name}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'games_played',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[90px]">
+          <SortableHeader column={column} label="GP" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.games_played}</div>,
+      minSize: 90,
+    },
+    {
+      accessorKey: 'record',
+      header: () => <div className="w-full text-center">Record</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.record}</div>,
+    },
+    {
+      accessorKey: 'win_pct',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[100px]">
+          <SortableHeader column={column} label="Win %" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.win_pct.toFixed(3)}</div>,
+      minSize: 100,
+    },
+    {
+      accessorKey: 'points_for_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PF / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_for_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+    {
+      accessorKey: 'points_against_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PA / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_against_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+  ];
+
+  const columnsH2HMatchups: ColumnDef<Matchup>[] = [
+    {
+      accessorKey: 'season',
+      header: () => <div className="w-full text-center">Season</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.season}</div>,
+    },
+    {
+      accessorKey: 'week',
+      header: () => <div className="w-full text-center">Week</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.week}</div>,
+    },
+    {
+      accessorKey: 'result',
+      header: () => <div className="w-full text-center">Result</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.result}</div>,
+    },
+    {
+      accessorKey: 'outcome',
+      header: () => <div className="w-full text-center">Outcome</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.outcome}</div>,
+    },
+  ];
 
   const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
     league_id: leagueData.leagueId,
@@ -52,7 +130,7 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
   const { refetch: refetchH2HStandings } = useGetResource<GetH2HStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
-    h2h_standings: 'true',
+    standings_type: 'h2h',
   });
 
   const { refetch: refetchH2HMatchups } = useGetResource<GetMatchups['data']>(`/matchups`, {
@@ -132,8 +210,8 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
 
             return {
               ...matchup,
-              season: matchup.season,
-              week: matchup.week,
+              season: Number(matchup.season),
+              week: Number(matchup.week),
               result: `${ownerScore} - ${opponentScore}`,
               outcome: ownerWon ? 'W' : 'L',
             };
@@ -152,97 +230,6 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
   useEffect(() => {
     setSelectedOpponentName(null);
   }, [selectedOwnerId]);
-
-  const onGridReady = useCallback(
-    (params: GridReadyEvent) => {
-      const autoSizePinnedColumns = () => {
-        if (!gridApiRef.current) return;
-
-        const allColumns = gridApiRef.current.getColumns() ?? [];
-        const pinnedColumns = allColumns.filter((col) => col.getPinned() === 'left');
-        const columnIds = pinnedColumns.map((col) => col.getId());
-
-        if (columnIds.length) {
-          gridApiRef.current.autoSizeColumns(columnIds, false);
-        }
-      };
-
-      gridApiRef.current = params.api;
-      autoSizePinnedColumns();
-    },
-    [gridApiRef],
-  );
-
-  // Whenever sidebar is toggled, resize the grid
-  useEffect(() => {
-    if (!gridApiRef.current) return;
-
-    const timeout = setTimeout(() => {
-      const allColumns = gridApiRef.current!.getColumns() ?? [];
-      const pinnedColumns = allColumns.filter((col) => col.getPinned() !== 'left');
-      const columnIds = pinnedColumns.map((col) => col.getId());
-
-      if (columnIds.length) {
-        gridApiRef?.current?.autoSizeColumns(columnIds, false);
-      }
-    }, 350); // matches sidebar transition duration
-
-    return () => clearTimeout(timeout);
-  }, [sidebarOpen, gridApiRef]);
-
-  const DESC = 'desc' as const;
-  const LEFT = 'left' as const;
-  const rowClassRules = {
-    'cursor-pointer': 'true',
-  };
-
-  const standingsColumns = [
-    { field: 'opponent_full_name' as keyof Team, headerName: 'Opponent', sortable: true, pinned: LEFT, minWidth: 180 },
-    { field: 'games_played' as keyof Team, headerName: 'GP', sortable: true, flex: 1, minWidth: 80 },
-    { field: 'record' as keyof Team, headerName: 'Record', flex: 1, minWidth: 80 },
-    {
-      field: 'win_pct' as keyof Team,
-      headerName: 'Win %',
-      sortable: true,
-      sort: DESC,
-      valueFormatter: (params: { value: number }) => (params.value != null ? params.value.toFixed(3) : ''),
-      flex: 1,
-      minWidth: 90,
-    },
-    {
-      field: 'points_for_per_game' as keyof Team,
-      headerName: 'PF / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_for_per_game;
-        return value ?? null; // return number, not string
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-    {
-      field: 'points_against_per_game' as keyof Team,
-      headerName: 'PA / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_against_per_game;
-        return value ?? null;
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-  ];
-
-  const scoresColumns = [
-    { field: 'season' as keyof Matchup, headerName: 'Season', sortable: true, flex: 1, minWidth: 80 },
-    { field: 'week' as keyof Matchup, headerName: 'Week', flex: 1, minWidth: 70 },
-    { field: 'outcome' as keyof Matchup, headerName: 'Result', sortable: true, flex: 1, minWidth: 70 },
-    { field: 'result' as keyof Matchup, headerName: 'Score', sortable: true, flex: 1, minWidth: 135 },
-  ];
 
   return (
     <div className="space-y-4 my-4">
@@ -269,21 +256,14 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
           </SelectContent>
         </Select>
       </div>
-
       {selectedOwnerName && standingsData ? (
         <>
-          <div className="ag-theme-alpine" style={{ overflowX: 'auto', maxWidth: '684px', width: '100%' }}>
-            <AgGridReact<Team>
-              rowData={standingsData}
-              columnDefs={standingsColumns}
-              defaultColDef={{ resizable: true }}
-              domLayout="autoHeight"
-              rowClassRules={rowClassRules}
-              onGridReady={onGridReady}
-              onRowClicked={(event) => {
-                const opponent = event.data?.opponent_full_name ?? null;
-                setSelectedOpponentName(opponent);
-              }}
+          <div className="space-y-2">
+            <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
+            <DataTable
+              columns={columnsH2HStandings}
+              data={standingsData}
+              initialSorting={[{ id: 'win_pct', desc: true }]}
             />
           </div>
 
@@ -294,14 +274,15 @@ function H2HStandings({ gridApiRef }: StandingsProps) {
           )}
 
           {selectedOpponentId && (
-            <div className="ag-theme-alpine my-2" style={{ overflowX: 'auto', maxWidth: '425px', width: '100%' }}>
-              <AgGridReact<Matchup>
-                rowData={scoresData}
-                columnDefs={scoresColumns}
-                defaultColDef={{ resizable: true }}
-                domLayout="autoHeight"
-                rowClassRules={rowClassRules}
-                onGridReady={onGridReady}
+            <div className="space-y-2">
+              <h1 className="font-semibold">All-Time Matchup Results vs {selectedOpponentName}</h1>
+              <DataTable
+                columns={columnsH2HMatchups}
+                data={scoresData}
+                initialSorting={[
+                  { id: 'season', desc: false },
+                  { id: 'week', desc: false },
+                ]}
               />
             </div>
           )}
