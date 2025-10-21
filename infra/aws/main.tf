@@ -26,7 +26,7 @@ resource "aws_dynamodb_table" "application_table" {
   }
 
   attribute {
-    name = "PK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}
+    name = "PK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season} OR LEAGUE#{league_id}#PLATFORM#{platform}
     type = "S"
   }
 
@@ -46,10 +46,28 @@ resource "aws_dynamodb_table" "application_table" {
     type = "S"
   }
 
+  # GSI2 is for season standings
+  attribute {
+    name = "GSI2PK" # will be of format STANDINGS#TEAM#{team_member_id}#SEASON#{season}
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI2SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "GSI1"
     hash_key        = "GSI1PK"
     range_key       = "GSI1SK"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "GSI2"
+    hash_key        = "GSI2PK"
+    range_key       = "GSI2SK"
     projection_type = "ALL"
   }
 

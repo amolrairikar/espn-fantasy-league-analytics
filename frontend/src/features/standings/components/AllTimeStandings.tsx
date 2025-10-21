@@ -1,38 +1,117 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { GetAllTimeStandings, StandingsProps, Team } from '@/features/standings/types';
+import { useEffect, useState } from 'react';
+import { type ColumnDef } from '@tanstack/react-table';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import type {
+  GetAllTimeStandings,
+  GetAllTimeStandingsBySeason,
+  GetLeagueMembers,
+  Member,
+  MemberConfig,
+  StandingsAllTime,
+  StandingsAllTimeBySeason,
+} from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { DataTable } from '@/components/utils/dataTable';
+import { SortableHeader } from '@/components/utils/sortableColumnHeader';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import { useSidebar } from '@/components/ui/sidebar';
-import { AgGridReact } from 'ag-grid-react';
-import {
-  ModuleRegistry,
-  AllCommunityModule,
-  type GridReadyEvent,
-  type ValueGetterParams,
-  type ValueFormatterParams,
-} from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any
-(ModuleRegistry as any).registerModules([AllCommunityModule]);
-
-function AllTimeStandings({ gridApiRef }: StandingsProps) {
+function AllTimeStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  const { open: sidebarOpen } = useSidebar();
+  const [standingsData, setStandingsData] = useState<StandingsAllTime[]>([]);
+  const [standingsDataAllSeasons, setStandingsDataAllSeasons] = useState<StandingsAllTimeBySeason[]>([]);
+  const [members, setMembers] = useState<MemberConfig[]>([]);
+  const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
+  const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
 
-  // const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
-  const [standingsData, setStandingsData] = useState<Team[]>([]);
+  const columns: ColumnDef<StandingsAllTime>[] = [
+    {
+      accessorKey: 'owner_full_name',
+      header: 'Owner',
+      cell: ({ row }) => {
+        const isSelected = row.original.owner_full_name === selectedOwnerName;
+        return (
+          <div
+            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
+                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
+            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
+          >
+            {row.original.owner_full_name}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'games_played',
+      header: () => <div className="w-full text-center">GP</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.games_played}</div>,
+    },
+    {
+      accessorKey: 'record',
+      header: () => <div className="w-full text-center">Record</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.record}</div>,
+    },
+    {
+      accessorKey: 'win_pct',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[100px]">
+          <SortableHeader column={column} label="Win %" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.win_pct.toFixed(3)}</div>,
+      minSize: 100,
+    },
+    {
+      accessorKey: 'points_for_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PF / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_for_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+    {
+      accessorKey: 'points_against_per_game',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="PA / Game" />
+        </div>
+      ),
+      cell: ({ row }) => <div className="text-center">{row.original.points_against_per_game.toFixed(1)}</div>,
+      minSize: 130,
+    },
+  ];
 
   const { refetch: refetchAllTimeStandings } = useGetResource<GetAllTimeStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
+    standings_type: 'all_time',
   });
+
+  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+  });
+
+  const { refetch: refetchAllSeasonStandings } = useGetResource<GetAllTimeStandingsBySeason['data']>(`/standings`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+    standings_type: 'season',
+    team: selectedOwnerId,
+  });
+
+  const chartConfig = {
+    desktop: {
+      label: 'Wins',
+      color: 'var(--chart-1)',
+    },
+  } satisfies ChartConfig;
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -40,7 +119,7 @@ function AllTimeStandings({ gridApiRef }: StandingsProps) {
         const response = await refetchAllTimeStandings();
         if (response?.data?.data) {
           console.log(response.data.data);
-          const transformedData: Team[] = response.data.data.map((team) => {
+          const transformedData: StandingsAllTime[] = response.data.data.map((team) => {
             const wins = Number(team.wins);
             const losses = Number(team.losses);
             return {
@@ -62,94 +141,69 @@ function AllTimeStandings({ gridApiRef }: StandingsProps) {
     void fetchStatus();
   }, [refetchAllTimeStandings]);
 
-  // Auto-size only pinned column (Owner)
-  const onGridReady = useCallback(
-    (params: GridReadyEvent) => {
-      if (!gridApiRef.current) return;
-      gridApiRef.current = params.api;
-      const allColumns = gridApiRef.current.getColumns() ?? [];
-      const pinnedColumns = allColumns.filter((col) => col.getPinned() === 'left');
-      const columnIds = pinnedColumns.map((col) => col.getId());
-      if (columnIds.length) {
-        gridApiRef.current.autoSizeColumns(columnIds, false);
-      }
-    },
-    [gridApiRef],
-  );
-
-  // Whenever sidebar is toggled, resize the grid
   useEffect(() => {
-    if (!gridApiRef.current) return;
-
-    const timeout = setTimeout(() => {
-      const allColumns = gridApiRef.current!.getColumns() ?? [];
-      const pinnedColumns = allColumns.filter((col) => col.getPinned() !== 'left');
-      const columnIds = pinnedColumns.map((col) => col.getId());
-
-      if (columnIds.length) {
-        gridApiRef?.current?.autoSizeColumns(columnIds, false);
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchLeaguemembers();
+        if (response.data?.data) {
+          const membersData = response.data?.data as Member[];
+          const mappedMembers = membersData.map((item) => ({
+            name: item.name,
+            member_id: item.member_id,
+          }));
+          console.log(mappedMembers);
+          setMembers(mappedMembers);
+        }
+      } catch (err) {
+        console.error(err);
       }
-    }, 350); // matches sidebar transition duration
+    };
+    void fetchStatus();
+  }, [refetchLeaguemembers]);
 
-    return () => clearTimeout(timeout);
-  }, [sidebarOpen, gridApiRef]);
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        if (!selectedOwnerId) return;
+        const response = await refetchAllSeasonStandings();
+        if (response?.data?.data) {
+          console.log(response.data.data);
+          const transformedData: StandingsAllTimeBySeason[] = response.data.data.map(({ season, wins }) => ({
+            season,
+            wins,
+          }));
+          setStandingsDataAllSeasons(transformedData);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-  const DESC = 'desc' as const;
-  const LEFT = 'left' as const;
-
-  const columns = [
-    { field: 'owner_full_name' as keyof Team, headerName: 'Owner', sortable: true, pinned: LEFT, minWidth: 180 },
-    { field: 'games_played' as keyof Team, headerName: 'GP', sortable: true, flex: 1, minWidth: 80 },
-    { field: 'record' as keyof Team, headerName: 'Record', flex: 1, minWidth: 80 },
-    {
-      field: 'win_pct' as keyof Team,
-      headerName: 'Win %',
-      sortable: true,
-      sort: DESC,
-      valueFormatter: (params: { value: number }) => (params.value != null ? params.value.toFixed(3) : ''),
-      flex: 1,
-      minWidth: 90,
-    },
-    {
-      field: 'points_for_per_game' as keyof Team,
-      headerName: 'PF / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_for_per_game;
-        return value ?? null; // return number, not string
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-    {
-      field: 'points_against_per_game' as keyof Team,
-      headerName: 'PA / Game',
-      sortable: true,
-      valueGetter: (params: ValueGetterParams<Team, number>) => {
-        const value = params.data?.points_against_per_game;
-        return value ?? null;
-      },
-      valueFormatter: (params: ValueFormatterParams<Team, number>) =>
-        params.value != null ? params.value.toFixed(1) : '',
-      flex: 1,
-      minWidth: 95,
-    },
-  ];
+    void fetchStatus();
+  }, [refetchAllSeasonStandings, selectedOwnerId]);
 
   return (
-    <div>
-      {/* <p className="italic">Click on an owner's name to display additional charts!</p> */}
-      <div className="ag-theme-alpine my-2" style={{ overflowX: 'auto', maxWidth: '689px', width: '100%' }}>
-        <AgGridReact
-          rowData={standingsData}
-          columnDefs={columns}
-          defaultColDef={{ resizable: true }}
-          domLayout="autoHeight"
-          onGridReady={onGridReady}
-        />
-      </div>
+    <div className="space-y-4 my-4">
+      <h1 className="font-semibold">All-Time Standings</h1>
+      <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+      {selectedOwnerName ? (
+        <div className="space-y-2">
+          <h1 className="font-semibold text-center">Wins Per Season for {selectedOwnerName}</h1>
+          <ChartContainer config={chartConfig} className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart accessibilityLayer data={standingsDataAllSeasons}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="season" tickLine={false} tickMargin={10} axisLine={false} />
+                <YAxis dataKey="wins" />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="wins" fill="var(--color-desktop)" radius={4} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
+      ) : (
+        <p className="italic">Click on an owner's name to display a chart of their wins per season</p>
+      )}
     </div>
   );
 }
