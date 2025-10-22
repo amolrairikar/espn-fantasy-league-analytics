@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/themes/theme_provider';
 import { Separator } from '@/components/ui/separator';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import Header from '@/features/header/components/Header';
-import AppSidebar from '@/features/sidebar/components/app-sidebar';
+import DesktopSidebar from '@/features/sidebar/components/desktopSidebar';
 const Login = lazy(() => import('@/features/login/components/Login'));
 const Home = lazy(() => import('@/features/home/components/Home'));
 const Standings = lazy(() => import('@/features/standings/components/Standings'));
@@ -47,7 +47,7 @@ function AppContent() {
       <SidebarProvider>
         <div className="flex h-screen w-screen">
           {/* Sidebar only when logged in */}
-          {showSidebar && <AppSidebar />}
+          {showSidebar && <DesktopSidebar />}
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header leagueData={leagueData} onLogout={handleLogout} />
             <Separator />
@@ -57,7 +57,7 @@ function AppContent() {
               className={
                 showSidebar
                   ? 'flex-1 mt-8 container mx-auto px-4 overflow-auto'
-                  : 'flex-1 flex items-center justify-center bg-background w-full h-full'
+                  : 'flex-1 w-full overflow-auto bg-background'
               }
             >
               <Suspense fallback={<div className="text-center">Loading...</div>}>
@@ -68,7 +68,7 @@ function AppContent() {
                   <Route
                     path="/login"
                     element={
-                      <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl px-6 -mt-32">
+                      <div className="w-full max-w-2xl sm:max-w-3xl md:max-w-4xl px-6 mt-4 mx-auto">
                         <Login onLoginSuccess={setLeagueData} />
                       </div>
                     }
