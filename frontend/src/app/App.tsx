@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useMediaQuery } from '@custom-react-hooks/use-media-query';
 import type { LeagueData } from '@/components/types/league_data';
 import { ThemeProvider } from '@/components/themes/theme_provider';
 import { Separator } from '@/components/ui/separator';
@@ -35,7 +36,8 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const showSidebar = location.pathname !== '/login';
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const showSidebar = !isMobile && location.pathname !== '/login';
 
   const handleLogout = () => {
     setLeagueData(null);
