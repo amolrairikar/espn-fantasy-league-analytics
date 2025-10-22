@@ -1,4 +1,4 @@
-import { Home, Logs, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,22 +11,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import type { SidebarItem } from '@/features/sidebar/types';
+import { items } from '@/features/sidebar/components/constants';
 
-const items: SidebarItem[] = [
-  {
-    title: 'Home',
-    url: '/home',
-    icon: Home,
-  },
-  {
-    title: 'Standings',
-    url: '/standings',
-    icon: Logs,
-  },
-];
-
-function AppSidebar() {
+function DesktopSidebar() {
   const { open, toggleSidebar } = useSidebar();
   return (
     <Sidebar collapsible="icon">
@@ -65,4 +52,4 @@ function AppSidebar() {
   );
 }
 
-export default AppSidebar;
+export default DesktopSidebar;
