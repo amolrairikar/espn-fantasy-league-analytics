@@ -7,6 +7,7 @@ from typing import Optional, Any
 
 import boto3
 import botocore.exceptions
+import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
 from urllib3.util.retry import Retry
 
@@ -176,13 +177,17 @@ def safe_int(team_id: str) -> int:
         return 10**12
 
 
-def process_league_scores(matchups: list[dict[str, Any]]) -> list:
+def process_league_scores(
+    matchups: list[dict[str, Any]], members: list[dict[str, Any]]
+) -> list:
     """
     Extracts relevant fields from fantasy matchup scores.
 
     Args:
-        matchups (list[dict[str, Any]]): Raw dictionary with all metadata from each matchup
+        matchups (list[dict[str, Any]]): Raw list of dictionaries with all matchups
             for the league that season.
+        members (list[dict[str, Any]]): Raw list of dictionaries with all members for
+            the league that season.
 
     Returns:
         list: Processed dictionary with relevant data from fantasy matchup scores.
@@ -237,7 +242,39 @@ def process_league_scores(matchups: list[dict[str, Any]]) -> list:
         }
         processed_matchup_results.append(matchup_result)
 
-    return processed_matchup_results
+    df_matchup_results = pd.DataFrame(processed_matchup_results)
+    df_members = pd.DataFrame(members)
+    df_members["team_id"] = df_members["SK"].str.split("#", expand=True)[1].astype(int)
+    df_members["full_name"] = df_members["firstName"] + " " + df_members["lastName"]
+    df_matchup_results = df_matchup_results.merge(
+        df_members[["team_id", "full_name", "teamName"]],
+        left_on="team_a",
+        right_on="team_id",
+        how="inner",
+    )
+    df_matchup_results = df_matchup_results.drop(columns=["team_id"])
+    df_matchup_results = df_matchup_results.rename(
+        columns={
+            "full_name": "team_a_full_name",
+            "teamName": "team_a_team_name",
+        }
+    )
+    df_matchup_results = df_matchup_results.merge(
+        df_members[["team_id", "full_name", "teamName"]],
+        left_on="team_b",
+        right_on="team_id",
+        how="inner",
+    )
+    df_matchup_results = df_matchup_results.drop(columns=["team_id"])
+    df_matchup_results = df_matchup_results.rename(
+        columns={
+            "full_name": "team_b_full_name",
+            "teamName": "team_b_team_name",
+        }
+    )
+    results = df_matchup_results.to_dict(orient="records")
+
+    return results
 
 
 def batch_write_to_dynamodb(
@@ -287,9 +324,13 @@ def batch_write_to_dynamodb(
                             "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                         },
                         "team_a": {"S": str(item["team_a"])},
+                        "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                        "team_a_team_name": {"S": str(item["team_a_team_name"])},
                         "team_a_member_id": {"S": team_a_member_id},
                         "team_a_score": {"N": str(item["team_a_score"])},
                         "team_b": {"S": str(item["team_b"])},
+                        "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                        "team_b_team_name": {"S": str(item["team_b_team_name"])},
                         "team_b_member_id": {"S": team_b_member_id},
                         "team_b_score": {"N": str(item["team_b_score"])},
                         "season": {"S": str(season)},
@@ -374,7 +415,7 @@ def lambda_handler(event, context):
         raise ValueError("'matchups' list must not be empty.")
 
     logger.info("Processing raw matchup data")
-    output_data = process_league_scores(matchups=matchups)
+    output_data = process_league_scores(matchups=matchups, members=members)
     batch_write_to_dynamodb(
         score_data=output_data,
         member_mapping=member_id_mapping,
