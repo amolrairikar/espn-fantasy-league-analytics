@@ -53,6 +53,11 @@ def get_teams(
                 item = {
                     k: deserializer.deserialize(v) for k, v in response["Item"].items()
                 }
+                item = {
+                    k: v
+                    for k, v in sorted(item.items())
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
                 return APIResponse(
                     detail=f"Team with ID {team_id} found in league {league_id} for {season} season",
                     data=item,
@@ -76,7 +81,11 @@ def get_teams(
                 },
             )
             items = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
+                {
+                    k: deserializer.deserialize(v)
+                    for k, v in sorted(item.items())
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
                 for item in response.get("Items", [])
             ]
             if not items:

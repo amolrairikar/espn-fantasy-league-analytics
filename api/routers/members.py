@@ -42,7 +42,11 @@ def get_members(
             },
         )
         items = [
-            {k: deserializer.deserialize(v) for k, v in item.items()}
+            {
+                k: deserializer.deserialize(v)
+                for k, v in sorted(item.items())
+                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+            }
             for item in response.get("Items", [])
         ]
         return APIResponse(

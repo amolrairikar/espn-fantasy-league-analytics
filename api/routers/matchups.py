@@ -78,7 +78,11 @@ def get_matchups(
                     week_number,
                 )
                 items = [
-                    {k: deserializer.deserialize(v) for k, v in item.items()}
+                    {
+                        k: deserializer.deserialize(v)
+                        for k, v in item.items()
+                        if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                    }
                     for item in response.get("Items", [])
                     if include_playoff_matchups
                     or item.get("playoff_tier_type", {}).get("S") == "NONE"
@@ -120,13 +124,21 @@ def get_matchups(
                 team2_id,
             )
             items1 = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
+                {
+                    k: deserializer.deserialize(v)
+                    for k, v in item.items()
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
                 for item in response1.get("Items", [])
                 if include_playoff_matchups
                 or item.get("playoff_tier_type", {}).get("S") == "NONE"
             ]
             items2 = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
+                {
+                    k: deserializer.deserialize(v)
+                    for k, v in item.items()
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
                 for item in response2.get("Items", [])
                 if include_playoff_matchups
                 or item.get("playoff_tier_type", {}).get("S") == "NONE"
@@ -164,7 +176,11 @@ def get_matchups(
                 },
             )
             items = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
+                {
+                    k: deserializer.deserialize(v)
+                    for k, v in sorted(item.items())
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
                 for item in response.get("Items", [])
             ]
             return APIResponse(
