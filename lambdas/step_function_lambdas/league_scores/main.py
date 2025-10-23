@@ -280,6 +280,12 @@ def batch_write_to_dynamodb(
                         "GSI1SK": {
                             "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
                         },
+                        "GSI3PK": {
+                            "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
+                        },
+                        "GSI3SK": {
+                            "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
+                        },
                         "team_a": {"S": str(item["team_a"])},
                         "team_a_member_id": {"S": team_a_member_id},
                         "team_a_score": {"N": str(item["team_a_score"])},
