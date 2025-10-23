@@ -185,16 +185,16 @@ function AllTimeStandings() {
   return (
     <div className="space-y-4 my-4">
       <h1 className="font-semibold">All-Time Standings</h1>
-      <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
       {selectedOwnerName ? (
         <div className="space-y-2">
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
           <h1 className="font-semibold text-center">Wins Per Season for {selectedOwnerName}</h1>
           <ChartContainer config={chartConfig} className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart accessibilityLayer data={standingsDataAllSeasons}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="season" tickLine={false} tickMargin={10} axisLine={false} />
-                <YAxis dataKey="wins" />
+                <YAxis dataKey="wins" domain={[0, 12]} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="wins" fill="var(--color-desktop)" radius={4} />
               </BarChart>
@@ -202,7 +202,12 @@ function AllTimeStandings() {
           </ChartContainer>
         </div>
       ) : (
-        <p className="italic">Click on an owner's name to display a chart of their wins per season</p>
+        <div className="space-y-4 my-4">
+          <p className="text-sm text-muted-foreground italic">
+            Click on an owner's name to display a chart of their wins per season
+          </p>
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+        </div>
       )}
     </div>
   );
