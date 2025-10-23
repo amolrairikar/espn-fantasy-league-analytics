@@ -23,13 +23,17 @@ router = APIRouter(
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 @router.get("", status_code=status.HTTP_200_OK)
 def get_matchups(
-    team1_id: str = Query(description="The ID of team 1 in the matchup."),
-    team2_id: str = Query(description="The ID of team 2 in the matchup."),
     league_id: str = Query(description="The ID of the league the matchup occurred in."),
     platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
-    include_playoff_matchups: bool = Query(
+    include_playoff_matchups: Optional[bool] = Query(
         default=False,
         description="Boolean indicating whether to include playoff matchups.",
+    ),
+    team1_id: Optional[str] = Query(
+        default=None, description="The ID of team 1 in the matchup."
+    ),
+    team2_id: Optional[str] = Query(
+        default=None, description="The ID of team 2 in the matchup."
     ),
     week_number: Optional[str] = Query(
         default=None, description="The week the matchup occurred in."
@@ -50,136 +54,139 @@ def get_matchups(
         week_number (Optional[str]): The week the matchup occurred in.
         season (Optional[str]): The fantasy football season year.
     """
-    try:
-        # Get a specific matchup
-        if week_number and season:
-            response = dynamodb_client.query(
-                TableName=table_name,
-                KeyConditionExpression="PK = :pk AND SK = :sk",
-                ExpressionAttributeValues={
-                    ":pk": {
-                        "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+    if team1_id and team2_id:
+        try:
+            # Get a specific matchup between 2 teams
+            if week_number and season:
+                response = dynamodb_client.query(
+                    TableName=table_name,
+                    KeyConditionExpression="PK = :pk AND SK = :sk",
+                    ExpressionAttributeValues={
+                        ":pk": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+                        },
+                        ":sk": {
+                            "S": f"MATCHUP#{team1_id}-vs-{team2_id}#WEEK#{week_number}"
+                        },
                     },
-                    ":sk": {
-                        "S": f"MATCHUP#{team1_id}-vs-{team2_id}#WEEK#{week_number}"
-                    },
-                },
-            )
-            logger.info(
-                "Found matchup between team %s and team %s for season %s week %s",
-                team1_id,
-                team2_id,
-                season,
-                week_number,
-            )
-            items = [
-                {k: deserializer.deserialize(v) for k, v in item.items()}
-                for item in response.get("Items", [])
-                if include_playoff_matchups
-                or item.get("playoff_tier_type", {}).get("S") == "NONE"
-            ]
-            if not items:
-                error_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season week {week_number}"
-                logger.warning(error_message)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_message,
                 )
-            return APIResponse(
-                detail=f"Found matchup between team {team1_id} and team {team2_id} for {season} season week {week_number}",
-                data=items,
-            )
-        # Get all matchups in a season
-        if not week_number and season:
-            response = dynamodb_client.query(
+                logger.info(
+                    "Found matchup between team %s and team %s for season %s week %s",
+                    team1_id,
+                    team2_id,
+                    season,
+                    week_number,
+                )
+                items = [
+                    {k: deserializer.deserialize(v) for k, v in item.items()}
+                    for item in response.get("Items", [])
+                    if include_playoff_matchups
+                    or item.get("playoff_tier_type", {}).get("S") == "NONE"
+                ]
+                if not items:
+                    error_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season week {week_number}"
+                    logger.warning(error_message)
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=error_message,
+                    )
+                return APIResponse(
+                    detail=f"Found matchup between team {team1_id} and team {team2_id} for {season} season week {week_number}",
+                    data=items,
+                )
+            # Get all-time matchups between 2 teams
+            response1 = dynamodb_client.query(
                 TableName=table_name,
-                KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
+                IndexName="GSI1",
+                KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
                 ExpressionAttributeValues={
-                    ":pk": {
-                        "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
-                    },
-                    ":prefix": {"S": f"MATCHUP#{team1_id}-vs-{team2_id}"},
+                    ":pk": {"S": f"MATCHUP#{team1_id}-vs-{team2_id}"},
+                    ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
+                },
+            )
+            response2 = dynamodb_client.query(
+                TableName=table_name,
+                IndexName="GSI1",
+                KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
+                ExpressionAttributeValues={
+                    ":pk": {"S": f"MATCHUP#{team2_id}-vs-{team1_id}"},
+                    ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
                 },
             )
             logger.info(
-                "Found %d total matchups between team %s and team %s for %s season",
-                len(response["Items"]),
+                "Found %d total matchups between team %s and team %s",
+                len(response1["Items"]) + len(response2["Items"]),
                 team1_id,
                 team2_id,
-                season,
             )
-            logger.info("Response: %s", response)
-            items = [
+            items1 = [
                 {k: deserializer.deserialize(v) for k, v in item.items()}
-                for item in response.get("Items", [])
+                for item in response1.get("Items", [])
                 if include_playoff_matchups
                 or item.get("playoff_tier_type", {}).get("S") == "NONE"
             ]
-            logger.info("Items: %s", items)
+            items2 = [
+                {k: deserializer.deserialize(v) for k, v in item.items()}
+                for item in response2.get("Items", [])
+                if include_playoff_matchups
+                or item.get("playoff_tier_type", {}).get("S") == "NONE"
+            ]
+            items1.extend(items2)
+            items = items1.copy()
             if not items:
-                log_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season"
+                log_message = f"No matchups between team {team1_id} and team {team2_id}"
                 logger.warning(log_message)
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=404,
                     detail=log_message,
                 )
             return APIResponse(
-                detail=f"Found {len(items)} matchups between team {team1_id} and team {team2_id} for {season} season",
+                detail=f"Found {len(items)} matchups between team {team1_id} and team {team2_id}",
                 data=items,
             )
-        # Get all matchups across all seasons
-        response1 = dynamodb_client.query(
-            TableName=table_name,
-            IndexName="GSI1",
-            KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
-            ExpressionAttributeValues={
-                ":pk": {"S": f"MATCHUP#{team1_id}-vs-{team2_id}"},
-                ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
-            },
-        )
-        response2 = dynamodb_client.query(
-            TableName=table_name,
-            IndexName="GSI1",
-            KeyConditionExpression="GSI1PK = :pk AND begins_with(GSI1SK, :sk_prefix)",
-            ExpressionAttributeValues={
-                ":pk": {"S": f"MATCHUP#{team2_id}-vs-{team1_id}"},
-                ":sk_prefix": {"S": f"LEAGUE#{league_id}"},
-            },
-        )
-        logger.info(
-            "Found %d total matchups between team %s and team %s",
-            len(response1["Items"]) + len(response2["Items"]),
-            team1_id,
-            team2_id,
-        )
-        items1 = [
-            {k: deserializer.deserialize(v) for k, v in item.items()}
-            for item in response1.get("Items", [])
-            if include_playoff_matchups
-            or item.get("playoff_tier_type", {}).get("S") == "NONE"
-        ]
-        items2 = [
-            {k: deserializer.deserialize(v) for k, v in item.items()}
-            for item in response2.get("Items", [])
-            if include_playoff_matchups
-            or item.get("playoff_tier_type", {}).get("S") == "NONE"
-        ]
-        items1.extend(items2)
-        items = items1.copy()
-        if not items:
-            log_message = f"No matchups between team {team1_id} and team {team2_id}"
-            logger.warning(log_message)
+        except botocore.exceptions.ClientError as e:
+            logger.exception("Unexpected error while getting matchups")
             raise HTTPException(
-                status_code=404,
-                detail=log_message,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Internal server error: {str(e)}",
             )
-        return APIResponse(
-            detail=f"Found {len(items)} matchups between team {team1_id} and team {team2_id}",
-            data=items,
-        )
-    except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error while getting matchups")
+    elif season and week_number and not team1_id and not team2_id:
+        try:
+            response = dynamodb_client.query(
+                TableName=table_name,
+                IndexName="GSI3",
+                KeyConditionExpression="GSI3PK = :pk AND begins_with(GSI3SK, :sk_prefix)",
+                ExpressionAttributeValues={
+                    ":pk": {
+                        "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{week_number}"
+                    },
+                    ":sk_prefix": {"S": "MATCHUP#"},
+                },
+            )
+            items = [
+                {k: deserializer.deserialize(v) for k, v in item.items()}
+                for item in response.get("Items", [])
+            ]
+            return APIResponse(
+                detail=f"Found {len(items)} matchups for {season} season week {week_number}",
+                data=items,
+            )
+        except botocore.exceptions.ClientError as e:
+            logger.exception("Unexpected error while getting matchups")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Internal server error: {str(e)}",
+            )
+    else:
+        optional_query_parameters_provided = {
+            "season": season,
+            "week_number": week_number,
+            "team1_id": team1_id,
+            "team2_id": team2_id,
+        }
+        log_message = f"Invalid combination of query parameters supplied: {optional_query_parameters_provided}"
+        logger.error(log_message)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=log_message,
         )

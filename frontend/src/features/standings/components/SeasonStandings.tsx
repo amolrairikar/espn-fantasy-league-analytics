@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { GetSeasonStandings, StandingsSeason } from '@/features/standings/types';
-import type { LeagueData } from '@/features/login/types';
-import type { GetLeagueMetadata } from '@/features/login/types';
+import type { LeagueData } from '@/components/types/league_data';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import { DataTable } from '@/components/utils/dataTable';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SeasonSelect } from '@/components/utils/SeasonSelect';
 
 function SeasonStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
@@ -15,7 +14,6 @@ function SeasonStandings() {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
   const [standingsData, setStandingsData] = useState<StandingsSeason[]>([]);
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
@@ -74,13 +72,6 @@ function SeasonStandings() {
     },
   ];
 
-  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata['data']>(
-    `/leagues/${leagueData.leagueId}`,
-    {
-      platform: leagueData.platform,
-    },
-  );
-
   const { refetch: refetchSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
@@ -89,23 +80,7 @@ function SeasonStandings() {
   });
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await refetchLeagueMetadata();
-        const fetchedSeasons = response.data?.data?.seasons ?? [];
-        if (fetchedSeasons.length > 0) {
-          setSeasons(fetchedSeasons);
-          const latestSeason = fetchedSeasons.sort((a, b) => Number(b) - Number(a))[0];
-          setSelectedSeason(latestSeason);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    void fetchStatus();
-  }, [refetchLeagueMetadata]);
-
-  useEffect(() => {
+    if (!selectedSeason) return;
     const fetchStatus = async () => {
       try {
         const response = await refetchSeasonStandings();
@@ -134,29 +109,7 @@ function SeasonStandings() {
 
   return (
     <div className="space-y-4 my-4">
-      <div className="flex items-center space-x-4">
-        <label htmlFor="season" className="font-medium text-sm">
-          Season:
-        </label>
-        <Select onValueChange={setSelectedSeason} value={selectedSeason}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select a season" />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.length > 0 ? (
-              seasons.map((season) => (
-                <SelectItem key={season} value={season}>
-                  {season}
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem disabled value="none">
-                No seasons found
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
+      <SeasonSelect leagueData={leagueData} onSeasonChange={setSelectedSeason} />
       {selectedOwnerName ? (
         <div className="space-y-4 my-4">
           <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
