@@ -131,6 +131,11 @@ def get_league_metadata(
             log_message = f"League with ID {league_id} found in database."
             logger.info(log_message)
             item = {k: deserializer.deserialize(v) for k, v in response["Item"].items()}
+            item = {
+                k: v
+                for k, v in sorted(item.items())
+                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+            }
 
             # Sort the seasons for organizational purposes
             item["seasons"] = sorted(item["seasons"])
