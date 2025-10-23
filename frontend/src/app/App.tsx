@@ -59,7 +59,7 @@ function AppContent() {
               className={
                 showSidebar
                   ? 'flex-1 mt-8 container mx-auto px-4 overflow-auto'
-                  : 'flex-1 w-full overflow-auto bg-background'
+                  : 'flex-1 mt-4 w-full overflow-auto bg-background'
               }
             >
               <Suspense fallback={<div className="text-center">Loading...</div>}>

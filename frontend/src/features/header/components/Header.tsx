@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Info, Link, LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -10,6 +11,8 @@ import type { HeaderProps } from '@/features/header/types';
 
 const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
 
   const handleLogout = () => {
     onLogout();
@@ -58,43 +61,45 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
       </div>
 
       {/* --- Mobile Menu --- */}
-      <div className="absolute right-4 flex md:hidden">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Menu">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
+      {!isLoginPage && (
+        <div className="absolute right-4 flex md:hidden">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Menu">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
 
-          <SheetContent side="right" className="flex flex-col p-0">
-            <MobileSidebar onNavigate={() => setOpen(false)} />
+            <SheetContent side="right" className="flex flex-col p-0">
+              <MobileSidebar onNavigate={() => setOpen(false)} />
 
-            <div className="border-t pt-4 flex flex-col space-y-4">
-              <div className="border-t p-4 space-y-3">
-                <Button asChild variant="ghost" className="justify-start cursor-pointer gap-2 w-full">
-                  <a
-                    href="https://github.com/amolrairikar/espn-fantasy-league-analytics"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Link className="h-5 w-5" />
-                    GitHub
-                  </a>
-                </Button>
-                {leagueData && (
-                  <Button variant="ghost" className="justify-start gap-2 w-full" onClick={handleLogout}>
-                    <LogOut className="h-5 w-5" />
-                    Logout
+              <div className="border-t pt-4 flex flex-col space-y-4">
+                <div className="border-t p-4 space-y-3">
+                  <Button asChild variant="ghost" className="justify-start cursor-pointer gap-2 w-full">
+                    <a
+                      href="https://github.com/amolrairikar/espn-fantasy-league-analytics"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Link className="h-5 w-5" />
+                      GitHub
+                    </a>
                   </Button>
-                )}
+                  {leagueData && (
+                    <Button variant="ghost" className="justify-start gap-2 w-full" onClick={handleLogout}>
+                      <LogOut className="h-5 w-5" />
+                      Logout
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-auto border-t pt-4 px-4">
+                  <ModeToggle />
+                </div>
               </div>
-              <div className="mt-auto border-t pt-4 px-4">
-                <ModeToggle />
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      )}
     </header>
   );
 };

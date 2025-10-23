@@ -157,14 +157,19 @@ function SeasonStandings() {
           </SelectContent>
         </Select>
       </div>
-      <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
-      <p className="text-sm text-muted-foreground">
-        {selectedOwnerName ? (
-          `Selected Owner: ${selectedOwnerName}`
-        ) : (
-          <p className="italic">TODO: Click on an owner's name to display their season schedule results!</p>
-        )}
-      </p>
+      {selectedOwnerName ? (
+        <div className="space-y-4 my-4">
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+          <p>Selected Owner: {selectedOwnerName}</p>
+        </div>
+      ) : (
+        <div className="space-y-4 my-4">
+          <p className="text-sm text-muted-foreground italic">
+            TODO: Click on an owner's name to display their season schedule results!
+          </p>
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+        </div>
+      )}
     </div>
   );
 }

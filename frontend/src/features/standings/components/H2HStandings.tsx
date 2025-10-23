@@ -32,11 +32,6 @@ function H2HStandings() {
 
   const columnsH2HStandings: ColumnDef<StandingsH2H>[] = [
     {
-      accessorKey: 'owner_full_name',
-      header: () => <div className="w-full text-left">Owner</div>,
-      cell: ({ row }) => <div className="text-left px-2">{row.original.owner_full_name}</div>,
-    },
-    {
       accessorKey: 'opponent_full_name',
       header: 'Opponent',
       cell: ({ row }) => {
@@ -258,24 +253,29 @@ function H2HStandings() {
       </div>
       {selectedOwnerName && standingsData ? (
         <>
-          <div className="space-y-2">
-            <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
-            <DataTable
-              columns={columnsH2HStandings}
-              data={standingsData}
-              initialSorting={[{ id: 'win_pct', desc: true }]}
-            />
-          </div>
-
           {!selectedOpponentId && (
-            <p className="text-sm text-muted-foreground italic mt-2">
-              Please click on an opponent's name in the table to view a table of matchup results against them.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground italic mt-2">
+                Please click on an opponent's name in the table to view a table of matchup results against them.
+              </p>
+              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
+              <DataTable
+                columns={columnsH2HStandings}
+                data={standingsData}
+                initialSorting={[{ id: 'win_pct', desc: true }]}
+              />
+            </div>
           )}
 
           {selectedOpponentId && (
             <div className="space-y-2">
-              <h1 className="font-semibold">All-Time Matchup Results vs {selectedOpponentName}</h1>
+              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
+              <DataTable
+                columns={columnsH2HStandings}
+                data={standingsData}
+                initialSorting={[{ id: 'win_pct', desc: true }]}
+              />
+              <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
               <DataTable
                 columns={columnsH2HMatchups}
                 data={scoresData}
