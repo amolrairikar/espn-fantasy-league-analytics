@@ -25,6 +25,10 @@ if not logger.hasHandlers():
 DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
 deserializer = TypeDeserializer()
 
+# Mainly used for debugging purposes
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", None)
+
 
 def get_matchups(league_id: str, platform: str, season: str) -> list[dict[str, Any]]:
     """
@@ -117,10 +121,6 @@ def compile_standings_data(
         tuple: A tuple of list of dictionary mappings containing unique league members,
             standings for each season, all-time, and head to head all-time.
     """
-    # Mainly used for debugging/printing
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.max_rows", None)
-
     # Load matchups data into DataFrames and perform pre-processing
     df_matchups = pd.DataFrame(matchup_data)
     df_matchups = df_matchups[df_matchups["playoff_tier_type"] == "NONE"]

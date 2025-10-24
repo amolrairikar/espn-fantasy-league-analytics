@@ -758,7 +758,7 @@ resource "aws_lambda_function" "league_standings_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
-  timeout          = 10
+  timeout          = 30
   memory_size      = 256
   tags = {
     Project     = "fantasy-analytics-app"
