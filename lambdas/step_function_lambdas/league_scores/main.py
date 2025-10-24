@@ -40,6 +40,15 @@ session.mount("https://", adapter)
 DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
 deserializer = TypeDeserializer()
 
+POSITION_ID_MAPPING = {
+    1: "QB",
+    2: "RB",
+    3: "WR",
+    4: "TE",
+    5: "K",
+    16: "D/ST",
+}
+
 
 def get_league_members(
     league_id: str, platform: str, season: str
@@ -126,37 +135,53 @@ def get_league_scores(
     if platform == "ESPN":
         if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
-        try:
-            params = {
-                "view": "mMatchupScore",
-            }
-            if int(season) >= 2018:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-            else:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                params["seasonId"] = season
-            logger.info("Making request for league scores info to URL: %s", url)
-            response = session.get(
-                url=url,
-                params=params,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-            )
-            response.raise_for_status()
-            logger.info("Successfully got league score info")
-            if int(season) >= 2018:
-                scores = response.json().get("schedule", [])
-            else:
-                scores = response.json()[0].get("schedule", [])
-            logger.info(
-                "Found %d matchups in league for season %s", len(scores), season
-            )
-            return scores
-        except requests.RequestException:
-            logger.exception("Request error while fetching league scores.")
-            raise
-        except Exception:
-            logger.exception("Unexpected error while fetching league scores.")
-            raise
+        weeks = range(1, 18, 1) if int(season) < 2021 else range(1, 19, 1)
+        scores: list[dict[str, Any]] = []
+        for week in weeks:
+            try:
+                base_params = [
+                    ("scoringPeriodId", str(week)),
+                    ("view", "mBoxscore"),
+                    ("view", "mMatchupScore"),
+                ]
+                if int(season) >= 2018:
+                    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+                    params = [*base_params]
+                else:
+                    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
+                    params = [("seasonId", season), *base_params]
+                logger.info("Making request for league scores info to URL: %s", url)
+                response = session.get(
+                    url=url,
+                    params=params,
+                    cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
+                )
+                response.raise_for_status()
+                logger.info("Successfully got league score info")
+                if int(season) >= 2018:
+                    weekly_scores = response.json().get("schedule", [])
+                    filtered_weekly_scores = [
+                        d for d in weekly_scores if d.get("matchupPeriodId") == week
+                    ]
+                else:
+                    weekly_scores = response.json()[0].get("schedule", [])
+                    filtered_weekly_scores = [
+                        d for d in weekly_scores if d.get("matchupPeriodId") == week
+                    ]
+                logger.info(
+                    "Found %d matchups in league for %s season week %s",
+                    len(filtered_weekly_scores),
+                    season,
+                    week,
+                )
+                scores.extend(filtered_weekly_scores)
+            except requests.RequestException:
+                logger.exception("Request error while fetching league scores.")
+                raise
+            except Exception:
+                logger.exception("Unexpected error while fetching league scores.")
+                raise
+        return scores
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
@@ -199,6 +224,32 @@ def process_league_scores(
         away_team = matchup.get("away", {}).get("teamId", "")
         away_score = matchup.get("away", {}).get("totalPoints", "0.00")
         week = matchup.get("matchupPeriodId", "")
+        players_home = matchup.get("home", {}).get("rosterForMatchupPeriod", {})
+        players_home_stats: list[dict[str, Any]] = []
+        players_away = matchup.get("away", {}).get("rosterForMatchupPeriod", {})
+        players_away_stats: list[dict[str, Any]] = []
+        for player in players_home.get("entries", []):
+            player_stats = {}
+            player_stats["player_id"] = player["playerId"]
+            player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
+            player_stats["points_scored"] = player["playerPoolEntry"][
+                "appliedStatTotal"
+            ]
+            player_stats["position"] = POSITION_ID_MAPPING[
+                player["playerPoolEntry"]["player"]["defaultPositionId"]
+            ]
+            players_home_stats.append(player_stats)
+        for player in players_away.get("entries", []):
+            player_stats = {}
+            player_stats["player_id"] = player["playerId"]
+            player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
+            player_stats["points_scored"] = player["playerPoolEntry"][
+                "appliedStatTotal"
+            ]
+            player_stats["position"] = POSITION_ID_MAPPING[
+                player["playerPoolEntry"]["player"]["defaultPositionId"]
+            ]
+            players_away_stats.append(player_stats)
 
         # Skip matchups where both teams scored 0 (these are future weeks)
         if float(home_score) == 0.0 and float(away_score) == 0.0:
@@ -214,10 +265,14 @@ def process_league_scores(
         team_a, team_b = sorted([home_team, away_team], key=safe_int)
         if team_a == home_team:
             team_a_score = home_score
+            team_a_players = players_home_stats
             team_b_score = away_score
+            team_b_players = players_away_stats
         else:
             team_a_score = away_score
+            team_a_players = players_away_stats
             team_b_score = home_score
+            team_b_players = players_home_stats
 
         # Determine winner in terms of team_a/team_b
         if float(team_a_score) > float(team_b_score):
@@ -235,6 +290,8 @@ def process_league_scores(
             "team_b": team_b,
             "team_a_score": team_a_score,
             "team_b_score": team_b_score,
+            "team_a_players": team_a_players,
+            "team_b_players": team_b_players,
             "playoff_tier_type": matchup.get("playoffTierType", ""),
             "winner": winner,
             "loser": loser,
@@ -278,7 +335,7 @@ def process_league_scores(
 
 
 def batch_write_to_dynamodb(
-    score_data: list[dict[str, str]],
+    score_data: list[dict[str, Any]],
     member_mapping: dict[str, str],
     league_id: str,
     platform: str,
@@ -289,7 +346,7 @@ def batch_write_to_dynamodb(
     exponential backoff.
 
     Args:
-        score_data (list[dict[str, str]]): League scores data to write to DynamoDB.
+        score_data (list[dict[str, Any]]): League scores data to write to DynamoDB.
         member_mapping (dict[str, str]): A mapping of team_id to member_id.
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
@@ -328,11 +385,41 @@ def batch_write_to_dynamodb(
                         "team_a_team_name": {"S": str(item["team_a_team_name"])},
                         "team_a_member_id": {"S": team_a_member_id},
                         "team_a_score": {"N": str(item["team_a_score"])},
+                        "team_a_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_a_players"]
+                            ]
+                        },
                         "team_b": {"S": str(item["team_b"])},
                         "team_b_full_name": {"S": str(item["team_b_full_name"])},
                         "team_b_team_name": {"S": str(item["team_b_team_name"])},
                         "team_b_member_id": {"S": team_b_member_id},
                         "team_b_score": {"N": str(item["team_b_score"])},
+                        "team_b_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_b_players"]
+                            ]
+                        },
                         "season": {"S": str(season)},
                         "week": {"S": str(item["matchup_week"])},
                         "winner": {"S": winning_member_id},
