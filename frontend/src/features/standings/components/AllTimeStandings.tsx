@@ -3,8 +3,8 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import type {
   GetAllTimeStandings,
-  GetAllTimeStandingsBySeason,
   GetLeagueMembers,
+  GetSeasonStandings,
   Member,
   MemberConfig,
   StandingsAllTime,
@@ -99,7 +99,7 @@ function AllTimeStandings() {
     platform: leagueData.platform,
   });
 
-  const { refetch: refetchAllSeasonStandings } = useGetResource<GetAllTimeStandingsBySeason['data']>(`/standings`, {
+  const { refetch: refetchAllSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
     standings_type: 'season',
