@@ -58,7 +58,14 @@ def get_matchups(
         try:
             # Get a specific matchup between 2 teams
             if week_number and season:
-                response = dynamodb_client.query(
+                logger.info(
+                    "Retrieving matchup between team %s and %s for %s season and week %s",
+                    team1_id,
+                    team2_id,
+                    season,
+                    week_number,
+                )
+                response1 = dynamodb_client.query(
                     TableName=table_name,
                     KeyConditionExpression="PK = :pk AND SK = :sk",
                     ExpressionAttributeValues={
@@ -70,6 +77,18 @@ def get_matchups(
                         },
                     },
                 )
+                response2 = dynamodb_client.query(
+                    TableName=table_name,
+                    KeyConditionExpression="PK = :pk AND SK = :sk",
+                    ExpressionAttributeValues={
+                        ":pk": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+                        },
+                        ":sk": {
+                            "S": f"MATCHUP#{team2_id}-vs-{team1_id}#WEEK#{week_number}"
+                        },
+                    },
+                )
                 logger.info(
                     "Found matchup between team %s and team %s for season %s week %s",
                     team1_id,
@@ -77,16 +96,28 @@ def get_matchups(
                     season,
                     week_number,
                 )
-                items = [
+                items1 = [
                     {
                         k: deserializer.deserialize(v)
-                        for k, v in item.items()
+                        for k, v in sorted(item.items())
                         if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
                     }
-                    for item in response.get("Items", [])
+                    for item in response1.get("Items", [])
                     if include_playoff_matchups
                     or item.get("playoff_tier_type", {}).get("S") == "NONE"
                 ]
+                items2 = [
+                    {
+                        k: deserializer.deserialize(v)
+                        for k, v in sorted(item.items())
+                        if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                    }
+                    for item in response2.get("Items", [])
+                    if include_playoff_matchups
+                    or item.get("playoff_tier_type", {}).get("S") == "NONE"
+                ]
+                items1.extend(items2)
+                items = items1.copy()
                 if not items:
                     error_message = f"No matchups between team {team1_id} and team {team2_id} for {season} season week {week_number}"
                     logger.warning(error_message)

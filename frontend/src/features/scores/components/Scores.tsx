@@ -55,9 +55,10 @@ function Scores() {
         <WeekSelect season={selectedSeason} onWeekChange={setSelectedWeek} className="w-full max-w-xs md:w-auto" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center">
-        {matchups.map((matchup) => (
-          <ScoreboardCard key={matchup.PK + matchup.SK} matchup={matchup} onClick={() => setSelectedMatchup(matchup)} />
-        ))}
+        {matchups.map((matchup) => {
+          const matchupKey = `${matchup.team_a_member_id}-${matchup.team_b_member_id}-${matchup.week}`;
+          return <ScoreboardCard key={matchupKey} matchup={matchup} onClick={() => setSelectedMatchup(matchup)} />;
+        })}
         {selectedMatchup && (
           <MatchupSheet matchup={selectedMatchup} open={!!selectedMatchup} onClose={() => setSelectedMatchup(null)} />
         )}
