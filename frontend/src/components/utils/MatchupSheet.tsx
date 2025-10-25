@@ -26,7 +26,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={(val) => !val && onClose()}>
-      <SheetContent className="w-full max-w-lg md:max-w-3xl flex flex-col">
+      <SheetContent className="w-full max-w-lg md:max-w-3xl flex flex-col bg-card text-foreground">
         <div className="mt-4 flex-1 overflow-y-auto px-4">
           {/* Team Names and Scores */}
           <div className="flex justify-between text-center font-semibold mb-4">
@@ -52,7 +52,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
 
               return (
                 <div key={pos}>
-                  <h3 className="text-md font-semibold text-gray-700 mb-2">{pos}</h3>
+                  <h3 className="text-md font-semibold text-foreground mb-2">{pos}</h3>
                   <div className="grid grid-cols-2 gap-6">
                     {/* Team A */}
                     <div className="space-y-1">
@@ -61,10 +61,10 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                         return (
                           <div
                             key={idx}
-                            className="flex justify-between border-b border-gray-100 pb-1 text-sm min-h-[1.5rem]"
+                            className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
                           >
-                            <span className="text-gray-800"> {player?.full_name || ''} </span>
-                            <span className="font-mono text-gray-600">
+                            <span className="text-foreground"> {player?.full_name || ''} </span>
+                            <span className="font-mono text-muted-foreground">
                               {player ? Number(player.points_scored).toFixed(1) : ''}
                             </span>
                           </div>
@@ -79,12 +79,12 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                         return (
                           <div
                             key={idx}
-                            className="flex justify-between border-b border-gray-100 pb-1 text-sm min-h-[1.5rem]"
+                            className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
                           >
-                            <span className="font-mono text-gray-600">
+                            <span className="font-mono text-muted-foreground">
                               {player ? Number(player.points_scored).toFixed(1) : ''}
                             </span>
-                            <span className="text-gray-800">{player?.full_name || ''}</span>
+                            <span className="text-foreground">{player?.full_name || ''}</span>
                           </div>
                         );
                       })}
