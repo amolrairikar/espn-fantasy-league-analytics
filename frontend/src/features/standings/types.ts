@@ -44,11 +44,17 @@ type GetMatchups = {
     playoff_tier_type: string;
     season: string;
     team_a: string;
+    team_a_full_name: string;
     team_a_member_id: string;
+    team_a_players: PlayerScoring[];
     team_a_score: string;
+    team_a_team_name: string;
     team_b: string;
+    team_b_full_name: string;
     team_b_member_id: string;
+    team_b_players: PlayerScoring[];
     team_b_score: string;
+    team_b_team_name: string;
     week: string;
     winner: string;
   }[];
@@ -83,6 +89,13 @@ type Member = {
 type MemberConfig = {
   name: string;
   member_id: string;
+};
+
+type PlayerScoring = {
+  player_id: string;
+  full_name: string;
+  position: string;
+  points_scored: string;
 };
 
 type StandingsAllTime = {
@@ -126,6 +139,7 @@ export type {
   Matchup,
   Member,
   MemberConfig,
+  PlayerScoring,
   StandingsAllTime,
   StandingsAllTimeBySeason,
   StandingsH2H,

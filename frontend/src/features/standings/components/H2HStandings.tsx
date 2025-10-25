@@ -12,6 +12,7 @@ import type { LeagueData } from '@/features/login/types';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import { DataTable } from '@/components/utils/dataTable';
+import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -27,8 +28,12 @@ function H2HStandings() {
   const selectedOwnerName = members.find((m) => m.member_id === selectedOwnerId)?.name ?? null;
   const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null);
   const selectedOpponentId = members.find((m) => m.name === selectedOpponentName)?.member_id ?? undefined;
+  const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
+  const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
   const [standingsData, setStandingsData] = useState<StandingsH2H[]>([]);
   const [scoresData, setScoresData] = useState<Matchup[]>([]);
+  const [H2HMatchupData, setH2HMatchupData] = useState<GetMatchups['data']>();
+  const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
 
   const columnsH2HStandings: ColumnDef<StandingsH2H>[] = [
     {
@@ -94,16 +99,39 @@ function H2HStandings() {
     },
   ];
 
-  const columnsH2HMatchups: ColumnDef<Matchup>[] = [
+  const columnsH2HMatchups = (
+    setSelectedSeason: (season: number) => void,
+    setSelectedWeek: (week: number) => void,
+  ): ColumnDef<Matchup>[] => [
     {
       accessorKey: 'season',
       header: () => <div className="w-full text-center">Season</div>,
-      cell: ({ row }) => <div className="text-center">{row.original.season}</div>,
+      cell: ({ row }) => (
+        <div
+          className="text-center cursor-pointer hover:underline"
+          onClick={() => {
+            setSelectedSeason(row.original.season);
+            setSelectedWeek(row.original.week);
+          }}
+        >
+          {row.original.season}
+        </div>
+      ),
     },
     {
       accessorKey: 'week',
       header: () => <div className="w-full text-center">Week</div>,
-      cell: ({ row }) => <div className="text-center">{row.original.week}</div>,
+      cell: ({ row }) => (
+        <div
+          className="text-center cursor-pointer hover:underline"
+          onClick={() => {
+            setSelectedSeason(row.original.season);
+            setSelectedWeek(row.original.week);
+          }}
+        >
+          {row.original.week}
+        </div>
+      ),
     },
     {
       accessorKey: 'result',
@@ -116,6 +144,8 @@ function H2HStandings() {
       cell: ({ row }) => <div className="text-center">{row.original.outcome}</div>,
     },
   ];
+
+  const columnsH2HMatchupTable = columnsH2HMatchups(setSelectedSeason, setSelectedWeek);
 
   const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
     league_id: leagueData.leagueId,
@@ -133,6 +163,15 @@ function H2HStandings() {
     platform: leagueData.platform,
     team1_id: selectedOwnerId,
     team2_id: selectedOpponentId,
+  });
+
+  const { refetch: refetchH2HMatchup } = useGetResource<GetMatchups['data']>(`/matchups`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+    team1_id: selectedOwnerId,
+    team2_id: selectedOpponentId,
+    season: selectedSeason,
+    week_number: selectedWeek,
   });
 
   useEffect(() => {
@@ -226,6 +265,28 @@ function H2HStandings() {
     setSelectedOpponentName(null);
   }, [selectedOwnerId]);
 
+  useEffect(() => {
+    if (!selectedSeason || !selectedWeek) return;
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchH2HMatchup();
+        if (response.data?.data) {
+          setH2HMatchupData(response.data?.data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    void fetchStatus();
+  }, [refetchH2HMatchup, selectedSeason, selectedWeek, H2HMatchupData]);
+
+  // Open matchup box score whenever season/week are selected
+  useEffect(() => {
+    if (selectedSeason && selectedWeek) {
+      setExpandedBoxScoreOpen(true);
+    }
+  }, [selectedSeason, selectedWeek]);
+
   return (
     <div className="space-y-4 my-4">
       <div className="flex items-center space-x-4">
@@ -276,14 +337,28 @@ function H2HStandings() {
                 initialSorting={[{ id: 'win_pct', desc: true }]}
               />
               <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
+              <p className="text-sm text-muted-foreground italic mt-2">
+                Please click on a matchup to view the detailed box score.
+              </p>
               <DataTable
-                columns={columnsH2HMatchups}
+                columns={columnsH2HMatchupTable}
                 data={scoresData}
                 initialSorting={[
                   { id: 'season', desc: false },
                   { id: 'week', desc: false },
                 ]}
               />
+
+              {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
+                <MatchupSheet
+                  matchup={H2HMatchupData[0]}
+                  open={expandedBoxScoreOpen}
+                  onClose={() => {
+                    setSelectedSeason(undefined);
+                    setSelectedWeek(undefined);
+                  }}
+                />
+              )}
             </div>
           )}
         </>
