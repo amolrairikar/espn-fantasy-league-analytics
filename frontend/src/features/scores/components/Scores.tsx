@@ -45,7 +45,7 @@ function Scores() {
   }, [refetchWeeklyMatchups, matchups, selectedSeason, selectedWeek]);
 
   return (
-    <div className="space-y-6 my-6">
+    <div className="space-y-6 my-6 px-4 md:px-0">
       <div className="flex flex-col items-center space-y-4 md:flex-row md:justify-center md:space-x-6 md:space-y-0">
         <SeasonSelect
           leagueData={leagueData}

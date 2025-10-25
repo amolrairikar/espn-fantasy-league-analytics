@@ -30,13 +30,20 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
         <div className="mt-4 flex-1 overflow-y-auto px-4">
           {/* Team Names and Scores */}
           <div className="flex justify-between text-center font-semibold mb-4">
-            <div className="w-1/2">
-              <div className="text-lg">{matchup.team_a_team_name}</div>
-              <div className="text-2xl">{matchup.team_a_score}</div>
+            {/* Team A */}
+            <div className="w-1/2 flex flex-col items-center">
+              <div className="flex items-center justify-center text-lg text-center min-h-[3rem] leading-tight">
+                <span className="line-clamp-2 break-words">{matchup.team_a_team_name}</span>
+              </div>
+              <div className="text-2xl mt-1">{matchup.team_a_score}</div>
             </div>
-            <div className="w-1/2">
-              <div className="text-lg">{matchup.team_b_team_name}</div>
-              <div className="text-2xl">{matchup.team_b_score}</div>
+
+            {/* Team B */}
+            <div className="w-1/2 flex flex-col items-center">
+              <div className="flex items-center justify-center text-lg text-center min-h-[3rem] leading-tight">
+                <span className="line-clamp-2 break-words">{matchup.team_b_team_name}</span>
+              </div>
+              <div className="text-2xl mt-1">{matchup.team_b_score}</div>
             </div>
           </div>
 
@@ -47,7 +54,6 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
               const teamBPlayers = teamBGrouped[pos] || [];
               if (teamAPlayers.length === 0 && teamBPlayers.length === 0) return null;
 
-              // Find max number of players for a position
               const maxPlayers = Math.max(teamAPlayers.length, teamBPlayers.length);
 
               return (
@@ -63,7 +69,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                             key={idx}
                             className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
                           >
-                            <span className="text-foreground"> {player?.full_name || ''} </span>
+                            <span className="text-foreground">{player?.full_name || ''}</span>
                             <span className="font-mono text-muted-foreground">
                               {player ? Number(player.points_scored).toFixed(1) : ''}
                             </span>
