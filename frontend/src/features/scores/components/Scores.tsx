@@ -33,7 +33,13 @@ function Scores() {
         const response = await refetchWeeklyMatchups();
         if (response?.data?.data) {
           console.log(response);
-          setMatchups(response.data.data);
+          const sorted = [...response.data.data].sort((a, b) => {
+            const aIsPlayoff = a.playoff_tier_type === 'WINNERS_BRACKET';
+            const bIsPlayoff = b.playoff_tier_type === 'WINNERS_BRACKET';
+            // Playoff first
+            return aIsPlayoff === bIsPlayoff ? 0 : aIsPlayoff ? -1 : 1;
+          });
+          setMatchups(sorted);
           console.log(matchups);
         }
       } catch (err) {
