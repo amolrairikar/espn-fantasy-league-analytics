@@ -32,7 +32,6 @@ function Scores() {
       try {
         const response = await refetchWeeklyMatchups();
         if (response?.data?.data) {
-          console.log(response);
           const sorted = [...response.data.data].sort((a, b) => {
             const aIsPlayoff = a.playoff_tier_type === 'WINNERS_BRACKET';
             const bIsPlayoff = b.playoff_tier_type === 'WINNERS_BRACKET';
@@ -40,7 +39,6 @@ function Scores() {
             return aIsPlayoff === bIsPlayoff ? 0 : aIsPlayoff ? -1 : 1;
           });
           setMatchups(sorted);
-          console.log(matchups);
         }
       } catch (err) {
         console.error(err);
@@ -48,7 +46,8 @@ function Scores() {
     };
 
     void fetchStatus();
-  }, [refetchWeeklyMatchups, matchups, selectedSeason, selectedWeek]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeason, selectedWeek]);
 
   return (
     <div className="space-y-6 my-6 px-4 md:px-0">
