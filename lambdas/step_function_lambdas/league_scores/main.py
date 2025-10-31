@@ -366,20 +366,146 @@ def batch_write_to_dynamodb(
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {
-                            "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}#WEEK#{str(item['matchup_week'])}"
+                            "S": f"MATCHUP#TEAMS#{team_a_member_id}-vs-{team_b_member_id}#WEEK#{str(item['matchup_week'])}"
                         },
                         "GSI1PK": {
-                            "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                         },
-                        "GSI1SK": {
-                            "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
-                        },
+                        "GSI1SK": {"S": f"SEASON#{season}#WEEK#{item['matchup_week']}"},
                         "GSI3PK": {
-                            "S": f"LEAGUE#{league_id}#SEASON#{season}#WEEK#{item['matchup_week']}"
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}#WEEK#{item['matchup_week']}"
                         },
                         "GSI3SK": {
                             "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                         },
+                        "team_a": {"S": str(item["team_a"])},
+                        "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                        "team_a_team_name": {"S": str(item["team_a_team_name"])},
+                        "team_a_member_id": {"S": team_a_member_id},
+                        "team_a_score": {"N": str(item["team_a_score"])},
+                        "team_a_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_a_players"]
+                            ]
+                        },
+                        "team_b": {"S": str(item["team_b"])},
+                        "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                        "team_b_team_name": {"S": str(item["team_b_team_name"])},
+                        "team_b_member_id": {"S": team_b_member_id},
+                        "team_b_score": {"N": str(item["team_b_score"])},
+                        "team_b_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_b_players"]
+                            ]
+                        },
+                        "season": {"S": str(season)},
+                        "week": {"S": str(item["matchup_week"])},
+                        "winner": {"S": winning_member_id},
+                        "loser": {"S": losing_member_id},
+                        "playoff_tier_type": {"S": item["playoff_tier_type"]},
+                    }
+                }
+            }
+        )
+
+        # Create an individual record per team so that we can query a single team's games for a season
+        batched_objects.append(
+            {
+                "PutRequest": {
+                    "Item": {
+                        "PK": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+                        },
+                        "SK": {
+                            "S": f"MATCHUP#TEAM#{team_a_member_id}#WEEK#{str(item['matchup_week'])}"
+                        },
+                        "GSI4PK": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#MATCHUP#TEAM#{team_a_member_id}"
+                        },
+                        "GSI4SK": {"S": f"SEASON#{season}#WEEK#{item['matchup_week']}"},
+                        "team_a": {"S": str(item["team_a"])},
+                        "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                        "team_a_team_name": {"S": str(item["team_a_team_name"])},
+                        "team_a_member_id": {"S": team_a_member_id},
+                        "team_a_score": {"N": str(item["team_a_score"])},
+                        "team_a_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_a_players"]
+                            ]
+                        },
+                        "team_b": {"S": str(item["team_b"])},
+                        "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                        "team_b_team_name": {"S": str(item["team_b_team_name"])},
+                        "team_b_member_id": {"S": team_b_member_id},
+                        "team_b_score": {"N": str(item["team_b_score"])},
+                        "team_b_players": {
+                            "L": [
+                                {
+                                    "M": {
+                                        "player_id": {"S": str(player["player_id"])},
+                                        "full_name": {"S": str(player["full_name"])},
+                                        "points_scored": {
+                                            "N": str(player["points_scored"])
+                                        },
+                                        "position": {"S": str(player["position"])},
+                                    }
+                                }
+                                for player in item["team_b_players"]
+                            ]
+                        },
+                        "season": {"S": str(season)},
+                        "week": {"S": str(item["matchup_week"])},
+                        "winner": {"S": winning_member_id},
+                        "loser": {"S": losing_member_id},
+                        "playoff_tier_type": {"S": item["playoff_tier_type"]},
+                    }
+                }
+            }
+        )
+        batched_objects.append(
+            {
+                "PutRequest": {
+                    "Item": {
+                        "PK": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+                        },
+                        "SK": {
+                            "S": f"MATCHUP#TEAM#{team_b_member_id}#WEEK#{str(item['matchup_week'])}"
+                        },
+                        "GSI4PK": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#MATCHUP#TEAM#{team_b_member_id}"
+                        },
+                        "GSI4SK": {"S": f"SEASON#{season}#WEEK#{item['matchup_week']}"},
                         "team_a": {"S": str(item["team_a"])},
                         "team_a_full_name": {"S": str(item["team_a_full_name"])},
                         "team_a_team_name": {"S": str(item["team_a_team_name"])},

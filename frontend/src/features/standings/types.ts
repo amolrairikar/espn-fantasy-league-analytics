@@ -27,39 +27,6 @@ type GetH2HStandings = {
   }[];
 };
 
-type GetLeagueMembers = {
-  status: string;
-  detail: string;
-  data: {
-    member_id: string;
-    name: string;
-  }[];
-};
-
-type GetMatchups = {
-  status: string;
-  detail: string;
-  data: {
-    loser: string;
-    playoff_tier_type: string;
-    season: string;
-    team_a: string;
-    team_a_full_name: string;
-    team_a_member_id: string;
-    team_a_players: PlayerScoring[];
-    team_a_score: string;
-    team_a_team_name: string;
-    team_b: string;
-    team_b_full_name: string;
-    team_b_member_id: string;
-    team_b_players: PlayerScoring[];
-    team_b_score: string;
-    team_b_team_name: string;
-    week: string;
-    winner: string;
-  }[];
-};
-
 type GetSeasonStandings = {
   status: string;
   detail: string;
@@ -74,7 +41,37 @@ type GetSeasonStandings = {
   }[];
 };
 
-type Matchup = {
+type GetLeagueMembers = {
+  status: string;
+  detail: string;
+  data: Member[];
+};
+
+type GetMatchupsBetweenTeams = {
+  status: string;
+  detail: string;
+  data: {
+    loser: string;
+    playoff_tier_type: string;
+    season: string;
+    team_a: string;
+    team_a_full_name: string;
+    team_a_member_id: string;
+    team_a_players: PlayerScoringDetails[];
+    team_a_score: string;
+    team_a_team_name: string;
+    team_b: string;
+    team_b_full_name: string;
+    team_b_member_id: string;
+    team_b_players: PlayerScoringDetails[];
+    team_b_score: string;
+    team_b_team_name: string;
+    week: string;
+    winner: string;
+  }[];
+};
+
+type MatchupTableView = {
   season: number;
   week: number;
   result: string;
@@ -86,12 +83,7 @@ type Member = {
   member_id: string;
 };
 
-type MemberConfig = {
-  name: string;
-  member_id: string;
-};
-
-type PlayerScoring = {
+type PlayerScoringDetails = {
   player_id: string;
   full_name: string;
   position: string;
@@ -107,7 +99,7 @@ type StandingsAllTime = {
   points_against_per_game: number;
 };
 
-type StandingsAllTimeBySeason = {
+type StandingsAllTimeBySeasonGraphView = {
   season: string;
   wins: string;
 };
@@ -133,15 +125,14 @@ type StandingsSeason = {
 export type {
   GetAllTimeStandings,
   GetH2HStandings,
-  GetLeagueMembers,
-  GetMatchups,
   GetSeasonStandings,
-  Matchup,
+  GetLeagueMembers,
+  GetMatchupsBetweenTeams,
+  MatchupTableView,
   Member,
-  MemberConfig,
-  PlayerScoring,
+  PlayerScoringDetails,
   StandingsAllTime,
-  StandingsAllTimeBySeason,
+  StandingsAllTimeBySeasonGraphView,
   StandingsH2H,
   StandingsSeason,
 };

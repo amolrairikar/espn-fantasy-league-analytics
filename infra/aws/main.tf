@@ -42,7 +42,7 @@ resource "aws_dynamodb_table" "application_table" {
   }
 
   attribute {
-    name = "GSI1SK" # will be of format LEAGUE#{league_id}#SEASON#{season}#WEEK#{week}
+    name = "GSI1SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}#WEEK#{week}
     type = "S"
   }
 
@@ -59,12 +59,23 @@ resource "aws_dynamodb_table" "application_table" {
 
   # GSI3 is to get all matchups in a league for a season/week combination (is the inverse of GSI1)
   attribute {
-    name = "GSI3PK" # will be of format LEAGUE#{league_id}#SEASON#{season}#WEEK#{week}
+    name = "GSI3PK" # will be of format LEAGUE#{league_id}#PLATFORM{platform}#SEASON#{season}#WEEK#{week}
     type = "S"
   }
 
   attribute {
     name = "GSI3SK" # will be of format MATCHUP#{team_a}-vs-{team_b}
+    type = "S"
+  }
+
+  # GSI4 is to get all matchups in a league for a team
+  attribute {
+    name = "GSI4PK" # will be of format MATCHUP#TEAM#{team_id}
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI4SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}#WEEK#{week}
     type = "S"
   }
 
@@ -86,6 +97,13 @@ resource "aws_dynamodb_table" "application_table" {
     name            = "GSI3"
     hash_key        = "GSI3PK"
     range_key       = "GSI3SK"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "GSI4"
+    hash_key        = "GSI4PK"
+    range_key       = "GSI4SK"
     projection_type = "ALL"
   }
 

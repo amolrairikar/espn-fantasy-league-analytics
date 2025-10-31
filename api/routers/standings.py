@@ -131,7 +131,30 @@ def get_standings(
                 ExpressionAttributeValues={
                     ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
                     ":prefix": {
-                        "S": "STANDINGS#ALL-TIME",
+                        "S": "STANDINGS#ALL-TIME#",
+                    },
+                },
+            )
+            items = [
+                {
+                    k: deserializer.deserialize(v)
+                    for k, v in sorted(item.items())
+                    if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+                }
+                for item in response.get("Items", [])
+            ]
+            return APIResponse(
+                detail=f"Found all-time standings for {len(items)} teams",
+                data=items,
+            )
+        elif standings_type == "playoff":
+            response = dynamodb_client.query(
+                TableName=table_name,
+                KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
+                ExpressionAttributeValues={
+                    ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+                    ":prefix": {
+                        "S": "STANDINGS#ALL-TIME-PLAYOFFS#",
                     },
                 },
             )
@@ -150,7 +173,7 @@ def get_standings(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid standings_type. Should be one of all_time, h2h, season",
+                detail="Invalid standings_type. Should be one of all_time, h2h, playoff, or season",
             )
     except botocore.exceptions.ClientError as e:
         logger.exception("Unexpected error while getting standings")

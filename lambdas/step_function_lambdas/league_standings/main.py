@@ -52,7 +52,7 @@ def get_matchups(league_id: str, platform: str, season: str) -> list[dict[str, A
                     "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
                 },
                 ":prefix": {
-                    "S": "MATCHUP#",
+                    "S": "MATCHUP#TEAMS#",
                 },
             },
         )
@@ -109,7 +109,7 @@ def get_league_members(
 def compile_standings_data(
     matchup_data: list[dict[str, Any]],
     members_data: list[dict[str, Any]],
-) -> tuple[list, list, list, list]:
+) -> tuple[list, list, list, list, list]:
     """
     Calculates all-time league standings based on fantasy matchup scores.
 
@@ -119,11 +119,16 @@ def compile_standings_data(
 
     Returns:
         tuple: A tuple of list of dictionary mappings containing unique league members,
-            standings for each season, all-time, and head to head all-time.
+            standings for each season, all-time (incl. playoffs), and head to head all-time.
     """
     # Load matchups data into DataFrames and perform pre-processing
-    df_matchups = pd.DataFrame(matchup_data)
-    df_matchups = df_matchups[df_matchups["playoff_tier_type"] == "NONE"]
+    df_matchups_raw = pd.DataFrame(matchup_data)
+    df_matchups = df_matchups_raw[df_matchups_raw["playoff_tier_type"] == "NONE"]
+
+    # Note that these are non toilet bowl playoff matchups
+    df_playoff_matchups = df_matchups_raw[
+        df_matchups_raw["playoff_tier_type"] == "WINNERS_BRACKET"
+    ]
 
     # Load members data into DataFrames and perform pre-processing
     df_members = pd.DataFrame(members_data)
@@ -167,6 +172,25 @@ def compile_standings_data(
             "team_b_score": "points_against",
         }
     )
+    a_view_playoff = df_playoff_matchups[
+        [
+            "season",
+            "week",
+            "team_a_member_id",
+            "team_b_member_id",
+            "team_a_score",
+            "team_b_score",
+            "winner",
+            "loser",
+        ]
+    ].rename(
+        columns={
+            "team_a_member_id": "team_member_id",
+            "team_b_member_id": "opponent_member_id",
+            "team_a_score": "points_for",
+            "team_b_score": "points_against",
+        }
+    )
     b_view = df_matchups[
         [
             "season",
@@ -186,7 +210,27 @@ def compile_standings_data(
             "team_a_score": "points_against",
         }
     )
+    b_view_playoff = df_playoff_matchups[
+        [
+            "season",
+            "week",
+            "team_b_member_id",
+            "team_a_member_id",
+            "team_b_score",
+            "team_a_score",
+            "winner",
+            "loser",
+        ]
+    ].rename(
+        columns={
+            "team_b_member_id": "team_member_id",
+            "team_a_member_id": "opponent_member_id",
+            "team_b_score": "points_for",
+            "team_a_score": "points_against",
+        }
+    )
     long_df = pd.concat([a_view, b_view], ignore_index=True)
+    long_df_playoff = pd.concat([a_view_playoff, b_view_playoff], ignore_index=True)
 
     # Get win/loss/tie columns
     def outcome_row(r):
@@ -200,6 +244,7 @@ def compile_standings_data(
         return pd.Series({"win": 0, "loss": 0, "tie": 0})
 
     long_df[["win", "loss", "tie"]] = long_df.apply(outcome_row, axis=1)
+    long_df_playoff[["win", "loss", "tie"]] = long_df_playoff.apply(outcome_row, axis=1)
 
     # Season standings
     season_long = long_df[~long_df["team_member_id"].isna()].copy()
@@ -317,6 +362,68 @@ def compile_standings_data(
         ]
     ]
 
+    # All-time standings for playoffs (winners bracket only)
+    alltime_long_playoffs = long_df_playoff[
+        ~long_df_playoff["team_member_id"].isna()
+    ].copy()
+    alltime_group_playoff = (
+        alltime_long_playoffs.groupby(["team_member_id"], dropna=False)
+        .agg(
+            wins=("win", "sum"),
+            losses=("loss", "sum"),
+            ties=("tie", "sum"),
+            games=("points_for", "count"),
+            points_for_total=("points_for", "sum"),
+            points_against_total=("points_against", "sum"),
+        )
+        .reset_index()
+    )
+    alltime_group_playoff = alltime_group_playoff.merge(
+        df_unique_members,
+        how="inner",
+        left_on="team_member_id",
+        right_on="memberId",
+    )
+    alltime_group_playoff["points_for_per_game"] = (
+        alltime_group_playoff.apply(
+            lambda r: (r["points_for_total"] / r["games"]) if r["games"] > 0 else 0.0,
+            axis=1,
+        )
+        .astype(float)
+        .round(1)
+    )
+    alltime_group_playoff["points_against_per_game"] = (
+        alltime_group_playoff.apply(
+            lambda r: (r["points_against_total"] / r["games"])
+            if r["games"] > 0
+            else 0.0,
+            axis=1,
+        )
+        .astype(float)
+        .round(1)
+    )
+    alltime_group_playoff["win_pct"] = alltime_group_playoff.apply(
+        lambda r: (r["wins"] / (r["wins"] + r["losses"]))
+        if (r["wins"] + r["losses"]) > 0
+        else 0.0,
+        axis=1,
+    ).round(3)
+    alltime_group_playoff["games_played"] = (
+        alltime_group_playoff["wins"] + alltime_group_playoff["losses"]
+    )
+    alltime_standings_playoff = alltime_group_playoff[
+        [
+            "owner_full_name",
+            "team_member_id",
+            "games_played",
+            "wins",
+            "losses",
+            "win_pct",
+            "points_for_per_game",
+            "points_against_per_game",
+        ]
+    ]
+
     # H2H (all-time) between owners
     h2h_long = long_df[
         ~long_df["team_member_id"].isna() & ~long_df["opponent_member_id"].isna()
@@ -401,12 +508,16 @@ def compile_standings_data(
     dict_unique_members = df_unique_members.to_dict(orient="records")
     dict_season_standings = season_standings.to_dict(orient="records")
     dict_alltime_standings = alltime_standings.to_dict(orient="records")
+    dict_alltime_standings_playoffs = alltime_standings_playoff.to_dict(
+        orient="records"
+    )
     dict_h2h_standings = h2h_standings.to_dict(orient="records")
 
     return (
         dict_unique_members,
         dict_season_standings,
         dict_alltime_standings,
+        dict_alltime_standings_playoffs,
         dict_h2h_standings,
     )
 
@@ -480,6 +591,30 @@ def batch_write_to_dynamodb(
                         "Item": {
                             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
                             "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_member_id']}"},
+                            "owner_full_name": {"S": item["owner_full_name"]},
+                            "games_played": {"N": str(item["games_played"])},
+                            "wins": {"N": str(item["wins"])},
+                            "losses": {"N": str(item["losses"])},
+                            "win_pct": {"N": str(item["win_pct"])},
+                            "points_for_per_game": {
+                                "N": str(item["points_for_per_game"])
+                            },
+                            "points_against_per_game": {
+                                "N": str(item["points_against_per_game"])
+                            },
+                        }
+                    }
+                }
+            )
+        elif standings_data_type == "all-time-playoffs":
+            batched_objects.append(
+                {
+                    "PutRequest": {
+                        "Item": {
+                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+                            "SK": {
+                                "S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_member_id']}"
+                            },
                             "owner_full_name": {"S": item["owner_full_name"]},
                             "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
@@ -588,13 +723,18 @@ def lambda_handler(event, context):
         all_members.extend(members)
     if not all_matchups or not all_members:
         raise ValueError("'all_matchups' and/or 'all_members' lists must not be empty.")
-    unique_members, season_standings, alltime_standings, h2h_standings = (
-        compile_standings_data(matchup_data=all_matchups, members_data=all_members)
-    )
+    (
+        unique_members,
+        season_standings,
+        alltime_standings,
+        alltime_standings_playoffs,
+        h2h_standings,
+    ) = compile_standings_data(matchup_data=all_matchups, members_data=all_members)
     standings_mapping = {
         "members": unique_members,
         "season": season_standings,
         "all-time": alltime_standings,
+        "all-time-playoffs": alltime_standings_playoffs,
         "h2h": h2h_standings,
     }
     for standings_type, standings_data in standings_mapping.items():
@@ -607,3 +747,60 @@ def lambda_handler(event, context):
         )
         logger.info("Successfully processed %s data", standings_type)
     logger.info("Successfully wrote data to DynamoDB.")
+
+
+# lambda_handler(
+#     event=[
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2025",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2024",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2023",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2022",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2021",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2020",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2019",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2018",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2017",
+#         },
+#         {
+#             "leagueId": "1770206",
+#             "platform": "ESPN",
+#             "season": "2016",
+#         },
+#     ],
+#     context="",
+# )

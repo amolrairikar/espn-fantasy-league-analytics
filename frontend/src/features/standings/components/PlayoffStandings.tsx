@@ -1,52 +1,49 @@
 import { useEffect, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import type {
-  GetH2HStandings,
+  GetAllTimeStandings,
   GetLeagueMembers,
   GetMatchupsBetweenTeams,
   MatchupTableView,
-  StandingsH2H,
+  Member,
+  StandingsAllTime,
 } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import { DataTable } from '@/components/utils/dataTable';
 import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useGetResource } from '@/components/hooks/genericGetRequest';
+import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 
-function H2HStandings() {
+function PlayoffStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  type memberConfig = { name: string; member_id: string };
-  const [members, setMembers] = useState<memberConfig[]>([]);
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(undefined);
-  const selectedOwnerName = members.find((m) => m.member_id === selectedOwnerId)?.name ?? null;
-  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null);
-  const selectedOpponentId = members.find((m) => m.name === selectedOpponentName)?.member_id ?? undefined;
+  const [standingsData, setStandingsData] = useState<StandingsAllTime[]>([]);
+  const [scoresData, setScoresData] = useState<MatchupTableView[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
+  const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
   const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
   const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
-  const [standingsData, setStandingsData] = useState<StandingsH2H[]>([]);
-  const [scoresData, setScoresData] = useState<MatchupTableView[]>([]);
   const [H2HMatchupData, setH2HMatchupData] = useState<GetMatchupsBetweenTeams['data']>();
   const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
 
-  const columnsH2HStandings: ColumnDef<StandingsH2H>[] = [
+  const columns: ColumnDef<StandingsAllTime>[] = [
     {
-      accessorKey: 'opponent_full_name',
-      header: 'Opponent',
+      accessorKey: 'owner_full_name',
+      header: 'Owner',
       cell: ({ row }) => {
-        const isSelected = row.original.opponent_full_name === selectedOpponentName;
+        const isSelected = row.original.owner_full_name === selectedOwnerName;
         return (
           <div
             className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
                         ${isSelected ? 'outline-2 outline-ring' : ''}`}
-            onClick={() => setSelectedOpponentName(row.original.opponent_full_name)}
+            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
           >
-            {row.original.opponent_full_name}
+            {row.original.owner_full_name}
           </div>
         );
       },
@@ -54,12 +51,11 @@ function H2HStandings() {
     {
       accessorKey: 'games_played',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[90px]">
+        <div className="w-full text-center min-w-[100px]">
           <SortableHeader column={column} label="GP" />
         </div>
       ),
       cell: ({ row }) => <div className="text-center">{row.original.games_played}</div>,
-      minSize: 90,
     },
     {
       accessorKey: 'record',
@@ -144,35 +140,60 @@ function H2HStandings() {
     },
   ];
 
-  const columnsH2HMatchupTable = columnsH2HMatchups(setSelectedSeason, setSelectedWeek);
+  const { refetch: refetchPlayoffStandings } = useGetResource<GetAllTimeStandings['data']>(`/standings`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+    standings_type: 'playoff',
+  });
 
   const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
 
-  const { refetch: refetchH2HStandings } = useGetResource<GetH2HStandings['data']>(`/standings`, {
+  const { refetch: refetchPlayoffMatchups } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
-    standings_type: 'h2h',
+    playoff_filter: 'only',
+    team1_id: selectedOwnerId,
   });
 
-  const { refetch: refetchH2HMatchups } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
+  const { refetch: refetchPlayoffMatchup } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
-    playoff_filter: 'exclude',
+    playoff_filter: 'include',
     team1_id: selectedOwnerId,
-    team2_id: selectedOpponentId,
-  });
-
-  const { refetch: refetchH2HMatchup } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    team1_id: selectedOwnerId,
-    team2_id: selectedOpponentId,
     season: selectedSeason,
     week_number: selectedWeek,
   });
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchPlayoffStandings();
+        if (response?.data?.data) {
+          console.log(response.data.data);
+          const transformedData: StandingsAllTime[] = response.data.data.map((team) => {
+            const wins = Number(team.wins);
+            const losses = Number(team.losses);
+            return {
+              ...team,
+              games_played: Number(team.games_played),
+              record: `${wins}-${losses}`,
+              win_pct: parseFloat(team.win_pct),
+              points_for_per_game: parseFloat(team.points_for_per_game),
+              points_against_per_game: parseFloat(team.points_against_per_game),
+            };
+          });
+          setStandingsData(transformedData);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    void fetchStatus();
+  }, [refetchPlayoffStandings]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -198,48 +219,14 @@ function H2HStandings() {
     const fetchStatus = async () => {
       if (!selectedOwnerName) return;
       try {
-        const response = await refetchH2HStandings();
-        if (response?.data?.data) {
-          console.log(response.data.data);
-          const transformedData = response.data.data
-            .filter((member) => member.owner_full_name === selectedOwnerName)
-            .map((team) => {
-              const wins = Number(team.wins);
-              const losses = Number(team.losses);
-              return {
-                ...team,
-                opponent_full_name: team.opponent_full_name,
-                games_played: Number(team.games_played),
-                record: `${wins}-${losses}`,
-                win_pct: parseFloat(team.win_pct),
-                points_for_per_game: parseFloat(team.points_for_per_game),
-                points_against_per_game: parseFloat(team.points_against_per_game),
-              };
-            });
-          setStandingsData(transformedData);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    void fetchStatus();
-  }, [refetchH2HStandings, selectedOwnerName]);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      if (!selectedOwnerName || !selectedOpponentName) return;
-      try {
-        const response = await refetchH2HMatchups();
+        const response = await refetchPlayoffMatchups();
         if (response?.data?.data) {
           console.log(response);
           const transformedData = response.data.data.map((matchup) => {
             const ownerScore =
               matchup.team_a_member_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
-
             const opponentScore =
               matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
-
             const ownerWon = matchup.winner === selectedOwnerId;
 
             return {
@@ -258,18 +245,13 @@ function H2HStandings() {
     };
 
     void fetchStatus();
-  }, [refetchH2HMatchups, selectedOwnerName, selectedOwnerId, selectedOpponentName]);
-
-  // Reset opponent whenever the owner changes
-  useEffect(() => {
-    setSelectedOpponentName(null);
-  }, [selectedOwnerId]);
+  }, [refetchPlayoffMatchups, selectedOwnerName, selectedOwnerId]);
 
   useEffect(() => {
     if (!selectedSeason || !selectedWeek) return;
     const fetchStatus = async () => {
       try {
-        const response = await refetchH2HMatchup();
+        const response = await refetchPlayoffMatchup();
         if (response.data?.data) {
           setH2HMatchupData(response.data?.data);
         }
@@ -278,7 +260,7 @@ function H2HStandings() {
       }
     };
     void fetchStatus();
-  }, [refetchH2HMatchup, selectedSeason, selectedWeek, H2HMatchupData]);
+  }, [refetchPlayoffMatchup, selectedSeason, selectedWeek, H2HMatchupData]);
 
   // Open matchup box score whenever season/week are selected
   useEffect(() => {
@@ -289,86 +271,43 @@ function H2HStandings() {
 
   return (
     <div className="space-y-4 my-4">
-      <div className="flex items-center space-x-4">
-        <label htmlFor="season" className="font-medium text-sm">
-          League Member Name:
-        </label>
-        <Select onValueChange={setSelectedOwnerId} value={selectedOwnerId}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select a league member" />
-          </SelectTrigger>
-          <SelectContent>
-            {members.length > 0 ? (
-              members.map((member) => (
-                <SelectItem key={member.member_id} value={member.member_id}>
-                  {member.name}
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem disabled value="none">
-                No league members found
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      {selectedOwnerName && standingsData ? (
-        <>
-          {!selectedOpponentId && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground italic mt-2">
-                Please click on an opponent's name in the table to view a table of matchup results against them.
-              </p>
-              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
-              <DataTable
-                columns={columnsH2HStandings}
-                data={standingsData}
-                initialSorting={[{ id: 'win_pct', desc: true }]}
-              />
-            </div>
+      <h1 className="font-semibold">Playoff Standings</h1>
+      {selectedOwnerName ? (
+        <div className="space-y-2">
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'games_played', desc: true }]} />
+          <h1 className="font-semibold mt-6">All-Time Playoff Results for {selectedOwnerName}</h1>
+          <p className="text-sm text-muted-foreground italic mt-2">
+            Click on a matchup to view the detailed box score.
+          </p>
+          <DataTable
+            columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
+            data={scoresData}
+            initialSorting={[
+              { id: 'season', desc: false },
+              { id: 'week', desc: false },
+            ]}
+          />
+          {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
+            <MatchupSheet
+              matchup={H2HMatchupData[0]}
+              open={expandedBoxScoreOpen}
+              onClose={() => {
+                setSelectedSeason(undefined);
+                setSelectedWeek(undefined);
+              }}
+            />
           )}
-
-          {selectedOpponentId && (
-            <div className="space-y-2">
-              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
-              <DataTable
-                columns={columnsH2HStandings}
-                data={standingsData}
-                initialSorting={[{ id: 'win_pct', desc: true }]}
-              />
-              <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
-              <p className="text-sm text-muted-foreground italic mt-2">
-                Please click on a matchup to view the detailed box score.
-              </p>
-              <DataTable
-                columns={columnsH2HMatchupTable}
-                data={scoresData}
-                initialSorting={[
-                  { id: 'season', desc: false },
-                  { id: 'week', desc: false },
-                ]}
-              />
-
-              {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
-                <MatchupSheet
-                  matchup={H2HMatchupData[0]}
-                  open={expandedBoxScoreOpen}
-                  onClose={() => {
-                    setSelectedSeason(undefined);
-                    setSelectedWeek(undefined);
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </>
+        </div>
       ) : (
-        <p className="text-sm text-muted-foreground italic">
-          Please select a league member to view their all-time head to head standings against the rest of the league.
-        </p>
+        <div className="space-y-4 my-4">
+          <p className="text-sm text-muted-foreground italic">
+            Click on an owner's name to display a table with all their playoff matchups.
+          </p>
+          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'games_played', desc: true }]} />
+        </div>
       )}
     </div>
   );
 }
 
-export default H2HStandings;
+export default PlayoffStandings;

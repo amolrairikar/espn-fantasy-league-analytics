@@ -1,8 +1,8 @@
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import type { GetMatchups, PlayerScoring } from '@/features/standings/types';
+import type { GetMatchupsBetweenTeams, PlayerScoringDetails } from '@/features/standings/types';
 
 interface MatchupSheetProps {
-  matchup: GetMatchups['data'][number];
+  matchup: GetMatchupsBetweenTeams['data'][number];
   open: boolean;
   onClose: () => void;
 }
@@ -12,8 +12,8 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
 
   const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
 
-  const groupPlayersByPosition = (players: PlayerScoring[]) => {
-    return players.reduce<Record<string, PlayerScoring[]>>((acc, player) => {
+  const groupPlayersByPosition = (players: PlayerScoringDetails[]) => {
+    return players.reduce<Record<string, PlayerScoringDetails[]>>((acc, player) => {
       const pos = player.position || 'Other';
       if (!acc[pos]) acc[pos] = [];
       acc[pos].push(player);

@@ -6,9 +6,8 @@ import type {
   GetLeagueMembers,
   GetSeasonStandings,
   Member,
-  MemberConfig,
   StandingsAllTime,
-  StandingsAllTimeBySeason,
+  StandingsAllTimeBySeasonGraphView,
 } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -24,8 +23,8 @@ function AllTimeStandings() {
   }
 
   const [standingsData, setStandingsData] = useState<StandingsAllTime[]>([]);
-  const [standingsDataAllSeasons, setStandingsDataAllSeasons] = useState<StandingsAllTimeBySeason[]>([]);
-  const [members, setMembers] = useState<MemberConfig[]>([]);
+  const [standingsDataAllSeasons, setStandingsDataAllSeasons] = useState<StandingsAllTimeBySeasonGraphView[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
   const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
 
@@ -146,7 +145,7 @@ function AllTimeStandings() {
       try {
         const response = await refetchLeaguemembers();
         if (response.data?.data) {
-          const membersData = response.data?.data as Member[];
+          const membersData = response.data?.data;
           const mappedMembers = membersData.map((item) => ({
             name: item.name,
             member_id: item.member_id,
@@ -168,7 +167,7 @@ function AllTimeStandings() {
         const response = await refetchAllSeasonStandings();
         if (response?.data?.data) {
           console.log(response.data.data);
-          const transformedData: StandingsAllTimeBySeason[] = response.data.data.map(({ season, wins }) => ({
+          const transformedData: StandingsAllTimeBySeasonGraphView[] = response.data.data.map(({ season, wins }) => ({
             season,
             wins,
           }));
