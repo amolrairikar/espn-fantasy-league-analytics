@@ -6,7 +6,7 @@ import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { ScoreboardCard } from '@/components/utils/ScoreboardCard';
 import { SeasonSelect } from '@/components/utils/SeasonSelect';
 import { WeekSelect } from '@/components/utils/WeekSelect';
-import type { GetMatchups } from '@/features/standings/types';
+import type { GetMatchupsBetweenTeams } from '@/features/standings/types';
 
 function Scores() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
@@ -16,12 +16,13 @@ function Scores() {
 
   const [selectedSeason, setSelectedSeason] = useState<string>();
   const [selectedWeek, setSelectedWeek] = useState<string | undefined>(undefined);
-  const [matchups, setMatchups] = useState<GetMatchups['data']>([]);
-  const [selectedMatchup, setSelectedMatchup] = useState<GetMatchups['data'][number] | null>(null);
+  const [matchups, setMatchups] = useState<GetMatchupsBetweenTeams['data']>([]);
+  const [selectedMatchup, setSelectedMatchup] = useState<GetMatchupsBetweenTeams['data'][number] | null>(null);
 
-  const { refetch: refetchWeeklyMatchups } = useGetResource<GetMatchups['data']>(`/matchups`, {
+  const { refetch: refetchWeeklyMatchups } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
+    playoff_filter: 'include',
     season: selectedSeason,
     week_number: selectedWeek,
   });
@@ -47,6 +48,11 @@ function Scores() {
 
     void fetchStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeason, selectedWeek]);
+
+  // Clear matchups when season or week changes to avoid showing stale data
+  useEffect(() => {
+    setMatchups([]);
   }, [selectedSeason, selectedWeek]);
 
   return (
