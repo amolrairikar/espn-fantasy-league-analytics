@@ -106,7 +106,7 @@ def get_league_members(
         raise
 
 
-def compile_standings_data(
+def compile_aggregate_standings_data(
     matchup_data: list[dict[str, Any]],
     members_data: list[dict[str, Any]],
 ) -> tuple[list, list, list, list, list]:
@@ -298,6 +298,7 @@ def compile_standings_data(
             "team_member_id",
             "wins",
             "losses",
+            "ties",
             "win_pct",
             "points_for_per_game",
             "points_against_per_game",
@@ -356,6 +357,7 @@ def compile_standings_data(
             "games_played",
             "wins",
             "losses",
+            "ties",
             "win_pct",
             "points_for_per_game",
             "points_against_per_game",
@@ -418,6 +420,7 @@ def compile_standings_data(
             "games_played",
             "wins",
             "losses",
+            "ties",
             "win_pct",
             "points_for_per_game",
             "points_against_per_game",
@@ -478,7 +481,7 @@ def compile_standings_data(
         .round(1)
     )
     h2h_group["win_pct"] = h2h_group.apply(
-        lambda r: (r["wins"] / (r["wins"] + r["losses"]))
+        lambda r: (r["wins"] / (r["wins"] + r["losses"] + r["ties"]))
         if (r["wins"] + r["losses"]) > 0
         else 0.0,
         axis=1,
@@ -498,6 +501,7 @@ def compile_standings_data(
             "games_played",
             "wins",
             "losses",
+            "ties",
             "win_pct",
             "points_for_per_game",
             "points_against_per_game",
@@ -520,6 +524,154 @@ def compile_standings_data(
         dict_alltime_standings_playoffs,
         dict_h2h_standings,
     )
+
+
+def compile_weekly_standings_snapshots(
+    matchup_data: list[dict[str, Any]],
+    members_data: list[dict[str, Any]],
+) -> list:
+    """
+    Calculates cumulative standings at the end of each week for each team.
+
+    Args:
+        matchup_data (list[dict[str, Any]]): List of matchups for all seasons.
+        members_data (list[dict[str, Any]]): List of league members with season/team mapping.
+
+    Returns:
+        list: A list of weekly standings records, one per (season, week, team).
+    """
+    df_matchups_raw = pd.DataFrame(matchup_data)
+    df_matchups = df_matchups_raw[df_matchups_raw["playoff_tier_type"] == "NONE"]
+
+    df_members = pd.DataFrame(members_data)
+    df_members["team_id"] = df_members["SK"].str.split("#").str[1]
+    df_members["owner_full_name"] = (
+        df_members["firstName"] + " " + df_members["lastName"]
+    )
+    df_members["memberId"] = df_members["memberId"].apply(
+        lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
+    )
+    df_members["memberId"] = df_members["memberId"].astype(str)
+    df_members = df_members[["season", "team_id", "memberId", "owner_full_name"]]
+
+    df_unique_members = (
+        df_members[["memberId", "owner_full_name"]]
+        .drop_duplicates(subset="memberId")
+        .reset_index(drop=True)
+    )
+
+    # Long form of all matchups (each row is one team’s game)
+    a_view = df_matchups.rename(
+        columns={
+            "team_a_member_id": "team_member_id",
+            "team_b_member_id": "opponent_member_id",
+            "team_a_score": "points_for",
+            "team_b_score": "points_against",
+        }
+    )[
+        [
+            "season",
+            "week",
+            "team_member_id",
+            "opponent_member_id",
+            "points_for",
+            "points_against",
+            "winner",
+            "loser",
+        ]
+    ]
+
+    b_view = df_matchups.rename(
+        columns={
+            "team_b_member_id": "team_member_id",
+            "team_a_member_id": "opponent_member_id",
+            "team_b_score": "points_for",
+            "team_a_score": "points_against",
+        }
+    )[
+        [
+            "season",
+            "week",
+            "team_member_id",
+            "opponent_member_id",
+            "points_for",
+            "points_against",
+            "winner",
+            "loser",
+        ]
+    ]
+
+    long_df = pd.concat([a_view, b_view], ignore_index=True)
+    long_df["week"] = pd.to_numeric(long_df["week"], errors="coerce")
+
+    # Calculate win/loss/tie columns
+    def outcome_row(r):
+        w = r["winner"]
+        if isinstance(w, str) and w.upper() == "TIE":
+            return pd.Series({"win": 0, "loss": 0, "tie": 1})
+        if str(w) == str(r["team_member_id"]):
+            return pd.Series({"win": 1, "loss": 0, "tie": 0})
+        if str(r.get("loser")) == str(r["team_member_id"]):
+            return pd.Series({"win": 0, "loss": 1, "tie": 0})
+        return pd.Series({"win": 0, "loss": 0, "tie": 0})
+
+    long_df[["win", "loss", "tie"]] = long_df.apply(outcome_row, axis=1)
+
+    # Calculate weekly cumulative standings
+    # For each season, team, and week, compute running totals
+    long_df = long_df.sort_values(by=["season", "team_member_id", "week"])
+
+    weekly_standings = long_df.groupby(
+        ["season", "team_member_id", "week"], as_index=False
+    ).agg(
+        wins=("win", "sum"),
+        losses=("loss", "sum"),
+        ties=("tie", "sum"),
+        points_for=("points_for", "sum"),
+        points_against=("points_against", "sum"),
+    )
+
+    # Get cumulative stats per week
+    weekly_standings["cum_wins"] = weekly_standings.groupby(
+        ["season", "team_member_id"]
+    )["wins"].cumsum()
+    weekly_standings["cum_losses"] = weekly_standings.groupby(
+        ["season", "team_member_id"]
+    )["losses"].cumsum()
+    weekly_standings["cum_ties"] = weekly_standings.groupby(
+        ["season", "team_member_id"]
+    )["ties"].cumsum()
+
+    # Merge owner info
+    weekly_standings = weekly_standings.merge(
+        df_unique_members,
+        left_on="team_member_id",
+        right_on="memberId",
+        how="left",
+    ).drop(columns=["memberId"])
+
+    # Select required columns
+    weekly_standings = weekly_standings[
+        [
+            "season",
+            "team_member_id",
+            "week",
+            "cum_wins",
+            "cum_losses",
+            "cum_ties",
+            "owner_full_name",
+        ]
+    ]
+    weekly_standings = weekly_standings.rename(
+        columns={
+            "cum_wins": "wins",
+            "cum_losses": "losses",
+            "cum_ties": "ties",
+        }
+    )
+
+    # Return as list of dicts
+    return weekly_standings.to_dict(orient="records")
 
 
 def batch_write_to_dynamodb(
@@ -564,15 +716,14 @@ def batch_write_to_dynamodb(
                             },
                             "SK": {"S": f"STANDINGS#SEASON#{item['team_member_id']}"},
                             "GSI2PK": {
-                                "S": f"STANDINGS#SEASON#TEAM#{item['team_member_id']}"
+                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#STANDINGS#SEASON#TEAM#{item['team_member_id']}"
                             },
-                            "GSI2SK": {
-                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}"
-                            },
+                            "GSI2SK": {"S": f"SEASON#{item['season']}"},
                             "season": {"S": item["season"]},
                             "owner_full_name": {"S": item["owner_full_name"]},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
+                            "ties": {"N": str(item["ties"])},
                             "win_pct": {"N": str(item["win_pct"])},
                             "points_for_per_game": {
                                 "N": str(item["points_for_per_game"])
@@ -595,6 +746,7 @@ def batch_write_to_dynamodb(
                             "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
+                            "ties": {"N": str(item["ties"])},
                             "win_pct": {"N": str(item["win_pct"])},
                             "points_for_per_game": {
                                 "N": str(item["points_for_per_game"])
@@ -619,6 +771,7 @@ def batch_write_to_dynamodb(
                             "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
+                            "ties": {"N": str(item["ties"])},
                             "win_pct": {"N": str(item["win_pct"])},
                             "points_for_per_game": {
                                 "N": str(item["points_for_per_game"])
@@ -630,7 +783,7 @@ def batch_write_to_dynamodb(
                     }
                 }
             )
-        else:
+        elif standings_data_type == "h2h":
             batched_objects.append(
                 {
                     "PutRequest": {
@@ -644,6 +797,7 @@ def batch_write_to_dynamodb(
                             "games_played": {"N": str(item["games_played"])},
                             "wins": {"N": str(item["wins"])},
                             "losses": {"N": str(item["losses"])},
+                            "ties": {"N": str(item["ties"])},
                             "win_pct": {"N": str(item["win_pct"])},
                             "points_for_per_game": {
                                 "N": str(item["points_for_per_game"])
@@ -655,6 +809,28 @@ def batch_write_to_dynamodb(
                     }
                 }
             )
+        elif standings_data_type == "weekly":
+            batched_objects.append(
+                {
+                    "PutRequest": {
+                        "Item": {
+                            "PK": {
+                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}#WEEK#{item['week']}"
+                            },
+                            "SK": {"S": f"STANDINGS#WEEKLY#{item['team_member_id']}"},
+                            "season": {"S": item["season"]},
+                            "week": {"N": str(item["week"])},
+                            "team_member_id": {"S": item["team_member_id"]},
+                            "owner_full_name": {"S": item["owner_full_name"]},
+                            "wins": {"N": str(item["wins"])},
+                            "losses": {"N": str(item["losses"])},
+                            "ties": {"N": str(item["ties"])},
+                        }
+                    }
+                }
+            )
+        else:
+            raise ValueError(f"Unknown standings data type: {standings_data_type}")
     dynamodb = boto3.client("dynamodb")
     try:
         backoff = 1.0
@@ -729,10 +905,17 @@ def lambda_handler(event, context):
         alltime_standings,
         alltime_standings_playoffs,
         h2h_standings,
-    ) = compile_standings_data(matchup_data=all_matchups, members_data=all_members)
+    ) = compile_aggregate_standings_data(
+        matchup_data=all_matchups, members_data=all_members
+    )
+    weekly_standings = compile_weekly_standings_snapshots(
+        matchup_data=all_matchups,
+        members_data=all_members,
+    )
     standings_mapping = {
         "members": unique_members,
         "season": season_standings,
+        "weekly": weekly_standings,
         "all-time": alltime_standings,
         "all-time-playoffs": alltime_standings_playoffs,
         "h2h": h2h_standings,
@@ -749,58 +932,58 @@ def lambda_handler(event, context):
     logger.info("Successfully wrote data to DynamoDB.")
 
 
-# lambda_handler(
-#     event=[
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2025",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2024",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2023",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2022",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2021",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2020",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2019",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2018",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2017",
-#         },
-#         {
-#             "leagueId": "1770206",
-#             "platform": "ESPN",
-#             "season": "2016",
-#         },
-#     ],
-#     context="",
-# )
+lambda_handler(
+    event=[
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2025",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2024",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2023",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2022",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2021",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2020",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2019",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2018",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2017",
+        },
+        {
+            "leagueId": "1770206",
+            "platform": "ESPN",
+            "season": "2016",
+        },
+    ],
+    context="",
+)

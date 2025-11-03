@@ -1,16 +1,16 @@
 """FastAPI router for league matchup endpoints."""
 
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
-import botocore.exceptions
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.dependencies import (
     deserializer,
     dynamodb_client,
     get_api_key,
-    table_name,
     logger,
+    table_name,
+    query_with_handling,
 )
 from api.models import APIResponse
 
@@ -18,18 +18,6 @@ router = APIRouter(
     prefix="/matchups",
     dependencies=[Depends(get_api_key)],
 )
-
-
-def query_with_handling(fn, *args, **kwargs):
-    """Wrapper to try a DynamoDB query and handle ClientError exceptions."""
-    try:
-        return fn(*args, **kwargs)
-    except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error while getting matchups")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
-        )
 
 
 def filter_dynamo_db_response(
@@ -380,7 +368,7 @@ def get_team_all_time_matchups(
     )
 
 
-QUERY_HANDLERS = {
+QUERY_HANDLERS: dict[tuple[bool, bool, bool, bool], Callable[..., Any]] = {
     # (team1_id, team2_id, season, week_number)
     (True, True, True, True): get_specific_matchup_two_teams,
     (True, False, True, True): get_specific_matchup_one_team,

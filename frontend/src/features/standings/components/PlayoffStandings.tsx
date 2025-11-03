@@ -143,7 +143,7 @@ function PlayoffStandings() {
   const { refetch: refetchPlayoffStandings } = useGetResource<GetAllTimeStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
-    standings_type: 'playoff',
+    standings_type: 'playoffs',
   });
 
   const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
