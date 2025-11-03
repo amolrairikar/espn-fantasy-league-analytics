@@ -7,6 +7,7 @@ type GetAllTimeStandings = {
     owner_full_name: string;
     points_against_per_game: string;
     points_for_per_game: string;
+    ties: string;
     win_pct: string;
     wins: string;
   }[];
@@ -22,6 +23,7 @@ type GetH2HStandings = {
     owner_full_name: string;
     points_against_per_game: string;
     points_for_per_game: string;
+    ties: string;
     win_pct: string;
     wins: string;
   }[];
@@ -36,6 +38,22 @@ type GetSeasonStandings = {
     points_against_per_game: string;
     points_for_per_game: string;
     season: string;
+    ties: string;
+    win_pct: string;
+    wins: string;
+  }[];
+};
+
+type GetWeeklyStandings = {
+  status: string;
+  detail: string;
+  data: {
+    losses: string;
+    owner_full_name: string;
+    season: string;
+    team_member_id: string;
+    ties: string;
+    week: string;
     win_pct: string;
     wins: string;
   }[];
@@ -126,6 +144,7 @@ export type {
   GetAllTimeStandings,
   GetH2HStandings,
   GetSeasonStandings,
+  GetWeeklyStandings,
   GetLeagueMembers,
   GetMatchupsBetweenTeams,
   MatchupTableView,

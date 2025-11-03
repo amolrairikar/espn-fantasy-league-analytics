@@ -121,10 +121,11 @@ function AllTimeStandings() {
           const transformedData: StandingsAllTime[] = response.data.data.map((team) => {
             const wins = Number(team.wins);
             const losses = Number(team.losses);
+            const ties = Number(team.ties);
             return {
               ...team,
               games_played: Number(team.games_played),
-              record: `${wins}-${losses}`,
+              record: `${wins}-${losses}-${ties}`,
               win_pct: parseFloat(team.win_pct),
               points_for_per_game: parseFloat(team.points_for_per_game),
               points_against_per_game: parseFloat(team.points_against_per_game),

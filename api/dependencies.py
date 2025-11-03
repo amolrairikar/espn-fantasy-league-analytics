@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 import boto3
+import botocore.exceptions
 from boto3.dynamodb.types import TypeDeserializer
 from dotenv import load_dotenv
-from fastapi import HTTPException, Security
+from fastapi import HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
 
 # Set up standardized logger for entire API
@@ -69,3 +70,15 @@ def build_api_request_headers(
             )
         return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
     return {}
+
+
+def query_with_handling(fn, *args, **kwargs):
+    """Wrapper to try a DynamoDB query and handle ClientError exceptions."""
+    try:
+        return fn(*args, **kwargs)
+    except botocore.exceptions.ClientError as e:
+        logger.exception("Unexpected error while getting matchups")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}",
+        )
