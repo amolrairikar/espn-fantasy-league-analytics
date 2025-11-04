@@ -92,6 +92,7 @@ type GetMatchupsBetweenTeams = {
 type MatchupTableView = {
   season: number;
   week: number;
+  opponent_full_name?: string;
   result: string;
   outcome: string;
 };

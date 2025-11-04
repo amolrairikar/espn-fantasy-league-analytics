@@ -304,12 +304,15 @@ def get_team_season_matchups(
         APIResponse: The API response with data.
     """
     logger.info("Retrieving all matchups for team %s in %s season", team1_id, season)
+    pk = f"LEAGUE#{league_id}#PLATFORM#{platform}#MATCHUP#TEAM#{team1_id}"
+    sk = f"SEASON#{season}#"
     response = dynamodb_client.query(
         TableName=table_name,
-        KeyConditionExpression="PK = :pk AND begins_with(SK, :sk_prefix)",
+        IndexName="GSI4",
+        KeyConditionExpression="GSI4PK = :pk AND begins_with(GSI4SK, :sk_prefix)",
         ExpressionAttributeValues={
-            ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"},
-            ":sk_prefix": {"S": f"MATCHUP#TEAMS#{team1_id}"},
+            ":pk": {"S": pk},
+            ":sk_prefix": {"S": sk},
         },
     )
     items = filter_dynamo_db_response(response=response, playoff_filter=playoff_filter)

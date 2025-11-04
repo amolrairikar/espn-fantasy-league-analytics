@@ -7,13 +7,19 @@ import type { GetLeagueMetadata } from '@/features/login/types';
 interface SeasonSelectProps {
   leagueData: LeagueData;
   onSeasonChange: (season: string) => void;
+  selectedSeason?: string;
   defaultSeason?: string;
   className?: string;
 }
 
-export function SeasonSelect({ leagueData, onSeasonChange, defaultSeason, className }: SeasonSelectProps) {
+export function SeasonSelect({
+  leagueData,
+  onSeasonChange,
+  selectedSeason,
+  defaultSeason,
+  className,
+}: SeasonSelectProps) {
   const [seasons, setSeasons] = useState<string[]>([]);
-  const [selectedSeason, setSelectedSeason] = useState<string | undefined>(defaultSeason);
   const [loading, setLoading] = useState<boolean>(true);
 
   const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata['data']>(
@@ -31,9 +37,12 @@ export function SeasonSelect({ leagueData, onSeasonChange, defaultSeason, classN
 
         if (fetchedSeasons.length > 0) {
           const latestSeason = fetchedSeasons.sort((a, b) => Number(b) - Number(a))[0];
-          const initialSeason = defaultSeason ?? latestSeason;
-          setSelectedSeason(initialSeason);
-          onSeasonChange(initialSeason);
+
+          // ✅ only set a default if parent hasn't already set one
+          if (!selectedSeason) {
+            const initialSeason = defaultSeason ?? latestSeason;
+            onSeasonChange(initialSeason);
+          }
         }
       } catch (err) {
         console.error('Error fetching seasons:', err);
@@ -43,10 +52,9 @@ export function SeasonSelect({ leagueData, onSeasonChange, defaultSeason, classN
     };
 
     void fetchSeasons();
-  }, [refetchLeagueMetadata, defaultSeason, onSeasonChange]);
+  }, [refetchLeagueMetadata, defaultSeason, onSeasonChange, selectedSeason]);
 
   const handleSeasonChange = (value: string) => {
-    setSelectedSeason(value);
     onSeasonChange(value);
   };
 
@@ -55,7 +63,7 @@ export function SeasonSelect({ leagueData, onSeasonChange, defaultSeason, classN
       <label htmlFor="season" className="font-medium text-sm w-20 md:w-auto">
         Season:
       </label>
-      <Select onValueChange={handleSeasonChange} value={selectedSeason} disabled={loading}>
+      <Select onValueChange={handleSeasonChange} value={selectedSeason ?? ''} disabled={loading}>
         <SelectTrigger className="w-[200px]">
           <SelectValue placeholder={loading ? 'Loading seasons...' : 'Select a season'} />
         </SelectTrigger>

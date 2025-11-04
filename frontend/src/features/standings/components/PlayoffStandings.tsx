@@ -129,6 +129,11 @@ function PlayoffStandings() {
       ),
     },
     {
+      accessorKey: 'opponent_full_name',
+      header: () => <div className="w-full text-center">Opponent</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.opponent_full_name}</div>,
+    },
+    {
       accessorKey: 'result',
       header: () => <div className="w-full text-center">Result</div>,
       cell: ({ row }) => <div className="text-center">{row.original.result}</div>,
@@ -146,7 +151,7 @@ function PlayoffStandings() {
     standings_type: 'playoffs',
   });
 
-  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+  const { refetch: refetchLeagueMembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
@@ -198,7 +203,7 @@ function PlayoffStandings() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await refetchLeaguemembers();
+        const response = await refetchLeagueMembers();
         if (response.data?.data) {
           const membersData = response.data?.data;
           const mappedMembers = membersData.map((item) => ({
@@ -213,7 +218,7 @@ function PlayoffStandings() {
       }
     };
     void fetchStatus();
-  }, [refetchLeaguemembers]);
+  }, [refetchLeagueMembers]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -227,12 +232,15 @@ function PlayoffStandings() {
               matchup.team_a_member_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
             const opponentScore =
               matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
+            const opponentName =
+              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_full_name : matchup.team_a_full_name;
             const ownerWon = matchup.winner === selectedOwnerId;
 
             return {
               ...matchup,
               season: Number(matchup.season),
               week: Number(matchup.week),
+              opponent_full_name: opponentName,
               result: `${ownerScore} - ${opponentScore}`,
               outcome: ownerWon ? 'W' : 'L',
             };
