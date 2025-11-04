@@ -60,6 +60,7 @@ function Scores() {
       <div className="flex flex-col items-center space-y-4 md:flex-row md:justify-center md:space-x-6 md:space-y-0">
         <SeasonSelect
           leagueData={leagueData}
+          selectedSeason={selectedSeason}
           onSeasonChange={setSelectedSeason}
           className="w-full max-w-xs md:w-auto"
         />
