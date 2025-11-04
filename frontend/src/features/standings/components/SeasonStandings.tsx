@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import type { GetSeasonStandings, StandingsSeason } from '@/features/standings/types';
+import type {
+  GetLeagueMembers,
+  GetSeasonStandings,
+  GetMatchupsBetweenTeams,
+  MatchupTableView,
+  Member,
+  StandingsSeason,
+} from '@/features/standings/types';
 import type { LeagueData } from '@/components/types/league_data';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import { DataTable } from '@/components/utils/dataTable';
+import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
 import { SeasonSelect } from '@/components/utils/SeasonSelect';
 
@@ -14,9 +22,15 @@ function SeasonStandings() {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
+  const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
   const [standingsData, setStandingsData] = useState<StandingsSeason[]>([]);
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
+  const [scoresData, setScoresData] = useState<MatchupTableView[]>([]);
+  const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
+  const [H2HMatchupData, setH2HMatchupData] = useState<GetMatchupsBetweenTeams['data']>();
 
   const columns: ColumnDef<StandingsSeason>[] = [
     {
@@ -72,11 +86,84 @@ function SeasonStandings() {
     },
   ];
 
+  const columnsH2HMatchups = (
+    setSelectedSeason: (season: number) => void,
+    setSelectedWeek: (week: number) => void,
+  ): ColumnDef<MatchupTableView>[] => [
+    {
+      accessorKey: 'season',
+      header: () => <div className="w-full text-center">Season</div>,
+      cell: ({ row }) => (
+        <div
+          className="text-center cursor-pointer hover:underline"
+          onClick={() => {
+            setSelectedSeason(row.original.season);
+            setSelectedWeek(row.original.week);
+          }}
+        >
+          {row.original.season}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'week',
+      header: () => <div className="w-full text-center">Week</div>,
+      cell: ({ row }) => (
+        <div
+          className="text-center cursor-pointer hover:underline"
+          onClick={() => {
+            setSelectedSeason(row.original.season);
+            setSelectedWeek(row.original.week);
+          }}
+        >
+          {row.original.week}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'opponent_full_name',
+      header: () => <div className="w-full text-center">Opponent</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.opponent_full_name}</div>,
+    },
+    {
+      accessorKey: 'result',
+      header: () => <div className="w-full text-center">Result</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.result}</div>,
+    },
+    {
+      accessorKey: 'outcome',
+      header: () => <div className="w-full text-center">Outcome</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.outcome}</div>,
+    },
+  ];
+
   const { refetch: refetchSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
     standings_type: 'season',
     season: selectedSeason,
+  });
+
+  const { refetch: refetchLeagueMembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+  });
+
+  const { refetch: refetchSeasonMatchups } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+    playoff_filter: 'exclude',
+    team1_id: selectedOwnerId,
+    season: selectedSeason,
+  });
+
+  const { refetch: refetchSeasonMatchup } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
+    league_id: leagueData.leagueId,
+    platform: leagueData.platform,
+    playoff_filter: 'exclude',
+    team1_id: selectedOwnerId,
+    season: selectedSeason,
+    week_number: selectedWeek,
   });
 
   useEffect(() => {
@@ -108,19 +195,117 @@ function SeasonStandings() {
     void fetchStatus();
   }, [refetchSeasonStandings, selectedSeason]);
 
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchLeagueMembers();
+        if (response.data?.data) {
+          const membersData = response.data?.data;
+          const mappedMembers = membersData.map((item) => ({
+            name: item.name,
+            member_id: item.member_id,
+          }));
+          console.log(mappedMembers);
+          setMembers(mappedMembers);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    void fetchStatus();
+  }, [refetchLeagueMembers]);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!selectedOwnerName) return;
+      try {
+        const response = await refetchSeasonMatchups();
+        if (response?.data?.data) {
+          console.log(response);
+          const transformedData = response.data.data.map((matchup) => {
+            const ownerScore =
+              matchup.team_a_member_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
+            const opponentScore =
+              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
+            const opponentName =
+              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_full_name : matchup.team_a_full_name;
+            const ownerWon = matchup.winner === selectedOwnerId;
+
+            return {
+              ...matchup,
+              season: Number(matchup.season),
+              week: Number(matchup.week),
+              opponent_full_name: opponentName,
+              result: `${ownerScore} - ${opponentScore}`,
+              outcome: ownerWon ? 'W' : 'L',
+            };
+          });
+          setScoresData(transformedData);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    void fetchStatus();
+  }, [refetchSeasonMatchups, selectedOwnerName, selectedOwnerId]);
+
+  useEffect(() => {
+    if (!selectedSeason || !selectedWeek) return;
+    const fetchStatus = async () => {
+      try {
+        const response = await refetchSeasonMatchup();
+        if (response.data?.data) {
+          setH2HMatchupData(response.data?.data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    void fetchStatus();
+  }, [refetchSeasonMatchup, selectedSeason, selectedWeek, H2HMatchupData]);
+
+  // Open matchup box score whenever season/week are selected
+  useEffect(() => {
+    if (selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0) {
+      setExpandedBoxScoreOpen(true);
+    }
+  }, [selectedSeason, selectedWeek, H2HMatchupData]);
+
   return (
     <div className="space-y-4 my-4">
-      <SeasonSelect leagueData={leagueData} onSeasonChange={setSelectedSeason} />
+      <SeasonSelect
+        leagueData={leagueData}
+        selectedSeason={selectedSeason ? String(selectedSeason) : undefined}
+        onSeasonChange={(season) => {
+          setSelectedOwnerName(null);
+          setSelectedSeason(Number(season));
+        }}
+      />
       {selectedOwnerName ? (
         <div className="space-y-4 my-4">
           <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
-          <p>Selected Owner: {selectedOwnerName}</p>
+          <h1 className="font-semibold mt-6">Season Schedule for {selectedOwnerName}</h1>
+          <DataTable
+            columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
+            data={scoresData}
+            initialSorting={[
+              { id: 'season', desc: false },
+              { id: 'week', desc: false },
+            ]}
+          />
+          {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
+            <MatchupSheet
+              matchup={H2HMatchupData[0]}
+              open={expandedBoxScoreOpen}
+              onClose={() => {
+                setSelectedWeek(undefined);
+              }}
+            />
+          )}
         </div>
       ) : (
         <div className="space-y-4 my-4">
-          <p className="text-sm text-muted-foreground italic">
-            TODO: Click on an owner's name to display their season schedule results!
-          </p>
           <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
         </div>
       )}

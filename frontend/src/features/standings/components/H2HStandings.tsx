@@ -168,6 +168,7 @@ function H2HStandings() {
   const { refetch: refetchH2HMatchup } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
+    playoff_filter: 'exclude',
     team1_id: selectedOwnerId,
     team2_id: selectedOpponentId,
     season: selectedSeason,
