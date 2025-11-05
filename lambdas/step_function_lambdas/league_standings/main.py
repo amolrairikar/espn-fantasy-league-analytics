@@ -32,7 +32,7 @@ pd.set_option("display.max_rows", None)
 
 def get_matchups(league_id: str, platform: str, season: str) -> list[dict[str, Any]]:
     """
-    Fetch all matchups from the DynamoDB table for a given league.
+    Fetch all matchups for a given league in a season.
 
     Args:
         league_id (str): The unique identifier for the fantasy league.
@@ -66,6 +66,90 @@ def get_matchups(league_id: str, platform: str, season: str) -> list[dict[str, A
         return matchups
     except botocore.exceptions.ClientError:
         logger.exception("Unexpected error while fetching league matchups")
+        raise
+
+
+def get_playoff_teams(
+    league_id: str, platform: str, season: str
+) -> list[dict[str, Any]]:
+    """
+    Fetch all playoff teams for a given league in a season.
+
+    Args:
+        league_id (str): The unique identifier for the fantasy league.
+        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
+        season (str): The season to get matchups for
+
+    Returns:
+        list: A list of mappings with playoff team info for the season
+    """
+    try:
+        dynamodb = boto3.client("dynamodb")
+        response = dynamodb.query(
+            TableName=DYNAMODB_TABLE_NAME,
+            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
+            ExpressionAttributeValues={
+                ":pk": {
+                    "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
+                },
+                ":prefix": {
+                    "S": "PLAYOFF_TEAM#",
+                },
+            },
+        )
+        playoff_teams = [
+            {
+                k: deserializer.deserialize(v)
+                for k, v in sorted(item.items())
+                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+            }
+            for item in response.get("Items", [])
+        ]
+        return playoff_teams
+    except botocore.exceptions.ClientError:
+        logger.exception("Unexpected error while fetching league playoff teams")
+        raise
+
+
+def get_league_winner(
+    league_id: str, platform: str, season: str
+) -> list[dict[str, Any]]:
+    """
+    Fetch championship winning team for a given league in a season.
+
+    Args:
+        league_id (str): The unique identifier for the fantasy league.
+        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
+        season (str): The season to get matchups for
+
+    Returns:
+        list: A list of mappings with the championship winning team info for the season
+    """
+    try:
+        dynamodb = boto3.client("dynamodb")
+        response = dynamodb.query(
+            TableName=DYNAMODB_TABLE_NAME,
+            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
+            ExpressionAttributeValues={
+                ":pk": {
+                    "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
+                },
+                ":prefix": {
+                    "S": "LEAGUE_CHAMPION#",
+                },
+            },
+        )
+        playoff_teams = [
+            {
+                k: deserializer.deserialize(v)
+                for k, v in sorted(item.items())
+                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
+            }
+            for item in response.get("Items", [])
+        ]
+        return playoff_teams
+    except botocore.exceptions.ClientError:
+        logger.exception("Unexpected error while fetching league champion")
         raise
 
 
@@ -109,6 +193,8 @@ def get_league_members(
 def compile_aggregate_standings_data(
     matchup_data: list[dict[str, Any]],
     members_data: list[dict[str, Any]],
+    playoff_teams_data: list[dict[str, Any]],
+    championship_team_data: list[dict[str, Any]],
 ) -> tuple[list, list, list, list, list]:
     """
     Calculates all-time league standings based on fantasy matchup scores.
@@ -116,6 +202,12 @@ def compile_aggregate_standings_data(
     Args:
         matchup_data (list[dict[str, Any]]): A list of dictionary mappings containing
             matchup scores.
+        members_data (list[dict[str, Any]]): A list of dictionary mappings containing league
+            member info.
+        playoff_teams_data (list[dict[str, Any]]): A list of dictionary mappings containing
+            playoff team info for each season.
+        championship_team_data (list[dict[str, Any]]): A list of dictionary mappings containing
+            championship winning team info for each season.
 
     Returns:
         tuple: A tuple of list of dictionary mappings containing unique league members,
@@ -129,6 +221,10 @@ def compile_aggregate_standings_data(
     df_playoff_matchups = df_matchups_raw[
         df_matchups_raw["playoff_tier_type"] == "WINNERS_BRACKET"
     ]
+
+    # Load playoff and championship team data into DataFrames
+    df_playoff_teams = pd.DataFrame(playoff_teams_data)
+    df_championship_teams = pd.DataFrame(championship_team_data)
 
     # Load members data into DataFrames and perform pre-processing
     df_members = pd.DataFrame(members_data)
@@ -151,6 +247,19 @@ def compile_aggregate_standings_data(
     df_unique_members = df_unique_members.drop_duplicates(
         subset="owner_full_name"
     ).reset_index(drop=True)
+
+    # Join the member info to the playoff team and championship team data to associate team ID with member ID
+    df_playoff_teams_enriched = df_playoff_teams.merge(
+        right=df_members,
+        how="inner",
+        on=["season", "team_id"],
+    )
+
+    df_championship_teams_enriched = df_championship_teams.merge(
+        right=df_members,
+        how="inner",
+        on=["season", "team_id"],
+    )
 
     # Get data into long form (one row per team per matchup)
     a_view = df_matchups[
@@ -304,6 +413,27 @@ def compile_aggregate_standings_data(
             "points_against_per_game",
         ]
     ]
+    # Merge information about playoff teams
+    season_standings = season_standings.merge(
+        right=df_playoff_teams_enriched[["season", "memberId", "playoff_status"]],
+        how="left",
+        left_on=["season", "team_member_id"],
+        right_on=["season", "memberId"],
+    )
+    season_standings = season_standings.drop(columns=["memberId"])
+    season_standings.fillna("MISSED_PLAYOFFS", inplace=True)
+
+    # Merge information about championship winner
+    season_standings = season_standings.merge(
+        right=df_championship_teams_enriched[
+            ["season", "memberId", "championship_status"]
+        ],
+        how="left",
+        left_on=["season", "team_member_id"],
+        right_on=["season", "memberId"],
+    )
+    season_standings.fillna("", inplace=True)
+    season_standings = season_standings.drop(columns=["memberId"])
 
     # All-time standings (aggregate across seasons)
     alltime_long = long_df[~long_df["team_member_id"].isna()].copy()
@@ -731,6 +861,8 @@ def batch_write_to_dynamodb(
                             "points_against_per_game": {
                                 "N": str(item["points_against_per_game"])
                             },
+                            "playoff_status": {"S": item["playoff_status"]},
+                            "championship_status": {"S": item["championship_status"]},
                         }
                     }
                 }
@@ -887,6 +1019,8 @@ def lambda_handler(event, context):
 
     all_matchups = []
     all_members = []
+    all_playoff_teams = []
+    all_championship_teams = []
     for season in seasons:
         logger.info("Processing season %s", season)
         matchups = get_matchups(league_id=league_id, platform=platform, season=season)
@@ -897,8 +1031,22 @@ def lambda_handler(event, context):
         )
         logger.info("Fetched %d league members for season %s", len(members), season)
         all_members.extend(members)
-    if not all_matchups or not all_members:
-        raise ValueError("'all_matchups' and/or 'all_members' lists must not be empty.")
+        playoff_teams = get_playoff_teams(
+            league_id=league_id, platform=platform, season=season
+        )
+        logger.info(
+            "Fetched %d playoff teams for season %s", len(playoff_teams), season
+        )
+        all_playoff_teams.extend(playoff_teams)
+        championship_team = get_league_winner(
+            league_id=league_id, platform=platform, season=season
+        )
+        logger.info("Fetched league champion for season %s", season)
+        all_championship_teams.extend(championship_team)
+    if not any([all_matchups, all_members, all_playoff_teams, all_championship_teams]):
+        raise ValueError(
+            "Empty list found for matchups, members, playoff teams, and/or championship teams."
+        )
     (
         unique_members,
         season_standings,
@@ -906,7 +1054,10 @@ def lambda_handler(event, context):
         alltime_standings_playoffs,
         h2h_standings,
     ) = compile_aggregate_standings_data(
-        matchup_data=all_matchups, members_data=all_members
+        matchup_data=all_matchups,
+        members_data=all_members,
+        playoff_teams_data=all_playoff_teams,
+        championship_team_data=all_championship_teams,
     )
     weekly_standings = compile_weekly_standings_snapshots(
         matchup_data=all_matchups,
@@ -930,60 +1081,3 @@ def lambda_handler(event, context):
         )
         logger.info("Successfully processed %s data", standings_type)
     logger.info("Successfully wrote data to DynamoDB.")
-
-
-lambda_handler(
-    event=[
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2025",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2024",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2023",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2022",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2021",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2020",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2019",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2018",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2017",
-        },
-        {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "season": "2016",
-        },
-    ],
-    context="",
-)

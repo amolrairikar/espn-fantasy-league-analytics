@@ -290,7 +290,7 @@ function H2HStandings() {
   }, [selectedSeason, selectedWeek]);
 
   return (
-    <div className="space-y-4 my-4">
+    <div className="space-y-4 my-4 px-4">
       <div className="flex items-center space-x-4">
         <label htmlFor="season" className="font-medium text-sm">
           League Member Name:
@@ -319,7 +319,7 @@ function H2HStandings() {
           {!selectedOpponentId && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground italic mt-2">
-                Please click on an opponent's name in the table to view a table of matchup results against them.
+                Click on an opponent's name in the table to view a table of matchup results against them.
               </p>
               <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
               <DataTable
@@ -340,7 +340,7 @@ function H2HStandings() {
               />
               <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
               <p className="text-sm text-muted-foreground italic mt-2">
-                Please click on a matchup to view the detailed box score.
+                Click on a matchup to view the detailed box score.
               </p>
               <DataTable
                 columns={columnsH2HMatchupTable}
@@ -366,7 +366,7 @@ function H2HStandings() {
         </>
       ) : (
         <p className="text-sm text-muted-foreground italic">
-          Please select a league member to view their all-time head to head standings against the rest of the league.
+          Select a league member to view their all-time head to head standings against the rest of the league.
         </p>
       )}
     </div>

@@ -183,8 +183,8 @@ function AllTimeStandings() {
   }, [refetchAllSeasonStandings, selectedOwnerId]);
 
   return (
-    <div className="space-y-4 my-4">
-      <h1 className="font-semibold">All-Time Standings</h1>
+    <div className="space-y-4 my-4 px-2">
+      <h1 className="font-semibold px-2">All-Time Standings</h1>
       {selectedOwnerName ? (
         <div className="space-y-2">
           <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
@@ -202,7 +202,7 @@ function AllTimeStandings() {
           </ChartContainer>
         </div>
       ) : (
-        <div className="space-y-4 my-4">
+        <div className="space-y-4 my-4 px-2">
           <p className="text-sm text-muted-foreground italic">
             Click on an owner's name to display a chart of their wins per season
           </p>

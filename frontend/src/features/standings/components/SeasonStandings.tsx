@@ -38,6 +38,17 @@ function SeasonStandings() {
       header: 'Owner',
       cell: ({ row }) => {
         const isSelected = row.original.owner_full_name === selectedOwnerName;
+        const { playoff_status, championship_status } = row.original;
+
+        let suffix = '';
+        if (playoff_status === 'CLINCHED_FIRST_ROUND_BYE') {
+          suffix = 'z';
+        } else if (playoff_status === 'MADE_PLAYOFFS') {
+          suffix = 'x';
+        }
+
+        const crown = championship_status ? ' 👑' : '';
+
         return (
           <div
             className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
@@ -45,6 +56,8 @@ function SeasonStandings() {
             onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
           >
             {row.original.owner_full_name}
+            {suffix && <span className="ml-3 lowercase font-semibold text-muted-foreground">{suffix}</span>}
+            {crown && <span className="ml-2">{crown}</span>}
           </div>
         );
       },
@@ -273,7 +286,7 @@ function SeasonStandings() {
   }, [selectedSeason, selectedWeek, H2HMatchupData]);
 
   return (
-    <div className="space-y-4 my-4">
+    <div className="space-y-4 my-4 px-2">
       <SeasonSelect
         leagueData={leagueData}
         selectedSeason={selectedSeason ? String(selectedSeason) : undefined}
@@ -281,10 +294,21 @@ function SeasonStandings() {
           setSelectedOwnerName(null);
           setSelectedSeason(Number(season));
         }}
+        className="px-2"
       />
       {selectedOwnerName ? (
-        <div className="space-y-4 my-4">
-          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+        <div className="space-y-4 my-4 px-2">
+          <DataTable
+            columns={columns}
+            data={standingsData}
+            initialSorting={[
+              { id: 'win_pct', desc: true },
+              { id: 'points_for_per_game', desc: true },
+            ]}
+          />
+          <p className="text-sm text-muted-foreground italic mt-1">
+            z = clinched a first round bye | x = clinched a playoff spot | 👑 = won the championship
+          </p>
           <h1 className="font-semibold mt-6">Season Schedule for {selectedOwnerName}</h1>
           <DataTable
             columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
@@ -305,8 +329,21 @@ function SeasonStandings() {
           )}
         </div>
       ) : (
-        <div className="space-y-4 my-4">
-          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+        <div className="space-y-4 my-4 px-2">
+          <p className="text-sm text-muted-foreground italic">
+            Click on an owner's name to display a table with their regular season schedule results
+          </p>
+          <DataTable
+            columns={columns}
+            data={standingsData}
+            initialSorting={[
+              { id: 'win_pct', desc: true },
+              { id: 'points_for_per_game', desc: true },
+            ]}
+          />
+          <p className="text-sm text-muted-foreground italic mt-1">
+            z = clinched a first round bye | x = clinched a playoff spot | 👑 = won the championship
+          </p>
         </div>
       )}
     </div>
