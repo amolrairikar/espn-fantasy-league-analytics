@@ -33,8 +33,10 @@ type GetSeasonStandings = {
   status: string;
   detail: string;
   data: {
+    championship_status?: string;
     losses: string;
     owner_full_name: string;
+    playoff_status: string;
     points_against_per_game: string;
     points_for_per_game: string;
     season: string;
@@ -139,6 +141,8 @@ type StandingsSeason = {
   win_pct: number;
   points_for_per_game: number;
   points_against_per_game: number;
+  playoff_status: string;
+  championship_status?: string;
 };
 
 export type {

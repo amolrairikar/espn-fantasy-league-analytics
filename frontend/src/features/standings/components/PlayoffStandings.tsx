@@ -278,7 +278,7 @@ function PlayoffStandings() {
   }, [selectedSeason, selectedWeek]);
 
   return (
-    <div className="space-y-4 my-4">
+    <div className="space-y-4 my-4 px-4">
       <h1 className="font-semibold">Playoff Standings</h1>
       {selectedOwnerName ? (
         <div className="space-y-2">
