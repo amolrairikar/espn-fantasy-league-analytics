@@ -30,164 +30,75 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
 
 
-def get_matchups(league_id: str, platform: str, season: str) -> list[dict[str, Any]]:
-    """
-    Fetch all matchups for a given league in a season.
-
-    Args:
-        league_id (str): The unique identifier for the fantasy league.
-        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
-        season (str): The season to get matchups for
-
-    Returns:
-        list: A list of mappings with matchups info for the season
-    """
+def fetch_league_data(
+    league_id: str, platform: str, season: str, prefix: str
+) -> list[dict[str, Any]]:
+    """Generic helper to fetch items from DynamoDB for a given SK prefix."""
     try:
         dynamodb = boto3.client("dynamodb")
         response = dynamodb.query(
             TableName=DYNAMODB_TABLE_NAME,
             KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues={
-                ":pk": {
-                    "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
-                },
-                ":prefix": {
-                    "S": "MATCHUP#TEAMS#",
-                },
-            },
-        )
-        matchups = [
-            {
-                **{k: deserializer.deserialize(v) for k, v in item.items()},
-                "season": season,
-            }
-            for item in response.get("Items", [])
-        ]
-        return matchups
-    except botocore.exceptions.ClientError:
-        logger.exception("Unexpected error while fetching league matchups")
-        raise
-
-
-def get_playoff_teams(
-    league_id: str, platform: str, season: str
-) -> list[dict[str, Any]]:
-    """
-    Fetch all playoff teams for a given league in a season.
-
-    Args:
-        league_id (str): The unique identifier for the fantasy league.
-        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
-        season (str): The season to get matchups for
-
-    Returns:
-        list: A list of mappings with playoff team info for the season
-    """
-    try:
-        dynamodb = boto3.client("dynamodb")
-        response = dynamodb.query(
-            TableName=DYNAMODB_TABLE_NAME,
-            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues={
-                ":pk": {
-                    "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
-                },
-                ":prefix": {
-                    "S": "PLAYOFF_TEAM#",
-                },
-            },
-        )
-        playoff_teams = [
-            {
-                k: deserializer.deserialize(v)
-                for k, v in sorted(item.items())
-                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
-            }
-            for item in response.get("Items", [])
-        ]
-        return playoff_teams
-    except botocore.exceptions.ClientError:
-        logger.exception("Unexpected error while fetching league playoff teams")
-        raise
-
-
-def get_league_winner(
-    league_id: str, platform: str, season: str
-) -> list[dict[str, Any]]:
-    """
-    Fetch championship winning team for a given league in a season.
-
-    Args:
-        league_id (str): The unique identifier for the fantasy league.
-        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
-        season (str): The season to get matchups for
-
-    Returns:
-        list: A list of mappings with the championship winning team info for the season
-    """
-    try:
-        dynamodb = boto3.client("dynamodb")
-        response = dynamodb.query(
-            TableName=DYNAMODB_TABLE_NAME,
-            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues={
-                ":pk": {
-                    "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
-                },
-                ":prefix": {
-                    "S": "LEAGUE_CHAMPION#",
-                },
-            },
-        )
-        playoff_teams = [
-            {
-                k: deserializer.deserialize(v)
-                for k, v in sorted(item.items())
-                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
-            }
-            for item in response.get("Items", [])
-        ]
-        return playoff_teams
-    except botocore.exceptions.ClientError:
-        logger.exception("Unexpected error while fetching league champion")
-        raise
-
-
-def get_league_members(
-    league_id: str, platform: str, season: str
-) -> list[dict[str, Any]]:
-    """
-    Fetch all league members in a given season for a given league and platform.
-
-    Args:
-        league_id (str): The unique identifier for the fantasy league.
-        platform (str): The platform the fantasy league is on (ESPN, Sleeper)
-        season (str): The season to get members for
-
-    Returns:
-        list: A list of mappings with members info for the season
-    """
-    try:
-        dynamodb = boto3.client("dynamodb")
-        response = dynamodb.query(
-            TableName=DYNAMODB_TABLE_NAME,
-            KeyConditionExpression="PK = :pk AND begins_with(SK, :sk_prefix)",
             ExpressionAttributeValues={
                 ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"},
-                ":sk_prefix": {"S": "TEAM#"},
+                ":prefix": {"S": prefix},
             },
         )
-        members = [
-            {
-                **{k: deserializer.deserialize(v) for k, v in item.items()},
-                "season": season,
-            }
+        items = [
+            {k: deserializer.deserialize(v) for k, v in item.items()}
             for item in response.get("Items", [])
         ]
-        return members
+        return items
     except botocore.exceptions.ClientError:
-        logger.exception("Unexpected error while fetching league members")
+        logger.exception(f"Unexpected error while fetching {prefix} data")
         raise
+
+
+def outcome_row(r):
+    w = r["winner"]
+    if isinstance(w, str) and w.upper() == "TIE":
+        return pd.Series({"win": 0, "loss": 0, "tie": 1})
+    if str(w) == str(r["team_member_id"]):
+        return pd.Series({"win": 1, "loss": 0, "tie": 0})
+    if str(r.get("loser")) == str(r["team_member_id"]):
+        return pd.Series({"win": 0, "loss": 1, "tie": 0})
+    return pd.Series({"win": 0, "loss": 0, "tie": 0})
+
+
+def compute_standings(
+    df: pd.DataFrame, group_cols: list[str], member_map: pd.DataFrame
+) -> pd.DataFrame:
+    """Compute basic win/loss/tie/points stats and join member info."""
+    group = (
+        df.groupby(group_cols, dropna=False)
+        .agg(
+            wins=("win", "sum"),
+            losses=("loss", "sum"),
+            ties=("tie", "sum"),
+            games=("points_for", "count"),
+            points_for_total=("points_for", "sum"),
+            points_against_total=("points_against", "sum"),
+        )
+        .reset_index()
+    )
+
+    group = group.merge(
+        member_map, how="inner", left_on=group_cols[-1], right_on="memberId"
+    )
+    group["points_for_total"] = group["points_for_total"].astype(float)
+    group["points_against_total"] = group["points_against_total"].astype(float)
+    group["points_for_per_game"] = (
+        (group["points_for_total"] / group["games"]).fillna(0).round(1)
+    )
+    group["points_against_per_game"] = (
+        (group["points_against_total"] / group["games"]).fillna(0).round(1)
+    )
+    group["win_pct"] = (
+        (group["wins"] / (group["wins"] + group["losses"]).replace(0, pd.NA))
+        .fillna(0)
+        .round(3)
+    )
+    return group
 
 
 def compile_aggregate_standings_data(
@@ -229,6 +140,7 @@ def compile_aggregate_standings_data(
     # Load members data into DataFrames and perform pre-processing
     df_members = pd.DataFrame(members_data)
     df_members["team_id"] = df_members["SK"].str.split("#").str[1]
+    df_members["season"] = df_members["PK"].str.split("#").str[-1]
     df_members["owner_full_name"] = (
         df_members["firstName"] + " " + df_members["lastName"]
     )
@@ -340,66 +252,15 @@ def compile_aggregate_standings_data(
     )
     long_df = pd.concat([a_view, b_view], ignore_index=True)
     long_df_playoff = pd.concat([a_view_playoff, b_view_playoff], ignore_index=True)
-
-    # Get win/loss/tie columns
-    def outcome_row(r):
-        w = r["winner"]
-        if isinstance(w, str) and w.upper() == "TIE":
-            return pd.Series({"win": 0, "loss": 0, "tie": 1})
-        if str(w) == str(r["team_member_id"]):
-            return pd.Series({"win": 1, "loss": 0, "tie": 0})
-        if str(r.get("loser")) == str(r["team_member_id"]):
-            return pd.Series({"win": 0, "loss": 1, "tie": 0})
-        return pd.Series({"win": 0, "loss": 0, "tie": 0})
-
     long_df[["win", "loss", "tie"]] = long_df.apply(outcome_row, axis=1)
     long_df_playoff[["win", "loss", "tie"]] = long_df_playoff.apply(outcome_row, axis=1)
 
-    # Season standings
     season_long = long_df[~long_df["team_member_id"].isna()].copy()
-    season_group = (
-        season_long.groupby(["season", "team_member_id"], dropna=False)
-        .agg(
-            wins=("win", "sum"),
-            losses=("loss", "sum"),
-            ties=("tie", "sum"),
-            games=("points_for", "count"),
-            points_for_total=("points_for", "sum"),
-            points_against_total=("points_against", "sum"),
-        )
-        .reset_index()
+    season_group = compute_standings(
+        df=season_long,
+        group_cols=["season", "team_member_id"],
+        member_map=df_unique_members,
     )
-    season_group = season_group.merge(
-        df_unique_members,
-        how="inner",
-        left_on="team_member_id",
-        right_on="memberId",
-    )
-    season_group = season_group.drop(columns=["memberId"])
-    season_group["points_for_per_game"] = (
-        season_group.apply(
-            lambda r: (r["points_for_total"] / r["games"]) if r["games"] > 0 else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    season_group["points_against_per_game"] = (
-        season_group.apply(
-            lambda r: (r["points_against_total"] / r["games"])
-            if r["games"] > 0
-            else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    season_group["win_pct"] = season_group.apply(
-        lambda r: (r["wins"] / (r["wins"] + r["losses"]))
-        if (r["wins"] + r["losses"]) > 0
-        else 0.0,
-        axis=1,
-    ).round(3)
     season_standings = season_group[
         [
             "season",
@@ -413,6 +274,7 @@ def compile_aggregate_standings_data(
             "points_against_per_game",
         ]
     ]
+
     # Merge information about playoff teams
     season_standings = season_standings.merge(
         right=df_playoff_teams_enriched[["season", "memberId", "playoff_status"]],
@@ -420,6 +282,7 @@ def compile_aggregate_standings_data(
         left_on=["season", "team_member_id"],
         right_on=["season", "memberId"],
     )
+
     season_standings = season_standings.drop(columns=["memberId"])
     season_standings.fillna("MISSED_PLAYOFFS", inplace=True)
 
@@ -435,50 +298,10 @@ def compile_aggregate_standings_data(
     season_standings.fillna("", inplace=True)
     season_standings = season_standings.drop(columns=["memberId"])
 
-    # All-time standings (aggregate across seasons)
     alltime_long = long_df[~long_df["team_member_id"].isna()].copy()
-    alltime_group = (
-        alltime_long.groupby(["team_member_id"], dropna=False)
-        .agg(
-            wins=("win", "sum"),
-            losses=("loss", "sum"),
-            ties=("tie", "sum"),
-            games=("points_for", "count"),
-            points_for_total=("points_for", "sum"),
-            points_against_total=("points_against", "sum"),
-        )
-        .reset_index()
+    alltime_group = compute_standings(
+        df=alltime_long, group_cols=["team_member_id"], member_map=df_unique_members
     )
-    alltime_group = alltime_group.merge(
-        df_unique_members,
-        how="inner",
-        left_on="team_member_id",
-        right_on="memberId",
-    )
-    alltime_group["points_for_per_game"] = (
-        alltime_group.apply(
-            lambda r: (r["points_for_total"] / r["games"]) if r["games"] > 0 else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    alltime_group["points_against_per_game"] = (
-        alltime_group.apply(
-            lambda r: (r["points_against_total"] / r["games"])
-            if r["games"] > 0
-            else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    alltime_group["win_pct"] = alltime_group.apply(
-        lambda r: (r["wins"] / (r["wins"] + r["losses"]))
-        if (r["wins"] + r["losses"]) > 0
-        else 0.0,
-        axis=1,
-    ).round(3)
     alltime_group["games_played"] = alltime_group["wins"] + alltime_group["losses"]
     alltime_standings = alltime_group[
         [
@@ -494,52 +317,14 @@ def compile_aggregate_standings_data(
         ]
     ]
 
-    # All-time standings for playoffs (winners bracket only)
     alltime_long_playoffs = long_df_playoff[
         ~long_df_playoff["team_member_id"].isna()
     ].copy()
-    alltime_group_playoff = (
-        alltime_long_playoffs.groupby(["team_member_id"], dropna=False)
-        .agg(
-            wins=("win", "sum"),
-            losses=("loss", "sum"),
-            ties=("tie", "sum"),
-            games=("points_for", "count"),
-            points_for_total=("points_for", "sum"),
-            points_against_total=("points_against", "sum"),
-        )
-        .reset_index()
+    alltime_group_playoff = compute_standings(
+        df=alltime_long_playoffs,
+        group_cols=["team_member_id"],
+        member_map=df_unique_members,
     )
-    alltime_group_playoff = alltime_group_playoff.merge(
-        df_unique_members,
-        how="inner",
-        left_on="team_member_id",
-        right_on="memberId",
-    )
-    alltime_group_playoff["points_for_per_game"] = (
-        alltime_group_playoff.apply(
-            lambda r: (r["points_for_total"] / r["games"]) if r["games"] > 0 else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    alltime_group_playoff["points_against_per_game"] = (
-        alltime_group_playoff.apply(
-            lambda r: (r["points_against_total"] / r["games"])
-            if r["games"] > 0
-            else 0.0,
-            axis=1,
-        )
-        .astype(float)
-        .round(1)
-    )
-    alltime_group_playoff["win_pct"] = alltime_group_playoff.apply(
-        lambda r: (r["wins"] / (r["wins"] + r["losses"]))
-        if (r["wins"] + r["losses"]) > 0
-        else 0.0,
-        axis=1,
-    ).round(3)
     alltime_group_playoff["games_played"] = (
         alltime_group_playoff["wins"] + alltime_group_playoff["losses"]
     )
@@ -557,7 +342,6 @@ def compile_aggregate_standings_data(
         ]
     ]
 
-    # H2H (all-time) between owners
     h2h_long = long_df[
         ~long_df["team_member_id"].isna() & ~long_df["opponent_member_id"].isna()
     ].copy()
@@ -675,6 +459,7 @@ def compile_weekly_standings_snapshots(
 
     df_members = pd.DataFrame(members_data)
     df_members["team_id"] = df_members["SK"].str.split("#").str[1]
+    df_members["season"] = df_members["PK"].str.split("#").str[-1]
     df_members["owner_full_name"] = (
         df_members["firstName"] + " " + df_members["lastName"]
     )
@@ -733,17 +518,6 @@ def compile_weekly_standings_snapshots(
 
     long_df = pd.concat([a_view, b_view], ignore_index=True)
     long_df["week"] = pd.to_numeric(long_df["week"], errors="coerce")
-
-    # Calculate win/loss/tie columns
-    def outcome_row(r):
-        w = r["winner"]
-        if isinstance(w, str) and w.upper() == "TIE":
-            return pd.Series({"win": 0, "loss": 0, "tie": 1})
-        if str(w) == str(r["team_member_id"]):
-            return pd.Series({"win": 1, "loss": 0, "tie": 0})
-        if str(r.get("loser")) == str(r["team_member_id"]):
-            return pd.Series({"win": 0, "loss": 1, "tie": 0})
-        return pd.Series({"win": 0, "loss": 0, "tie": 0})
 
     long_df[["win", "loss", "tie"]] = long_df.apply(outcome_row, axis=1)
 
@@ -804,6 +578,87 @@ def compile_weekly_standings_snapshots(
     return weekly_standings.to_dict(orient="records")
 
 
+def format_dynamodb_item(
+    standings_type: str, item: dict[str, Any], league_id: str, platform: str
+) -> dict:
+    base_pk = f"LEAGUE#{league_id}#PLATFORM#{platform}"
+    if standings_type == "members":
+        return {
+            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+            "SK": {"S": f"MEMBERS#{item['memberId']}"},
+            "name": {"S": item["owner_full_name"]},
+            "member_id": {"S": item["memberId"]},
+        }
+    elif standings_type == "season":
+        return {
+            "PK": {"S": f"{base_pk}#SEASON#{item['season']}"},
+            "SK": {"S": f"STANDINGS#SEASON#{item['team_member_id']}"},
+            "season": {"S": item["season"]},
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "wins": {"N": str(item["wins"])},
+            "losses": {"N": str(item["losses"])},
+            "ties": {"N": str(item["ties"])},
+            "win_pct": {"N": str(item["win_pct"])},
+        }
+    elif standings_type == "all-time":
+        return {
+            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+            "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_member_id']}"},
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "games_played": {"N": str(item["games_played"])},
+            "wins": {"N": str(item["wins"])},
+            "losses": {"N": str(item["losses"])},
+            "ties": {"N": str(item["ties"])},
+            "win_pct": {"N": str(item["win_pct"])},
+            "points_for_per_game": {"N": str(item["points_for_per_game"])},
+            "points_against_per_game": {"N": str(item["points_against_per_game"])},
+        }
+    elif standings_type == "all-time-playoffs":
+        return {
+            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+            "SK": {"S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_member_id']}"},
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "games_played": {"N": str(item["games_played"])},
+            "wins": {"N": str(item["wins"])},
+            "losses": {"N": str(item["losses"])},
+            "ties": {"N": str(item["ties"])},
+            "win_pct": {"N": str(item["win_pct"])},
+            "points_for_per_game": {"N": str(item["points_for_per_game"])},
+            "points_against_per_game": {"N": str(item["points_against_per_game"])},
+        }
+    elif standings_type == "h2h":
+        return {
+            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
+            "SK": {
+                "S": f"STANDINGS#H2H#{item['team_member_id']}-vs-{item['opponent_member_id']}"
+            },
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "opponent_full_name": {"S": item["opponent_full_name"]},
+            "games_played": {"N": str(item["games_played"])},
+            "wins": {"N": str(item["wins"])},
+            "losses": {"N": str(item["losses"])},
+            "ties": {"N": str(item["ties"])},
+            "win_pct": {"N": str(item["win_pct"])},
+            "points_for_per_game": {"N": str(item["points_for_per_game"])},
+            "points_against_per_game": {"N": str(item["points_against_per_game"])},
+        }
+    elif standings_type == "weekly":
+        return {
+            "PK": {
+                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}#WEEK#{item['week']}"
+            },
+            "SK": {"S": f"STANDINGS#WEEKLY#{item['team_member_id']}"},
+            "season": {"S": item["season"]},
+            "week": {"N": str(item["week"])},
+            "team_member_id": {"S": item["team_member_id"]},
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "wins": {"N": str(item["wins"])},
+            "losses": {"N": str(item["losses"])},
+            "ties": {"N": str(item["ties"])},
+        }
+    raise ValueError(f"Unsupported standings type: {standings_type}")
+
+
 def batch_write_to_dynamodb(
     data_to_write: list[dict[str, Any]],
     standings_data_type: str,
@@ -819,150 +674,22 @@ def batch_write_to_dynamodb(
         standings_data_type: (dict[str, Any]): The type of standings data (season, H2H, all-time).
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        season (str): The NFL season to get data for.
     """
     batched_objects = []
     for item in data_to_write:
-        if standings_data_type == "members":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                            "SK": {"S": f"MEMBERS#{item['memberId']}"},
-                            "name": {"S": item["owner_full_name"]},
-                            "member_id": {"S": item["memberId"]},
-                        }
-                    }
+        batched_objects = [
+            {
+                "PutRequest": {
+                    "Item": format_dynamodb_item(
+                        standings_type=standings_data_type,
+                        item=item,
+                        league_id=league_id,
+                        platform=platform,
+                    )
                 }
-            )
-        elif standings_data_type == "season":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {
-                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}"
-                            },
-                            "SK": {"S": f"STANDINGS#SEASON#{item['team_member_id']}"},
-                            "GSI2PK": {
-                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#STANDINGS#SEASON#TEAM#{item['team_member_id']}"
-                            },
-                            "GSI2SK": {"S": f"SEASON#{item['season']}"},
-                            "season": {"S": item["season"]},
-                            "owner_full_name": {"S": item["owner_full_name"]},
-                            "wins": {"N": str(item["wins"])},
-                            "losses": {"N": str(item["losses"])},
-                            "ties": {"N": str(item["ties"])},
-                            "win_pct": {"N": str(item["win_pct"])},
-                            "points_for_per_game": {
-                                "N": str(item["points_for_per_game"])
-                            },
-                            "points_against_per_game": {
-                                "N": str(item["points_against_per_game"])
-                            },
-                            "playoff_status": {"S": item["playoff_status"]},
-                            "championship_status": {"S": item["championship_status"]},
-                        }
-                    }
-                }
-            )
-        elif standings_data_type == "all-time":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                            "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_member_id']}"},
-                            "owner_full_name": {"S": item["owner_full_name"]},
-                            "games_played": {"N": str(item["games_played"])},
-                            "wins": {"N": str(item["wins"])},
-                            "losses": {"N": str(item["losses"])},
-                            "ties": {"N": str(item["ties"])},
-                            "win_pct": {"N": str(item["win_pct"])},
-                            "points_for_per_game": {
-                                "N": str(item["points_for_per_game"])
-                            },
-                            "points_against_per_game": {
-                                "N": str(item["points_against_per_game"])
-                            },
-                        }
-                    }
-                }
-            )
-        elif standings_data_type == "all-time-playoffs":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                            "SK": {
-                                "S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_member_id']}"
-                            },
-                            "owner_full_name": {"S": item["owner_full_name"]},
-                            "games_played": {"N": str(item["games_played"])},
-                            "wins": {"N": str(item["wins"])},
-                            "losses": {"N": str(item["losses"])},
-                            "ties": {"N": str(item["ties"])},
-                            "win_pct": {"N": str(item["win_pct"])},
-                            "points_for_per_game": {
-                                "N": str(item["points_for_per_game"])
-                            },
-                            "points_against_per_game": {
-                                "N": str(item["points_against_per_game"])
-                            },
-                        }
-                    }
-                }
-            )
-        elif standings_data_type == "h2h":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                            "SK": {
-                                "S": f"STANDINGS#H2H#{item['team_member_id']}-vs-{item['opponent_member_id']}"
-                            },
-                            "owner_full_name": {"S": item["owner_full_name"]},
-                            "opponent_full_name": {"S": item["opponent_full_name"]},
-                            "games_played": {"N": str(item["games_played"])},
-                            "wins": {"N": str(item["wins"])},
-                            "losses": {"N": str(item["losses"])},
-                            "ties": {"N": str(item["ties"])},
-                            "win_pct": {"N": str(item["win_pct"])},
-                            "points_for_per_game": {
-                                "N": str(item["points_for_per_game"])
-                            },
-                            "points_against_per_game": {
-                                "N": str(item["points_against_per_game"])
-                            },
-                        }
-                    }
-                }
-            )
-        elif standings_data_type == "weekly":
-            batched_objects.append(
-                {
-                    "PutRequest": {
-                        "Item": {
-                            "PK": {
-                                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}#WEEK#{item['week']}"
-                            },
-                            "SK": {"S": f"STANDINGS#WEEKLY#{item['team_member_id']}"},
-                            "season": {"S": item["season"]},
-                            "week": {"N": str(item["week"])},
-                            "team_member_id": {"S": item["team_member_id"]},
-                            "owner_full_name": {"S": item["owner_full_name"]},
-                            "wins": {"N": str(item["wins"])},
-                            "losses": {"N": str(item["losses"])},
-                            "ties": {"N": str(item["ties"])},
-                        }
-                    }
-                }
-            )
-        else:
-            raise ValueError(f"Unknown standings data type: {standings_data_type}")
+            }
+            for item in data_to_write
+        ]
     dynamodb = boto3.client("dynamodb")
     try:
         backoff = 1.0
@@ -1023,23 +750,34 @@ def lambda_handler(event, context):
     all_championship_teams = []
     for season in seasons:
         logger.info("Processing season %s", season)
-        matchups = get_matchups(league_id=league_id, platform=platform, season=season)
+        matchups = fetch_league_data(
+            league_id=league_id,
+            platform=platform,
+            season=season,
+            prefix="MATCHUP#TEAMS#",
+        )
         logger.info("Fetched %d matchups for season %s", len(matchups), season)
         all_matchups.extend(matchups)
-        members = get_league_members(
-            league_id=league_id, platform=platform, season=season
+        members = fetch_league_data(
+            league_id=league_id, platform=platform, season=season, prefix="TEAM#"
         )
         logger.info("Fetched %d league members for season %s", len(members), season)
         all_members.extend(members)
-        playoff_teams = get_playoff_teams(
-            league_id=league_id, platform=platform, season=season
+        playoff_teams = fetch_league_data(
+            league_id=league_id,
+            platform=platform,
+            season=season,
+            prefix="PLAYOFF_TEAM#",
         )
         logger.info(
             "Fetched %d playoff teams for season %s", len(playoff_teams), season
         )
         all_playoff_teams.extend(playoff_teams)
-        championship_team = get_league_winner(
-            league_id=league_id, platform=platform, season=season
+        championship_team = fetch_league_data(
+            league_id=league_id,
+            platform=platform,
+            season=season,
+            prefix="LEAGUE_CHAMPION#",
         )
         logger.info("Fetched league champion for season %s", season)
         all_championship_teams.extend(championship_team)
