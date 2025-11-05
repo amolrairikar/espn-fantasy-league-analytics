@@ -307,7 +307,7 @@ function SeasonStandings() {
             ]}
           />
           <p className="text-sm text-muted-foreground italic mt-1">
-            z = clinched a first round bye | x = clinched a playoff spot | 👑 = won the championship
+            z = first round bye | x = playoffs | 👑 = won the championship
           </p>
           <h1 className="font-semibold mt-6">Season Schedule for {selectedOwnerName}</h1>
           <DataTable
@@ -342,7 +342,7 @@ function SeasonStandings() {
             ]}
           />
           <p className="text-sm text-muted-foreground italic mt-1">
-            z = clinched a first round bye | x = clinched a playoff spot | 👑 = won the championship
+            z = first round bye | x = playoffs | 👑 = won the championship
           </p>
         </div>
       )}
