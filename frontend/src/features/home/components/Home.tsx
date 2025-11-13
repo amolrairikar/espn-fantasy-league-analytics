@@ -13,6 +13,7 @@ import type {
   PostLeagueOnboardingPayload,
   PutLeagueMetadataPayload,
 } from '@/features/home/types';
+import AllTimeRecords from '@/features/home/components/AllTimeRecords';
 import { poll } from '@/features/home/utils/poll';
 
 function Home() {
@@ -115,7 +116,7 @@ function Home() {
   return (
     <div className="flex flex-col items-center gap-4">
       {onboarded ? (
-        <h1>Welcome to the home page!</h1>
+        <AllTimeRecords />
       ) : (
         <>
           <h1 className="text-center">Nothing to see here. Click the button below to onboard your league data.</h1>
