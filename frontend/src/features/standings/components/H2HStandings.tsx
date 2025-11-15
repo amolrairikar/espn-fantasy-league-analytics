@@ -5,6 +5,7 @@ import type {
   GetLeagueMembers,
   GetMatchupsBetweenTeams,
   MatchupTableView,
+  Member,
   StandingsH2H,
 } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
@@ -21,12 +22,11 @@ function H2HStandings() {
     throw new Error('Invalid league metadata: missing leagueId and/or platform.');
   }
 
-  type memberConfig = { name: string; member_id: string };
-  const [members, setMembers] = useState<memberConfig[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(undefined);
-  const selectedOwnerName = members.find((m) => m.member_id === selectedOwnerId)?.name ?? null;
+  const selectedOwnerName = members.find((m) => m.owner_id === selectedOwnerId)?.owner_full_name ?? null;
   const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null);
-  const selectedOpponentId = members.find((m) => m.name === selectedOpponentName)?.member_id ?? undefined;
+  const selectedOpponentId = members.find((m) => m.owner_full_name === selectedOpponentName)?.owner_id ?? undefined;
   const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
   const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
   const [standingsData, setStandingsData] = useState<StandingsH2H[]>([]);
@@ -146,7 +146,7 @@ function H2HStandings() {
 
   const columnsH2HMatchupTable = columnsH2HMatchups(setSelectedSeason, setSelectedWeek);
 
-  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/owners`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
@@ -181,12 +181,7 @@ function H2HStandings() {
         const response = await refetchLeaguemembers();
         if (response.data?.data) {
           const membersData = response.data?.data;
-          const mappedMembers = membersData.map((item) => ({
-            name: item.name,
-            member_id: item.member_id,
-          }));
-          console.log(mappedMembers);
-          setMembers(mappedMembers);
+          setMembers(membersData);
         }
       } catch (err) {
         console.error(err);
@@ -237,10 +232,10 @@ function H2HStandings() {
           console.log(response);
           const transformedData = response.data.data.map((matchup) => {
             const ownerScore =
-              matchup.team_a_member_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
+              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
 
             const opponentScore =
-              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
+              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
 
             const ownerWon = matchup.winner === selectedOwnerId;
 
@@ -302,8 +297,8 @@ function H2HStandings() {
           <SelectContent>
             {members.length > 0 ? (
               members.map((member) => (
-                <SelectItem key={member.member_id} value={member.member_id}>
-                  {member.name}
+                <SelectItem key={member.owner_id} value={member.owner_id}>
+                  {member.owner_full_name}
                 </SelectItem>
               ))
             ) : (

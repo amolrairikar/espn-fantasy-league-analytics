@@ -68,7 +68,7 @@ function Scores() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center">
         {matchups.map((matchup) => {
-          const matchupKey = `${matchup.team_a_member_id}-${matchup.team_b_member_id}-${matchup.week}`;
+          const matchupKey = `${matchup.team_a_owner_id}-${matchup.team_b_owner_id}-${matchup.week}`;
           return <ScoreboardCard key={matchupKey} matchup={matchup} onClick={() => setSelectedMatchup(matchup)} />;
         })}
         {selectedMatchup && (

@@ -189,13 +189,17 @@ def batch_write_to_dynamodb(
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {"S": f"TEAM#{item['teamId']}"},
-                        "firstName": {"S": f"{item['firstName']}"},
-                        "lastName": {"S": f"{item['lastName']}"},
-                        "abbrev": {"S": f"{item['abbrev']}"},
-                        "teamName": {"S": f"{item['teamName']}"},
-                        "memberId": {
+                        "owner_full_name": {
+                            "S": f"{item['firstName']} {item['lastName']}"
+                        },
+                        "owner_first_name": {"S": item["firstName"]},
+                        "owner_last_name": {"S": item["lastName"]},
+                        "owner_id": {
                             "L": [{"S": member_id} for member_id in item["memberId"]]
                         },
+                        "team_id": {"S": str(item["teamId"])},
+                        "team_name": {"S": item["teamName"]},
+                        "team_abbreviation": {"S": item["abbrev"]},
                     }
                 }
             }

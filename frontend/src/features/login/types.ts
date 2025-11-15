@@ -10,14 +10,14 @@ type LeagueData = {
 type GetLeagueMetadata = {
   detail: string;
   data: {
-    espn_s2_cookie: string;
     league_id: string;
-    onboarded_date?: string;
-    onboarded_status?: boolean;
-    privacy: string;
     platform: string;
-    seasons: string[];
+    privacy: string;
+    espn_s2_cookie: string;
     swid_cookie: string;
+    seasons: string[];
+    onboarded_status?: boolean;
+    onboarded_date?: string;
   };
 };
 

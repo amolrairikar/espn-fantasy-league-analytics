@@ -10,8 +10,8 @@ interface ScoreboardCardProps {
 }
 
 export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
-  const isTeamAWinner = matchup.winner === matchup.team_a_member_id;
-  const isTeamBWinner = matchup.winner === matchup.team_b_member_id;
+  const isTeamAWinner = matchup.winner === matchup.team_a_owner_id;
+  const isTeamBWinner = matchup.winner === matchup.team_b_owner_id;
   const isPlayoff = matchup.playoff_tier_type === 'WINNERS_BRACKET';
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   const [teamAStandings, setTeamAStandings] = useState<GetWeeklyStandings['data'] | null>(null);
@@ -22,7 +22,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
     platform: leagueData?.platform,
     standings_type: 'weekly',
     season: matchup.season,
-    team: matchup.team_a_member_id,
+    team: matchup.team_a_owner_id,
     week: matchup.week,
   });
 
@@ -31,7 +31,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
     platform: leagueData?.platform,
     standings_type: 'weekly',
     season: matchup.season,
-    team: matchup.team_b_member_id,
+    team: matchup.team_b_owner_id,
     week: matchup.week,
   });
 
@@ -82,7 +82,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
           <div className="text-left">
             <div className={`text-lg ${isTeamAWinner ? 'font-bold' : ''}`}> {matchup.team_a_team_name} </div>
             <div className={`text-sm text-muted-foreground ${isTeamAWinner ? 'font-bold text-foreground' : ''}`}>
-              {matchup.team_a_full_name}{' '}
+              {matchup.team_a_owner_full_name}{' '}
               {matchup.playoff_tier_type === 'NONE' && (
                 <span className="text-xs text-muted-foreground">({teamARecord})</span>
               )}
@@ -98,7 +98,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
           <div className="text-left">
             <div className={`text-lg ${isTeamBWinner ? 'font-bold' : ''}`}> {matchup.team_b_team_name} </div>
             <div className={`text-sm text-muted-foreground ${isTeamBWinner ? 'font-bold text-foreground' : ''}`}>
-              {matchup.team_b_full_name}{' '}
+              {matchup.team_b_owner_full_name}{' '}
               {matchup.playoff_tier_type === 'NONE' && (
                 <span className="text-xs text-muted-foreground">({teamBRecord})</span>
               )}

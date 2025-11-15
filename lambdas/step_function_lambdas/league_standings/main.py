@@ -3,6 +3,7 @@
 import logging
 import math
 import time
+from decimal import Decimal
 from typing import Any
 
 import boto3
@@ -78,9 +79,9 @@ def outcome_row(r) -> pd.Series:
     w = r["winner"]
     if isinstance(w, str) and w.upper() == "TIE":
         return pd.Series({"win": 0, "loss": 0, "tie": 1})
-    if str(w) == str(r["team_member_id"]):
+    if str(w) == str(r["team_owner_id"]):
         return pd.Series({"win": 1, "loss": 0, "tie": 0})
-    if str(r.get("loser")) == str(r["team_member_id"]):
+    if str(r.get("loser")) == str(r["team_owner_id"]):
         return pd.Series({"win": 0, "loss": 1, "tie": 0})
     return pd.Series({"win": 0, "loss": 0, "tie": 0})
 
@@ -113,7 +114,7 @@ def compute_standings(
     )
 
     group = group.merge(
-        member_map, how="inner", left_on=group_cols[-1], right_on="memberId"
+        member_map, how="inner", left_on=group_cols[-1], right_on="owner_id"
     )
     group["points_for_total"] = group["points_for_total"].astype(float)
     group["points_against_total"] = group["points_against_total"].astype(float)
@@ -169,21 +170,17 @@ def compile_aggregate_standings_data(
 
     # Load members data into DataFrames and perform pre-processing
     df_members = pd.DataFrame(members_data)
-    df_members["team_id"] = df_members["SK"].str.split("#").str[1]
     df_members["season"] = df_members["PK"].str.split("#").str[-1]
-    df_members["owner_full_name"] = (
-        df_members["firstName"] + " " + df_members["lastName"]
-    )
-    df_members["memberId"] = df_members["memberId"].apply(
+    df_members["owner_id"] = df_members["owner_id"].apply(
         lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
     )
-    df_members["memberId"] = df_members["memberId"].astype(str)
-    df_members = df_members[["season", "team_id", "memberId", "owner_full_name"]]
+    df_members["owner_id"] = df_members["owner_id"].astype(str)
+    df_members = df_members[["season", "team_id", "owner_id", "owner_full_name"]]
 
     # Get a mapping of unique members within the league
     df_unique_members = (
-        df_members[["memberId", "owner_full_name"]]
-        .drop_duplicates(subset="memberId")
+        df_members[["owner_id", "owner_full_name"]]
+        .drop_duplicates(subset="owner_id")
         .reset_index(drop=True)
     )
     df_unique_members = df_unique_members.drop_duplicates(
@@ -208,8 +205,8 @@ def compile_aggregate_standings_data(
         [
             "season",
             "week",
-            "team_a_member_id",
-            "team_b_member_id",
+            "team_a_owner_id",
+            "team_b_owner_id",
             "team_a_score",
             "team_b_score",
             "winner",
@@ -217,8 +214,8 @@ def compile_aggregate_standings_data(
         ]
     ].rename(
         columns={
-            "team_a_member_id": "team_member_id",
-            "team_b_member_id": "opponent_member_id",
+            "team_a_owner_id": "team_owner_id",
+            "team_b_owner_id": "opponent_owner_id",
             "team_a_score": "points_for",
             "team_b_score": "points_against",
         }
@@ -227,8 +224,8 @@ def compile_aggregate_standings_data(
         [
             "season",
             "week",
-            "team_a_member_id",
-            "team_b_member_id",
+            "team_a_owner_id",
+            "team_b_owner_id",
             "team_a_score",
             "team_b_score",
             "winner",
@@ -236,8 +233,8 @@ def compile_aggregate_standings_data(
         ]
     ].rename(
         columns={
-            "team_a_member_id": "team_member_id",
-            "team_b_member_id": "opponent_member_id",
+            "team_a_owner_id": "team_owner_id",
+            "team_b_owner_id": "opponent_owner_id",
             "team_a_score": "points_for",
             "team_b_score": "points_against",
         }
@@ -246,8 +243,8 @@ def compile_aggregate_standings_data(
         [
             "season",
             "week",
-            "team_b_member_id",
-            "team_a_member_id",
+            "team_b_owner_id",
+            "team_a_owner_id",
             "team_b_score",
             "team_a_score",
             "winner",
@@ -255,8 +252,8 @@ def compile_aggregate_standings_data(
         ]
     ].rename(
         columns={
-            "team_b_member_id": "team_member_id",
-            "team_a_member_id": "opponent_member_id",
+            "team_b_owner_id": "team_owner_id",
+            "team_a_owner_id": "opponent_owner_id",
             "team_b_score": "points_for",
             "team_a_score": "points_against",
         }
@@ -265,8 +262,8 @@ def compile_aggregate_standings_data(
         [
             "season",
             "week",
-            "team_b_member_id",
-            "team_a_member_id",
+            "team_b_owner_id",
+            "team_a_owner_id",
             "team_b_score",
             "team_a_score",
             "winner",
@@ -274,8 +271,8 @@ def compile_aggregate_standings_data(
         ]
     ].rename(
         columns={
-            "team_b_member_id": "team_member_id",
-            "team_a_member_id": "opponent_member_id",
+            "team_b_owner_id": "team_owner_id",
+            "team_a_owner_id": "opponent_owner_id",
             "team_b_score": "points_for",
             "team_a_score": "points_against",
         }
@@ -285,17 +282,17 @@ def compile_aggregate_standings_data(
     long_df[["win", "loss", "tie"]] = long_df.apply(outcome_row, axis=1)
     long_df_playoff[["win", "loss", "tie"]] = long_df_playoff.apply(outcome_row, axis=1)
 
-    season_long = long_df[~long_df["team_member_id"].isna()].copy()
+    season_long = long_df[~long_df["team_owner_id"].isna()].copy()
     season_group = compute_standings(
         df=season_long,
-        group_cols=["season", "team_member_id"],
+        group_cols=["season", "team_owner_id"],
         member_map=df_unique_members,
     )
     season_standings = season_group[
         [
             "season",
             "owner_full_name",
-            "team_member_id",
+            "team_owner_id",
             "wins",
             "losses",
             "ties",
@@ -307,36 +304,36 @@ def compile_aggregate_standings_data(
 
     # Merge information about playoff teams
     season_standings = season_standings.merge(
-        right=df_playoff_teams_enriched[["season", "memberId", "playoff_status"]],
+        right=df_playoff_teams_enriched[["season", "owner_id", "playoff_status"]],
         how="left",
-        left_on=["season", "team_member_id"],
-        right_on=["season", "memberId"],
+        left_on=["season", "team_owner_id"],
+        right_on=["season", "owner_id"],
     )
 
-    season_standings = season_standings.drop(columns=["memberId"])
+    season_standings = season_standings.drop(columns=["owner_id"])
     season_standings.fillna("MISSED_PLAYOFFS", inplace=True)
 
     # Merge information about championship winner
     season_standings = season_standings.merge(
         right=df_championship_teams_enriched[
-            ["season", "memberId", "championship_status"]
+            ["season", "owner_id", "championship_status"]
         ],
         how="left",
-        left_on=["season", "team_member_id"],
-        right_on=["season", "memberId"],
+        left_on=["season", "team_owner_id"],
+        right_on=["season", "owner_id"],
     )
     season_standings.fillna("", inplace=True)
-    season_standings = season_standings.drop(columns=["memberId"])
+    season_standings = season_standings.drop(columns=["owner_id"])
 
-    alltime_long = long_df[~long_df["team_member_id"].isna()].copy()
+    alltime_long = long_df[~long_df["team_owner_id"].isna()].copy()
     alltime_group = compute_standings(
-        df=alltime_long, group_cols=["team_member_id"], member_map=df_unique_members
+        df=alltime_long, group_cols=["team_owner_id"], member_map=df_unique_members
     )
     alltime_group["games_played"] = alltime_group["wins"] + alltime_group["losses"]
     alltime_standings = alltime_group[
         [
             "owner_full_name",
-            "team_member_id",
+            "team_owner_id",
             "games_played",
             "wins",
             "losses",
@@ -348,11 +345,11 @@ def compile_aggregate_standings_data(
     ]
 
     alltime_long_playoffs = long_df_playoff[
-        ~long_df_playoff["team_member_id"].isna()
+        ~long_df_playoff["team_owner_id"].isna()
     ].copy()
     alltime_group_playoff = compute_standings(
         df=alltime_long_playoffs,
-        group_cols=["team_member_id"],
+        group_cols=["team_owner_id"],
         member_map=df_unique_members,
     )
     alltime_group_playoff["games_played"] = (
@@ -361,7 +358,7 @@ def compile_aggregate_standings_data(
     alltime_standings_playoff = alltime_group_playoff[
         [
             "owner_full_name",
-            "team_member_id",
+            "team_owner_id",
             "games_played",
             "wins",
             "losses",
@@ -373,13 +370,13 @@ def compile_aggregate_standings_data(
     ]
 
     h2h_long = long_df[
-        ~long_df["team_member_id"].isna() & ~long_df["opponent_member_id"].isna()
+        ~long_df["team_owner_id"].isna() & ~long_df["opponent_owner_id"].isna()
     ].copy()
     h2h_group = (
         h2h_long.groupby(
             [
-                "team_member_id",
-                "opponent_member_id",
+                "team_owner_id",
+                "opponent_owner_id",
             ],
             dropna=False,
         )
@@ -396,14 +393,14 @@ def compile_aggregate_standings_data(
     h2h_group = h2h_group.merge(
         df_unique_members,
         how="inner",
-        left_on="team_member_id",
-        right_on="memberId",
+        left_on="team_owner_id",
+        right_on="owner_id",
     )
     h2h_group = h2h_group.merge(
         df_unique_members,
         how="inner",
-        left_on="opponent_member_id",
-        right_on="memberId",
+        left_on="opponent_owner_id",
+        right_on="owner_id",
         suffixes=("", "_opponent"),
     )
     h2h_group["points_for_per_game"] = (
@@ -431,7 +428,7 @@ def compile_aggregate_standings_data(
         axis=1,
     ).round(3)
     h2h_group["games_played"] = h2h_group["wins"] + h2h_group["losses"]
-    h2h_group = h2h_group.drop(columns=["memberId", "memberId_opponent"])
+    h2h_group = h2h_group.drop(columns=["owner_id", "owner_id_opponent"])
     h2h_standings = h2h_group.rename(
         columns={
             "owner_full_name_opponent": "opponent_full_name",
@@ -439,9 +436,9 @@ def compile_aggregate_standings_data(
     )[
         [
             "owner_full_name",
-            "team_member_id",
+            "team_owner_id",
             "opponent_full_name",
-            "opponent_member_id",
+            "opponent_owner_id",
             "games_played",
             "wins",
             "losses",
@@ -488,28 +485,24 @@ def compile_weekly_standings_snapshots(
     df_matchups = df_matchups_raw[df_matchups_raw["playoff_tier_type"] == "NONE"]
 
     df_members = pd.DataFrame(members_data)
-    df_members["team_id"] = df_members["SK"].str.split("#").str[1]
     df_members["season"] = df_members["PK"].str.split("#").str[-1]
-    df_members["owner_full_name"] = (
-        df_members["firstName"] + " " + df_members["lastName"]
-    )
-    df_members["memberId"] = df_members["memberId"].apply(
+    df_members["owner_id"] = df_members["owner_id"].apply(
         lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
     )
-    df_members["memberId"] = df_members["memberId"].astype(str)
-    df_members = df_members[["season", "team_id", "memberId", "owner_full_name"]]
+    df_members["owner_id"] = df_members["owner_id"].astype(str)
+    df_members = df_members[["season", "team_id", "owner_id", "owner_full_name"]]
 
     df_unique_members = (
-        df_members[["memberId", "owner_full_name"]]
-        .drop_duplicates(subset="memberId")
+        df_members[["owner_id", "owner_full_name"]]
+        .drop_duplicates(subset="owner_id")
         .reset_index(drop=True)
     )
 
     # Long form of all matchups (each row is one team’s game)
     a_view = df_matchups.rename(
         columns={
-            "team_a_member_id": "team_member_id",
-            "team_b_member_id": "opponent_member_id",
+            "team_a_owner_id": "team_owner_id",
+            "team_b_owner_id": "opponent_owner_id",
             "team_a_score": "points_for",
             "team_b_score": "points_against",
         }
@@ -517,8 +510,8 @@ def compile_weekly_standings_snapshots(
         [
             "season",
             "week",
-            "team_member_id",
-            "opponent_member_id",
+            "team_owner_id",
+            "opponent_owner_id",
             "points_for",
             "points_against",
             "winner",
@@ -528,8 +521,8 @@ def compile_weekly_standings_snapshots(
 
     b_view = df_matchups.rename(
         columns={
-            "team_b_member_id": "team_member_id",
-            "team_a_member_id": "opponent_member_id",
+            "team_b_owner_id": "team_owner_id",
+            "team_a_owner_id": "opponent_owner_id",
             "team_b_score": "points_for",
             "team_a_score": "points_against",
         }
@@ -537,8 +530,8 @@ def compile_weekly_standings_snapshots(
         [
             "season",
             "week",
-            "team_member_id",
-            "opponent_member_id",
+            "team_owner_id",
+            "opponent_owner_id",
             "points_for",
             "points_against",
             "winner",
@@ -553,10 +546,10 @@ def compile_weekly_standings_snapshots(
 
     # Calculate weekly cumulative standings
     # For each season, team, and week, compute running totals
-    long_df = long_df.sort_values(by=["season", "team_member_id", "week"])
+    long_df = long_df.sort_values(by=["season", "team_owner_id", "week"])
 
     weekly_standings = long_df.groupby(
-        ["season", "team_member_id", "week"], as_index=False
+        ["season", "team_owner_id", "week"], as_index=False
     ).agg(
         wins=("win", "sum"),
         losses=("loss", "sum"),
@@ -567,28 +560,28 @@ def compile_weekly_standings_snapshots(
 
     # Get cumulative stats per week
     weekly_standings["cum_wins"] = weekly_standings.groupby(
-        ["season", "team_member_id"]
+        ["season", "team_owner_id"]
     )["wins"].cumsum()
     weekly_standings["cum_losses"] = weekly_standings.groupby(
-        ["season", "team_member_id"]
+        ["season", "team_owner_id"]
     )["losses"].cumsum()
     weekly_standings["cum_ties"] = weekly_standings.groupby(
-        ["season", "team_member_id"]
+        ["season", "team_owner_id"]
     )["ties"].cumsum()
 
     # Merge owner info
     weekly_standings = weekly_standings.merge(
         df_unique_members,
-        left_on="team_member_id",
-        right_on="memberId",
+        left_on="team_owner_id",
+        right_on="owner_id",
         how="left",
-    ).drop(columns=["memberId"])
+    ).drop(columns=["owner_id"])
 
     # Select required columns
     weekly_standings = weekly_standings[
         [
             "season",
-            "team_member_id",
+            "team_owner_id",
             "week",
             "cum_wins",
             "cum_losses",
@@ -634,27 +627,23 @@ def compile_all_time_records(
 
     # Load members data into DataFrames and perform pre-processing
     df_members = pd.DataFrame(members_data)
-    df_members["team_id"] = df_members["SK"].str.split("#").str[1]
     df_members["season"] = df_members["PK"].str.split("#").str[-1]
-    df_members["owner_full_name"] = (
-        df_members["firstName"] + " " + df_members["lastName"]
-    )
-    df_members["memberId"] = df_members["memberId"].apply(
+    df_members["owner_id"] = df_members["owner_id"].apply(
         lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x
     )
-    df_members["memberId"] = df_members["memberId"].astype(str)
-    df_members = df_members[["season", "team_id", "memberId", "owner_full_name"]]
+    df_members["owner_id"] = df_members["owner_id"].astype(str)
+    df_members = df_members[["season", "team_id", "owner_id", "owner_full_name"]]
 
     df_matchups_scores = df_matchups[
         [
             "season",
             "week",
-            "team_a_member_id",
-            "team_a_full_name",
+            "team_a_owner_id",
+            "team_a_owner_full_name",
             "team_a_score",
             "team_a_players",
-            "team_b_member_id",
-            "team_b_full_name",
+            "team_b_owner_id",
+            "team_b_owner_full_name",
             "team_b_score",
             "team_b_players",
         ]
@@ -669,35 +658,35 @@ def compile_all_time_records(
     df_names = pd.melt(
         df_matchups_scores,
         id_vars=["season", "week"],
-        value_vars=["team_a_full_name", "team_b_full_name"],
+        value_vars=["team_a_owner_full_name", "team_b_owner_full_name"],
         var_name="team_side",
         value_name="team_name",
     )
-    df_member_ids = pd.melt(
+    df_owner_ids = pd.melt(
         df_matchups_scores,
         id_vars=["season", "week"],
-        value_vars=["team_a_member_id", "team_b_member_id"],
+        value_vars=["team_a_owner_id", "team_b_owner_id"],
         var_name="team_side",
-        value_name="team_member_id",
+        value_name="team_owner_id",
     )
 
     # Combine names and scores on matching rows
     df_combined = df_scores.copy()
     df_combined["owner_name"] = df_names["team_name"]
-    df_combined["owner_member_id"] = df_member_ids["team_member_id"]
+    df_combined["owner_id"] = df_owner_ids["team_owner_id"]
 
     # Get 10 highest and 10 lowest team scores
     top10 = df_combined.sort_values("score", ascending=False).head(10)
-    top10 = top10[["season", "week", "owner_name", "owner_member_id", "score"]]
+    top10 = top10[["season", "week", "owner_name", "owner_id", "score"]]
     bottom10 = df_combined.sort_values("score", ascending=True).head(10)
-    bottom10 = bottom10[["season", "week", "owner_name", "owner_member_id", "score"]]
+    bottom10 = bottom10[["season", "week", "owner_name", "owner_id", "score"]]
 
     # Create DataFrame with each player in a matchup being in their own row
     player_stats = []
     for matchup in matchup_data:
         for team_prefix in ["team_a", "team_b"]:
-            owner_name = matchup.get(f"{team_prefix}_full_name")
-            owner_id = matchup.get(f"{team_prefix}_member_id")
+            owner_name = matchup.get(f"{team_prefix}_owner_full_name")
+            owner_id = matchup.get(f"{team_prefix}_owner_id")
             players = matchup.get(f"{team_prefix}_players", [])
             if not owner_name or not owner_id or not players:
                 continue
@@ -707,10 +696,10 @@ def compile_all_time_records(
                         "season": matchup["season"],
                         "week": matchup["week"],
                         "owner_full_name": owner_name,
-                        "owner_member_id": owner_id,
+                        "owner_id": owner_id,
                         "player_id": p["player_id"],
                         "full_name": p["full_name"],
-                        "points_scored": float(p["points_scored"]),
+                        "points_scored": Decimal(p["points_scored"]),
                         "position": p["position"],
                     }
                 )
@@ -727,7 +716,7 @@ def compile_all_time_records(
                 "season",
                 "week",
                 "owner_full_name",
-                "owner_member_id",
+                "owner_id",
                 "player_id",
                 "full_name",
                 "points_scored",
@@ -750,7 +739,7 @@ def compile_all_time_records(
         on=["season", "team_id"],
     )
     df_championships_aggregated = (
-        df_championship_teams_enriched.groupby(by=["owner_full_name", "memberId"])
+        df_championship_teams_enriched.groupby(by=["owner_full_name", "owner_id"])
         .agg(championships_won=("championship_status", "count"))
         .reset_index()
     )
@@ -796,17 +785,21 @@ def format_dynamodb_item(
         dict: Formatted DynamoDB item.
     """
     base_pk = f"LEAGUE#{league_id}#PLATFORM#{platform}"
-    if standings_type == "members":
+    if standings_type == "owners":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-            "SK": {"S": f"MEMBERS#{item['memberId']}"},
-            "name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["memberId"]},
+            "SK": {"S": f"OWNERS#{item['owner_id']}"},
+            "owner_full_name": {"S": item["owner_full_name"]},
+            "owner_id": {"S": item["owner_id"]},
         }
     elif standings_type == "season":
         return {
             "PK": {"S": f"{base_pk}#SEASON#{item['season']}"},
-            "SK": {"S": f"STANDINGS#SEASON#{item['team_member_id']}"},
+            "SK": {"S": f"STANDINGS#SEASON#{item['team_owner_id']}"},
+            "GSI2PK": {
+                "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#STANDINGS#SEASON#TEAM#{item['team_owner_id']}"
+            },
+            "GSI2SK": {"S": f"SEASON#{item['season']}"},
             "season": {"S": item["season"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "wins": {"N": str(item["wins"])},
@@ -819,7 +812,7 @@ def format_dynamodb_item(
     elif standings_type == "all_time":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-            "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_member_id']}"},
+            "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_owner_id']}"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -832,7 +825,7 @@ def format_dynamodb_item(
     elif standings_type == "all_time_playoffs":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-            "SK": {"S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_member_id']}"},
+            "SK": {"S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_owner_id']}"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -846,7 +839,7 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
-                "S": f"STANDINGS#H2H#{item['team_member_id']}-vs-{item['opponent_member_id']}"
+                "S": f"STANDINGS#H2H#{item['team_owner_id']}-vs-{item['opponent_owner_id']}"
             },
             "owner_full_name": {"S": item["owner_full_name"]},
             "opponent_full_name": {"S": item["opponent_full_name"]},
@@ -863,10 +856,10 @@ def format_dynamodb_item(
             "PK": {
                 "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}#WEEK#{item['week']}"
             },
-            "SK": {"S": f"STANDINGS#WEEKLY#{item['team_member_id']}"},
+            "SK": {"S": f"STANDINGS#WEEKLY#{item['team_owner_id']}"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
-            "team_member_id": {"S": item["team_member_id"]},
+            "owner_id": {"S": item["team_owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "wins": {"N": str(item["wins"])},
             "losses": {"N": str(item["losses"])},
@@ -875,8 +868,8 @@ def format_dynamodb_item(
     elif standings_type == "all_time_championships":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-            "SK": {"S": f"HALL_OF_FAME#CHAMPIONSHIPS#{item['memberId']}"},
-            "owner_member_id": {"S": item["memberId"]},
+            "SK": {"S": f"HALL_OF_FAME#CHAMPIONSHIPS#{item['owner_id']}"},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "championships_won": {"N": str(item["championships_won"])},
         }
@@ -884,25 +877,25 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
-                "S": f"HALL_OF_FAME#TOP10TEAMSCORES#{item['owner_member_id']}#{item['season']}#{item['week']}"
+                "S": f"HALL_OF_FAME#TOP10TEAMSCORES#{item['owner_id']}#{item['season']}#{item['week']}"
             },
-            "member_id": {"S": item["owner_member_id"]},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_name"]},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
-            "score": {"N": str(item["score"])},
+            "points_scored": {"N": str(item["score"])},
         }
     elif standings_type == "bottom_10_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
-                "S": f"HALL_OF_FAME#BOTTOM10TEAMSCORES#{item['owner_member_id']}#{item['season']}#{item['week']}"
+                "S": f"HALL_OF_FAME#BOTTOM10TEAMSCORES#{item['owner_id']}#{item['season']}#{item['week']}"
             },
-            "member_id": {"S": item["owner_member_id"]},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_name"]},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
-            "score": {"N": str(item["score"])},
+            "points_scored": {"N": str(item["score"])},
         }
     elif standings_type == "top_10_qb_scores":
         return {
@@ -912,8 +905,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -926,8 +919,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -940,8 +933,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -954,8 +947,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -968,8 +961,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -982,8 +975,8 @@ def format_dynamodb_item(
             },
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
+            "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
-            "member_id": {"S": item["owner_member_id"]},
             "player_name": {"S": item["full_name"]},
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
@@ -1149,7 +1142,7 @@ def lambda_handler(event, context):
         championship_team_data=all_championship_teams,
     )
     standings_mapping = {
-        "members": unique_members,
+        "owners": unique_members,
         "season": season_standings,
         "weekly": weekly_standings,
         "all_time": alltime_standings,
