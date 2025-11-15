@@ -1,5 +1,6 @@
 """FastAPI router for league metadata endpoints."""
 
+from collections import OrderedDict
 from typing import Optional
 
 import botocore.exceptions
@@ -133,14 +134,25 @@ def get_league_metadata(
             item = {k: deserializer.deserialize(v) for k, v in response["Item"].items()}
             item = {
                 k: v
-                for k, v in sorted(item.items())
+                for k, v in item.items()
                 if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
             }
 
             # Sort the seasons for organizational purposes
             item["seasons"] = sorted(item["seasons"])
             logger.info("Retrieved item: %s", item)
-            return APIResponse(detail=log_message, data=item)
+
+            # Order response for API
+            ordered_item = OrderedDict()
+            ordered_item["league_id"] = item["league_id"]
+            ordered_item["platform"] = item["platform"]
+            ordered_item["privacy"] = item["privacy"]
+            ordered_item["espn_s2_cookie"] = item["espn_s2_cookie"]
+            ordered_item["swid_cookie"] = item["swid_cookie"]
+            ordered_item["seasons"] = item["seasons"]
+            ordered_item["onboarded_status"] = item.get("onboarded_status", "")
+            ordered_item["onboarded_date"] = item.get("onboarded_date", "")
+            return APIResponse(detail=log_message, data=ordered_item)
         log_message = f"League with ID {league_id} not found in database."
         logger.warning(log_message)
         raise HTTPException(

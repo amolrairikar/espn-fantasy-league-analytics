@@ -3,6 +3,7 @@
 import logging
 import math
 import time
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Any
 
 import boto3
@@ -102,8 +103,8 @@ def create_team_id_member_id_mapping(
     result: dict[str, str] = {}
     for mapping in members_mapping:
         team_id = mapping["SK"].split("#")[-1]
-        member_id = mapping["memberId"][0]
-        result[team_id] = member_id
+        owner_id = mapping["owner_id"][0]
+        result[team_id] = owner_id
     return result
 
 
@@ -286,8 +287,8 @@ def process_league_scores(
             loser = "TIE"
 
         matchup_result = {
-            "team_a": team_a,
-            "team_b": team_b,
+            "team_a": str(team_a),
+            "team_b": str(team_b),
             "team_a_score": team_a_score,
             "team_b_score": team_b_score,
             "team_a_players": team_a_players,
@@ -301,10 +302,11 @@ def process_league_scores(
 
     df_matchup_results = pd.DataFrame(processed_matchup_results)
     df_members = pd.DataFrame(members)
-    df_members["team_id"] = df_members["SK"].str.split("#", expand=True)[1].astype(int)
-    df_members["full_name"] = df_members["firstName"] + " " + df_members["lastName"]
+    df_members["full_name"] = (
+        df_members["owner_first_name"] + " " + df_members["owner_last_name"]
+    )
     df_matchup_results = df_matchup_results.merge(
-        df_members[["team_id", "full_name", "teamName"]],
+        df_members[["team_id", "owner_full_name", "team_name"]],
         left_on="team_a",
         right_on="team_id",
         how="inner",
@@ -313,11 +315,11 @@ def process_league_scores(
     df_matchup_results = df_matchup_results.rename(
         columns={
             "full_name": "team_a_full_name",
-            "teamName": "team_a_team_name",
+            "team_name": "team_a_team_name",
         }
     )
     df_matchup_results = df_matchup_results.merge(
-        df_members[["team_id", "full_name", "teamName"]],
+        df_members[["team_id", "full_name", "team_name"]],
         left_on="team_b",
         right_on="team_id",
         how="inner",
@@ -326,7 +328,7 @@ def process_league_scores(
     df_matchup_results = df_matchup_results.rename(
         columns={
             "full_name": "team_b_full_name",
-            "teamName": "team_b_team_name",
+            "team_name": "team_b_team_name",
         }
     )
     results = df_matchup_results.to_dict(orient="records")
@@ -492,11 +494,24 @@ def batch_write_to_dynamodb(
                             "GSI3SK": {
                                 "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                             },
-                            "team_a": {"S": str(item["team_a"])},
-                            "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                            "season": {"S": str(season)},
+                            "week": {"S": str(item["matchup_week"])},
+                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
+                            "winner": {"S": winning_member_id},
+                            "loser": {"S": losing_member_id},
+                            "team_a_id": {"S": str(item["team_a"])},
+                            "team_a_owner_full_name": {
+                                "S": str(item["owner_full_name"])
+                            },
+                            "team_a_owner_id": {"S": team_a_member_id},
                             "team_a_team_name": {"S": str(item["team_a_team_name"])},
-                            "team_a_member_id": {"S": team_a_member_id},
-                            "team_a_score": {"N": str(item["team_a_score"])},
+                            "team_a_score": {
+                                "N": str(
+                                    Decimal(item["team_a_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_a_players": {
                                 "L": [
                                     {
@@ -516,11 +531,19 @@ def batch_write_to_dynamodb(
                                     for player in item["team_a_players"]
                                 ]
                             },
-                            "team_b": {"S": str(item["team_b"])},
-                            "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                            "team_b_id": {"S": str(item["team_b"])},
+                            "team_b_owner_full_name": {
+                                "S": str(item["team_b_full_name"])
+                            },
+                            "team_b_owner_id": {"S": team_b_member_id},
                             "team_b_team_name": {"S": str(item["team_b_team_name"])},
-                            "team_b_member_id": {"S": team_b_member_id},
-                            "team_b_score": {"N": str(item["team_b_score"])},
+                            "team_b_score": {
+                                "N": str(
+                                    Decimal(item["team_b_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_b_players": {
                                 "L": [
                                     {
@@ -540,11 +563,6 @@ def batch_write_to_dynamodb(
                                     for player in item["team_b_players"]
                                 ]
                             },
-                            "season": {"S": str(season)},
-                            "week": {"S": str(item["matchup_week"])},
-                            "winner": {"S": winning_member_id},
-                            "loser": {"S": losing_member_id},
-                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
                         }
                     }
                 }
@@ -567,11 +585,24 @@ def batch_write_to_dynamodb(
                             "GSI4SK": {
                                 "S": f"SEASON#{season}#WEEK#{item['matchup_week']}"
                             },
-                            "team_a": {"S": str(item["team_a"])},
-                            "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                            "season": {"S": str(season)},
+                            "week": {"S": str(item["matchup_week"])},
+                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
+                            "winner": {"S": winning_member_id},
+                            "loser": {"S": losing_member_id},
+                            "team_a_id": {"S": str(item["team_a"])},
+                            "team_a_owner_full_name": {
+                                "S": str(item["owner_full_name"])
+                            },
+                            "team_a_owner_id": {"S": team_a_member_id},
                             "team_a_team_name": {"S": str(item["team_a_team_name"])},
-                            "team_a_member_id": {"S": team_a_member_id},
-                            "team_a_score": {"N": str(item["team_a_score"])},
+                            "team_a_score": {
+                                "N": str(
+                                    Decimal(item["team_a_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_a_players": {
                                 "L": [
                                     {
@@ -591,11 +622,19 @@ def batch_write_to_dynamodb(
                                     for player in item["team_a_players"]
                                 ]
                             },
-                            "team_b": {"S": str(item["team_b"])},
-                            "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                            "team_b_id": {"S": str(item["team_b"])},
+                            "team_b_owner_full_name": {
+                                "S": str(item["team_b_full_name"])
+                            },
+                            "team_b_owner_id": {"S": team_b_member_id},
                             "team_b_team_name": {"S": str(item["team_b_team_name"])},
-                            "team_b_member_id": {"S": team_b_member_id},
-                            "team_b_score": {"N": str(item["team_b_score"])},
+                            "team_b_score": {
+                                "N": str(
+                                    Decimal(item["team_b_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_b_players": {
                                 "L": [
                                     {
@@ -615,11 +654,6 @@ def batch_write_to_dynamodb(
                                     for player in item["team_b_players"]
                                 ]
                             },
-                            "season": {"S": str(season)},
-                            "week": {"S": str(item["matchup_week"])},
-                            "winner": {"S": winning_member_id},
-                            "loser": {"S": losing_member_id},
-                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
                         }
                     }
                 }
@@ -640,11 +674,24 @@ def batch_write_to_dynamodb(
                             "GSI4SK": {
                                 "S": f"SEASON#{season}#WEEK#{item['matchup_week']}"
                             },
-                            "team_a": {"S": str(item["team_a"])},
-                            "team_a_full_name": {"S": str(item["team_a_full_name"])},
+                            "season": {"S": str(season)},
+                            "week": {"S": str(item["matchup_week"])},
+                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
+                            "winner": {"S": winning_member_id},
+                            "loser": {"S": losing_member_id},
+                            "team_a_id": {"S": str(item["team_a"])},
+                            "team_a_owner_full_name": {
+                                "S": str(item["owner_full_name"])
+                            },
+                            "team_a_owner_id": {"S": team_a_member_id},
                             "team_a_team_name": {"S": str(item["team_a_team_name"])},
-                            "team_a_member_id": {"S": team_a_member_id},
-                            "team_a_score": {"N": str(item["team_a_score"])},
+                            "team_a_score": {
+                                "N": str(
+                                    Decimal(item["team_a_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_a_players": {
                                 "L": [
                                     {
@@ -664,11 +711,19 @@ def batch_write_to_dynamodb(
                                     for player in item["team_a_players"]
                                 ]
                             },
-                            "team_b": {"S": str(item["team_b"])},
-                            "team_b_full_name": {"S": str(item["team_b_full_name"])},
+                            "team_b_id": {"S": str(item["team_b"])},
+                            "team_b_owner_full_name": {
+                                "S": str(item["team_b_full_name"])
+                            },
+                            "team_b_owner_id": {"S": team_b_member_id},
                             "team_b_team_name": {"S": str(item["team_b_team_name"])},
-                            "team_b_member_id": {"S": team_b_member_id},
-                            "team_b_score": {"N": str(item["team_b_score"])},
+                            "team_b_score": {
+                                "N": str(
+                                    Decimal(item["team_b_score"]).quantize(
+                                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                                    )
+                                ),
+                            },
                             "team_b_players": {
                                 "L": [
                                     {
@@ -688,11 +743,6 @@ def batch_write_to_dynamodb(
                                     for player in item["team_b_players"]
                                 ]
                             },
-                            "season": {"S": str(season)},
-                            "week": {"S": str(item["matchup_week"])},
-                            "winner": {"S": winning_member_id},
-                            "loser": {"S": losing_member_id},
-                            "playoff_tier_type": {"S": item["playoff_tier_type"]},
                         }
                     }
                 }

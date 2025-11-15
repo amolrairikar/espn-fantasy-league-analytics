@@ -29,7 +29,7 @@ function SeasonStandings() {
   const [scoresData, setScoresData] = useState<MatchupTableView[]>([]);
   const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
   const [members, setMembers] = useState<Member[]>([]);
-  const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
+  const selectedOwnerId = members.find((m) => m.owner_full_name === selectedOwnerName)?.owner_id ?? undefined;
   const [H2HMatchupData, setH2HMatchupData] = useState<GetMatchupsBetweenTeams['data']>();
 
   const columns: ColumnDef<StandingsSeason>[] = [
@@ -157,7 +157,7 @@ function SeasonStandings() {
     season: selectedSeason,
   });
 
-  const { refetch: refetchLeagueMembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+  const { refetch: refetchLeagueMembers } = useGetResource<GetLeagueMembers['data']>(`/owners`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
@@ -214,12 +214,7 @@ function SeasonStandings() {
         const response = await refetchLeagueMembers();
         if (response.data?.data) {
           const membersData = response.data?.data;
-          const mappedMembers = membersData.map((item) => ({
-            name: item.name,
-            member_id: item.member_id,
-          }));
-          console.log(mappedMembers);
-          setMembers(mappedMembers);
+          setMembers(membersData);
         }
       } catch (err) {
         console.error(err);
@@ -237,11 +232,13 @@ function SeasonStandings() {
           console.log(response);
           const transformedData = response.data.data.map((matchup) => {
             const ownerScore =
-              matchup.team_a_member_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
+              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
             const opponentScore =
-              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
+              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
             const opponentName =
-              matchup.team_a_member_id === selectedOwnerId ? matchup.team_b_full_name : matchup.team_a_full_name;
+              matchup.team_a_owner_id === selectedOwnerId
+                ? matchup.team_b_owner_full_name
+                : matchup.team_a_owner_full_name;
             const ownerWon = matchup.winner === selectedOwnerId;
 
             return {

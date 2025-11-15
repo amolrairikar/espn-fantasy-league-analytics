@@ -9,8 +9,8 @@ from api.routers import (
     health,
     league_metadata,
     matchups,
-    members,
     onboarding,
+    owners,
     standings,
     teams,
     utils,
@@ -34,8 +34,8 @@ app.include_router(all_time_records.router)
 app.include_router(health.router)
 app.include_router(league_metadata.router)
 app.include_router(matchups.router)
-app.include_router(members.router)
 app.include_router(onboarding.router)
+app.include_router(owners.router)
 app.include_router(standings.router)
 app.include_router(teams.router)
 app.include_router(utils.router)

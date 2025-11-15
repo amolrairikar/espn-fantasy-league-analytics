@@ -33,7 +33,7 @@ def deserialize_items(items: list[dict]) -> list[dict]:
     return [
         {
             k: deserializer.deserialize(v)
-            for k, v in sorted(item.items())
+            for k, v in item.items()
             if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
         }
         for item in items

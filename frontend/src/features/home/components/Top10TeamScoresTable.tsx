@@ -8,8 +8,8 @@ type Top10TeamScoreProps = {
 
 export function Top10TeamScores({ data, sortOrder }: Top10TeamScoreProps) {
   const sortedData = [...data].sort((a, b) => {
-    const scoreA = parseFloat(a.score);
-    const scoreB = parseFloat(b.score);
+    const scoreA = parseFloat(a.points_scored);
+    const scoreB = parseFloat(b.points_scored);
     return sortOrder === 'asc' ? scoreA - scoreB : scoreB - scoreA;
   });
 
@@ -25,9 +25,9 @@ export function Top10TeamScores({ data, sortOrder }: Top10TeamScoreProps) {
       </TableHeader>
       <TableBody>
         {sortedData.map((team, idx) => (
-          <TableRow key={`${team.member_id}-${idx}`}>
+          <TableRow key={`${team.owner_id}-${idx}`}>
             <TableCell>{team.owner_full_name}</TableCell>
-            <TableCell>{parseFloat(team.score).toFixed(2)}</TableCell>
+            <TableCell>{parseFloat(team.points_scored).toFixed(2)}</TableCell>
             <TableCell>{team.season}</TableCell>
             <TableCell>{team.week}</TableCell>
           </TableRow>

@@ -13,7 +13,7 @@ from api.dependencies import (
 from api.models import APIResponse
 
 router = APIRouter(
-    prefix="/members",
+    prefix="/owners",
     dependencies=[Depends(get_api_key)],
 )
 
@@ -24,7 +24,7 @@ def get_members(
     platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
 ) -> APIResponse:
     """
-    Endpoint to retrieve all unique members for a league.
+    Endpoint to retrieve all unique owners for a league.
 
     Args:
         team_id (str): The ID of the team to retrieve metadata for.
@@ -37,7 +37,7 @@ def get_members(
             ExpressionAttributeValues={
                 ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
                 ":prefix": {
-                    "S": "MEMBERS",
+                    "S": "OWNERS",
                 },
             },
         )
@@ -50,11 +50,11 @@ def get_members(
             for item in response.get("Items", [])
         ]
         return APIResponse(
-            detail=f"Found {len(items)} total unique members for league",
+            detail=f"Found {len(items)} total unique owners for league",
             data=items,
         )
     except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error fetching unique members")
+        logger.exception("Unexpected error fetching unique owners")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",

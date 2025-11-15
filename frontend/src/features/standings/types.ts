@@ -2,14 +2,14 @@ type GetAllTimeStandings = {
   status: string;
   detail: string;
   data: {
-    games_played: string;
-    losses: string;
     owner_full_name: string;
-    points_against_per_game: string;
-    points_for_per_game: string;
+    games_played: string;
+    wins: string;
+    losses: string;
     ties: string;
     win_pct: string;
-    wins: string;
+    points_for_per_game: string;
+    points_against_per_game: string;
   }[];
 };
 
@@ -17,15 +17,15 @@ type GetH2HStandings = {
   status: string;
   detail: string;
   data: {
-    games_played: string;
-    losses: string;
-    opponent_full_name: string;
     owner_full_name: string;
-    points_against_per_game: string;
-    points_for_per_game: string;
+    opponent_full_name: string;
+    games_played: string;
+    wins: string;
+    losses: string;
     ties: string;
     win_pct: string;
-    wins: string;
+    points_for_per_game: string;
+    points_against_per_game: string;
   }[];
 };
 
@@ -33,16 +33,16 @@ type GetSeasonStandings = {
   status: string;
   detail: string;
   data: {
-    championship_status?: string;
-    losses: string;
-    owner_full_name: string;
-    playoff_status: string;
-    points_against_per_game: string;
-    points_for_per_game: string;
     season: string;
+    owner_full_name: string;
+    wins: string;
+    losses: string;
     ties: string;
     win_pct: string;
-    wins: string;
+    points_for_per_game: string;
+    points_against_per_game: string;
+    playoff_status: string;
+    championship_status?: string;
   }[];
 };
 
@@ -50,14 +50,13 @@ type GetWeeklyStandings = {
   status: string;
   detail: string;
   data: {
-    losses: string;
-    owner_full_name: string;
     season: string;
-    team_member_id: string;
-    ties: string;
     week: string;
-    win_pct: string;
+    owner_id: string;
+    owner_full_name: string;
     wins: string;
+    losses: string;
+    ties: string;
   }[];
 };
 
@@ -71,23 +70,23 @@ type GetMatchupsBetweenTeams = {
   status: string;
   detail: string;
   data: {
-    loser: string;
-    playoff_tier_type: string;
     season: string;
-    team_a: string;
-    team_a_full_name: string;
-    team_a_member_id: string;
-    team_a_players: PlayerScoringDetails[];
-    team_a_score: string;
-    team_a_team_name: string;
-    team_b: string;
-    team_b_full_name: string;
-    team_b_member_id: string;
-    team_b_players: PlayerScoringDetails[];
-    team_b_score: string;
-    team_b_team_name: string;
     week: string;
+    playoff_tier_type: string;
     winner: string;
+    loser: string;
+    team_a_id: string;
+    team_a_owner_full_name: string;
+    team_a_owner_id: string;
+    team_a_team_name: string;
+    team_a_score: string;
+    team_a_players: PlayerScoringDetails[];
+    team_b_id: string;
+    team_b_owner_full_name: string;
+    team_b_owner_id: string;
+    team_b_team_name: string;
+    team_b_score: string;
+    team_b_players: PlayerScoringDetails[];
   }[];
 };
 
@@ -100,8 +99,8 @@ type MatchupTableView = {
 };
 
 type Member = {
-  name: string;
-  member_id: string;
+  owner_full_name: string;
+  owner_id: string;
 };
 
 type PlayerScoringDetails = {

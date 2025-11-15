@@ -22,7 +22,7 @@ export function ChampionshipWinners({ data }: ChampionshipWinnersProps) {
       </TableHeader>
       <TableBody>
         {sortedData.map((winner) => (
-          <TableRow key={winner.owner_member_id}>
+          <TableRow key={winner.owner_id}>
             <TableCell>{winner.owner_full_name}</TableCell>
             <TableCell>{winner.championships_won}</TableCell>
           </TableRow>

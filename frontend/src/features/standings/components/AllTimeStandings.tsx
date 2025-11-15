@@ -26,7 +26,7 @@ function AllTimeStandings() {
   const [standingsDataAllSeasons, setStandingsDataAllSeasons] = useState<StandingsAllTimeBySeasonGraphView[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
-  const selectedOwnerId = members.find((m) => m.name === selectedOwnerName)?.member_id ?? undefined;
+  const selectedOwnerId = members.find((m) => m.owner_full_name === selectedOwnerName)?.owner_id ?? undefined;
 
   const columns: ColumnDef<StandingsAllTime>[] = [
     {
@@ -93,7 +93,7 @@ function AllTimeStandings() {
     standings_type: 'all_time',
   });
 
-  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/members`, {
+  const { refetch: refetchLeaguemembers } = useGetResource<GetLeagueMembers['data']>(`/owners`, {
     league_id: leagueData.leagueId,
     platform: leagueData.platform,
   });
@@ -147,12 +147,7 @@ function AllTimeStandings() {
         const response = await refetchLeaguemembers();
         if (response.data?.data) {
           const membersData = response.data?.data;
-          const mappedMembers = membersData.map((item) => ({
-            name: item.name,
-            member_id: item.member_id,
-          }));
-          console.log(mappedMembers);
-          setMembers(mappedMembers);
+          setMembers(membersData);
         }
       } catch (err) {
         console.error(err);

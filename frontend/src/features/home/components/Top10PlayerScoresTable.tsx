@@ -20,7 +20,7 @@ export function Top10PlayerScores({ data }: Top10PlayerScoreProps) {
       </TableHeader>
       <TableBody>
         {sortedData.map((player, idx) => (
-          <TableRow key={`${player.member_id}-${player.player_name}-${player.season}-${player.week}-${idx}`}>
+          <TableRow key={`${player.owner_id}-${player.player_name}-${player.season}-${player.week}-${idx}`}>
             <TableCell>{player.player_name}</TableCell>
             <TableCell>{parseFloat(player.points_scored).toFixed(2)}</TableCell>
             <TableCell>{player.season}</TableCell>
