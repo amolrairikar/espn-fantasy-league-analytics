@@ -640,6 +640,7 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         Resource = [
           aws_lambda_function.league_members_lambda.arn,
           aws_lambda_function.league_scores_lambda.arn,
+          aws_lambda_function.league_draft_picks_lambda.arn,
           aws_lambda_function.league_standings_lambda.arn
         ]
       },
@@ -692,20 +693,56 @@ resource "aws_sfn_state_machine" "league_onboarding" {
               }
             ],
             "ResultPath": null,
-            "Next": "FetchScores"
+            "Next": "ParallelProcessing"
           },
-          "FetchScores": {
-            "Type": "Task",
-            "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
-            "Retry": [
+
+          "ParallelProcessing": {
+            "Type": "Parallel",
+            "Branches": [
               {
-                "ErrorEquals": ["States.ALL"],
-                "IntervalSeconds": 2,
-                "MaxAttempts": 3,
-                "BackoffRate": 2.0
+                "StartAt": "FetchScores",
+                "States": {
+                  "FetchScores": {
+                    "Type": "Task",
+                    "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
+                    "Retry": [
+                      {
+                        "ErrorEquals": ["States.ALL"],
+                        "IntervalSeconds": 2,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "ResultPath": null,
+                    "End": true
+                  }
+                }
+              },
+              {
+                "StartAt": "FetchDraftPicks",
+                "States": {
+                  "FetchDraftPicks": {
+                    "Type": "Task",
+                    "Resource": "${aws_lambda_function.league_draft_picks_lambda.arn}",
+                    "Retry": [
+                      {
+                        "ErrorEquals": ["States.ALL"],
+                        "IntervalSeconds": 2,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2.0
+                      }
+                    ],
+                    "ResultPath": null,
+                    "End": true
+                  }
+                }
               }
             ],
-            "ResultPath": null,
+            "Next": "ReturnInput"
+          },
+          "ReturnInput": {
+            "Type": "Pass",
+            "ResultPath": "$",
             "End": true
           }
         }
@@ -776,6 +813,22 @@ resource "aws_lambda_function" "league_standings_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
+  timeout          = 180
+  memory_size      = 2048
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_draft_picks_lambda" {
+  function_name    = "fantasy-analytics-league-draft-picks-lambda"
+  description      = "Lambda function to get league draft picks for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "main.lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
   timeout          = 180
   memory_size      = 2048
   tags = {
