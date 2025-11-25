@@ -1063,11 +1063,13 @@ def batch_write_to_dynamodb(
 def lambda_handler(event, context):
     """Lambda handler function to get league members and teams."""
     logger.info("Received event: %s", event)
-    league_id = event[0]["leagueId"]
-    platform = event[0]["platform"]
-    seasons = [e["season"] for e in event]
+
+    league_id = event[0][0]["leagueId"]
+    platform = event[0][0]["platform"]
+    seasons = [e[0]["season"] for e in event]
     if not seasons:
         raise ValueError("'seasons' list must not be empty.")
+    logger.info("Processing seasons %s", seasons)
 
     all_matchups = []
     all_members = []
