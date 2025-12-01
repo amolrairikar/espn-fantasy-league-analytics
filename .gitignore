@@ -223,3 +223,6 @@ deployment_package
 # New Relic keys
 new_relic_license_key.txt
 new_relic_user_key.txt
+
+# DS Store files
+.DS_Store

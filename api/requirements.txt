@@ -1,5 +1,4 @@
 fastapi
 mangum
-pydantic_core
 python-dotenv
 requests
