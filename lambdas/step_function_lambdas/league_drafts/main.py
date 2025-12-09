@@ -3,7 +3,6 @@
 import json
 import logging
 import math
-import numpy as np
 import time
 from typing import Optional, Any
 
@@ -220,6 +219,7 @@ def get_player_season_totals(
 
 def process_player_scoring_totals(
     player_totals: list[dict[str, Any]],
+    season: str,
 ) -> list[dict[str, Any]]:
     """
     Process raw player scoring totals data to get relevant information.
@@ -227,6 +227,7 @@ def process_player_scoring_totals(
     Args:
         player_totals (list[dict[str, Any]]): List of dictionaries containing fantasy scoring totals
             for each available player in the fantasy league.
+        season (str): The NFL season the data is for.
 
     Returns:
         list: A list of processed player scoring total information with player metadata and total
@@ -238,14 +239,20 @@ def process_player_scoring_totals(
             player_scoring_info = {}
             player_scoring_info["player_id"] = total["id"]
             player_scoring_info["player_name"] = total["player"]["fullName"]
-            player_scoring_info["total_points"] = [
-                item["appliedTotal"]
-                for item in total["player"]["stats"]
-                if len(str(item["appliedTotal"]).split(".")[1]) <= 2
-            ][0]
             player_scoring_info["position"] = POSITION_ID_MAPPING[
                 total["player"]["defaultPositionId"]
             ]
+            if int(season) >= 2018:
+                if total.get("ratings", {}):
+                    player_scoring_info["total_points"] = round(
+                        total["ratings"]["0"]["totalRating"], 2
+                    )
+                else:
+                    continue  # No scoring data available for player, do not add to results
+            else:
+                player_scoring_info["total_points"] = round(
+                    total["player"]["stats"][0]["appliedTotal"], 2
+                )
             processed_totals.append(player_scoring_info)
     return processed_totals
 
@@ -349,45 +356,13 @@ def enrich_draft_data(
         .groupby("position")["overall_pick_number"]
         .rank(method="first")
         .reindex(df_combined_draft_data.index)
-    )
-    df_combined_draft_data["position_draft_rank"] = df_combined_draft_data[
-        "position_draft_rank"
-    ].astype("Int64")
+    ).astype("Int64")
 
-    # Calculate expected and average values and the delta between those two values
-    df_combined_draft_data["expected_value"] = 1 - (
-        df_combined_draft_data["position_draft_rank"] - 1
-    ) / (df_combined_draft_data["total_players_at_position"] - 1)
-    df_combined_draft_data["actual_value"] = 1 - (
-        df_combined_draft_data["position_rank"] - 1
-    ) / (df_combined_draft_data["total_players_at_position"] - 1)
-    df_combined_draft_data["performance_score"] = (
-        df_combined_draft_data["actual_value"]
-        - df_combined_draft_data["expected_value"]
-    )
-
-    # Calculate pick weight and draft value
-    df_combined_draft_data["pick_weight"] = 1 / np.sqrt(
-        df_combined_draft_data["overall_pick_number"]
-    )
-    df_combined_draft_data["draft_value"] = (
-        df_combined_draft_data["performance_score"]
-        * df_combined_draft_data["pick_weight"]
-    )
-
-    # Compute z-score for draft value by position
-    df_combined_draft_data["dv_mean_pos"] = df_combined_draft_data.groupby("position")[
-        "draft_value"
-    ].transform("mean")
-    df_combined_draft_data["dv_std_pos"] = df_combined_draft_data.groupby("position")[
-        "draft_value"
-    ].transform("std")
-    df_combined_draft_data["dv_zscore"] = (
-        df_combined_draft_data["draft_value"] - df_combined_draft_data["dv_mean_pos"]
-    ) / df_combined_draft_data["dv_std_pos"]
-    df_combined_draft_data["scaled_dv_zscore"] = (
-        50 + 10 * df_combined_draft_data["dv_zscore"]
-    )
+    # Calculate the delta between actual and draft rank. Positive value indicates outperformance.
+    df_combined_draft_data["draft_position_rank_delta"] = (
+        df_combined_draft_data["position_draft_rank"]
+        - df_combined_draft_data["position_rank"]
+    ).astype("Int64")
 
     # Can drop nulls now as we have computed all draft metrics
     df_combined_draft_data_not_null = df_combined_draft_data.dropna()
@@ -433,8 +408,7 @@ def batch_write_to_dynamodb(
                         "drafted_position_rank": {
                             "N": str(item["position_draft_rank"])
                         },
-                        "raw_draft_value": {"N": str(item["dv_zscore"])},
-                        "scaled_draft_value": {"N": str(item["scaled_dv_zscore"])},
+                        "draft_delta": {"N": str(item["draft_position_rank_delta"])},
                         "owner_id": {"S": str(item["owner_id"])},
                         "owner_full_name": {"S": item["owner_full_name"]},
                     }
@@ -515,7 +489,8 @@ def lambda_handler(event, context):
         espn_s2_cookie=espn_s2_cookie,
     )
     processed_player_totals = process_player_scoring_totals(
-        player_totals=player_scoring_totals
+        player_totals=player_scoring_totals,
+        season=season,
     )
     joined_draft_data = enrich_draft_data(
         draft_results=draft_picks,
