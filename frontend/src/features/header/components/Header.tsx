@@ -63,29 +63,28 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
 
       {/* --- Desktop Icons --- */}
       <div className="absolute right-4 hidden md:flex items-center gap-4">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Dialog>
+        <Dialog>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Info">
                   <Info className="h-5 w-5" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>About</DialogTitle>
-                </DialogHeader>
-                <p>
-                  Welcome to Fantasy Football Recap, an app designed to provide charts and stats for your fantasy
-                  league.
-                </p>
-              </DialogContent>
-            </Dialog>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Info</p>
-          </TooltipContent>
-        </Tooltip>
+            </TooltipTrigger>
+
+            <TooltipContent>
+              <p>Info</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>About</DialogTitle>
+            </DialogHeader>
+            <p>Welcome to Fantasy Football Recap...</p>
+          </DialogContent>
+        </Dialog>
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -118,37 +117,38 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
         )}
 
         {!isLoginPage && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+          <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Delete League">
                     <Trash className="h-5 w-5" />
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your league data and you will need to
-                      re-onboard again.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                      <LoadingButton onClick={handleDelete} loading={deleteLeague.isPending}>
-                        Continue
-                      </LoadingButton>
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Delete League</p>
-            </TooltipContent>
-          </Tooltip>
+              </TooltipTrigger>
+
+              <TooltipContent>
+                <p>Delete League</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone...
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction asChild>
+                  <LoadingButton onClick={handleDelete} loading={deleteLeague.isPending}>
+                    Continue
+                  </LoadingButton>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
 
         <ModeToggle />
