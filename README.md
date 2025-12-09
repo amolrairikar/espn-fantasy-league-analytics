@@ -5,3 +5,6 @@ Companion analytics app for ESPN fantasy leagues to visualize additional metrics
 
 ### Running the API
 `pipenv run uvicorn api.main:app --reload`
+
+### Updating frontend packages
+`npx npm-check-updates -u` & `npm install`
