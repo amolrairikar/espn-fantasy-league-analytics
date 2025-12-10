@@ -806,8 +806,8 @@ resource "aws_lambda_function" "league_scores_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
-  timeout          = 10
-  memory_size      = 256
+  timeout          = 20
+  memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   tags = {
     Project     = "fantasy-analytics-app"
@@ -839,7 +839,7 @@ resource "aws_lambda_function" "league_draft_picks_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
-  timeout          = 180
+  timeout          = 20
   memory_size      = 2048
   tags = {
     Project     = "fantasy-analytics-app"
