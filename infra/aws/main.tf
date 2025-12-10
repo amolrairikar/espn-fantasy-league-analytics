@@ -808,6 +808,7 @@ resource "aws_lambda_function" "league_scores_lambda" {
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
   timeout          = 10
   memory_size      = 256
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"
