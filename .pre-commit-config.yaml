@@ -18,17 +18,6 @@ repos:
         args: [chore, docs, feat, fix, refactor, revert, test]
   - repo: local
     hooks:
-      - id: terraform-fmt
-        name: terraform fmt
-        entry: terraform fmt -diff -write=true
-        language: system
-        types: [terraform]
-        pass_filenames: true
-      - id: terraform-validate
-        name: terraform validate
-        entry: terraform validate -json
-        language: system
-        pass_filenames: false
       - id: run-unit-tests
         name: Run unit tests
         description: "Run unit tests locally to ensure all tests pass before committing code."

@@ -1,41 +1,15 @@
 """Script to fetch members within an ESPN fantasy football league."""
 
-import logging
-import math
-import time
-from typing import Optional, Any
+from typing import Optional
 
-import boto3
-import botocore.exceptions
 import pandas as pd
-from urllib3.util.retry import Retry
-
 import requests
-from requests.adapters import HTTPAdapter
 
-# Set up standardized logger for Lambda
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(filename)s -  %(lineno)d - %(message)s"
-)
-console_handler.setFormatter(formatter)
-if not logger.hasHandlers():
-    logger.addHandler(console_handler)
+from common_utils.batch_write_dynamodb import batch_write_to_dynamodb
+from common_utils.logging_config import logger
+from common_utils.retryable_request_session import create_retry_session
 
-retry_strategy = Retry(
-    total=3,
-    backoff_factor=0.3,
-    status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET", "POST", "PUT", "DELETE"],
-)
-adapter = HTTPAdapter(max_retries=retry_strategy)
-session = requests.Session()
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
+session = create_retry_session()
 DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
 
 
@@ -166,21 +140,29 @@ def join_league_members_to_teams(
     return dict_members_and_teams
 
 
-def batch_write_to_dynamodb(
-    data_to_write: list[dict[str, Any]], league_id: str, platform: str, season: str
-) -> None:
-    """
-    Writes data in batches to DynamoDB with retries of unprocessed items using
-    exponential backoff.
+def lambda_handler(event, context):
+    """Lambda handler function to get league members and teams."""
+    logger.info("Received event: %s", event)
+    league_id = event["leagueId"]
+    platform = event["platform"]
+    swid_cookie = event["swidCookie"]
+    espn_s2_cookie = event["espnS2Cookie"]
+    season = event["season"]
 
-    Args:
-        data_to_write (dict[str, str]): Output data to write to DynamoDB.
-        league_id (str): The unique ID of the fantasy football league.
-        platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        season (str): The NFL season to get data for.
-    """
+    members, teams = get_league_members_and_teams(
+        league_id=league_id,
+        platform=platform,
+        season=season,
+        swid_cookie=swid_cookie,
+        espn_s2_cookie=espn_s2_cookie,
+    )
+    if not members or not teams:
+        raise ValueError("'members' or 'teams' lists must not be empty.")
+
+    logger.info("Creating consolidated members and teams dataframe")
+    output_data = join_league_members_to_teams(members=members, teams=teams)
     batched_objects = []
-    for item in data_to_write:
+    for item in output_data:
         batched_objects.append(
             {
                 "PutRequest": {
@@ -204,73 +186,7 @@ def batch_write_to_dynamodb(
                 }
             }
         )
-    dynamodb = boto3.client("dynamodb")
-    try:
-        backoff = 1.0
-        max_retries = 5
-
-        # BatchWriteItem has max limit of 25 items
-        batch_number = 0
-        for i in range(0, len(batched_objects), 25):
-            logger.info(
-                "Processing batch %d/%d",
-                batch_number + 1,
-                math.ceil(len(batched_objects) / 25),
-            )
-            batch = batched_objects[i : i + 25]
-            request_items = {DYNAMODB_TABLE_NAME: batch}
-            retries = 0
-            while True:
-                logger.info("Attempt number: %d", retries + 1)
-                response = dynamodb.batch_write_item(RequestItems=request_items)
-                unprocessed = response.get("UnprocessedItems", {})
-                if not unprocessed.get(DYNAMODB_TABLE_NAME):
-                    batch_number += 1
-                    break  # success, go to next batch
-
-                if retries >= max_retries:
-                    raise RuntimeError(
-                        f"Max retries exceeded. Still unprocessed: {unprocessed}"
-                    )
-
-                logger.info(
-                    "Failed to write %d items, retrying unprocessed items...",
-                    len(unprocessed),
-                )
-                retries += 1
-                sleep_time = backoff * (2 ** (retries - 1))
-                time.sleep(sleep_time)
-
-                # Retry only the failed items
-                request_items = unprocessed
-
-    except botocore.exceptions.ClientError:
-        logger.exception("Error writing member and team data to DynamoDB")
-        raise
-
-
-def lambda_handler(event, context):
-    """Lambda handler function to get league members and teams."""
-    logger.info("Received event: %s", event)
-    league_id = event["leagueId"]
-    platform = event["platform"]
-    swid_cookie = event["swidCookie"]
-    espn_s2_cookie = event["espnS2Cookie"]
-    season = event["season"]
-
-    members, teams = get_league_members_and_teams(
-        league_id=league_id,
-        platform=platform,
-        season=season,
-        swid_cookie=swid_cookie,
-        espn_s2_cookie=espn_s2_cookie,
-    )
-    if not members or not teams:
-        raise ValueError("'members' or 'teams' lists must not be empty.")
-
-    logger.info("Creating consolidated members and teams dataframe")
-    output_data = join_league_members_to_teams(members=members, teams=teams)
     batch_write_to_dynamodb(
-        data_to_write=output_data, league_id=league_id, platform=platform, season=season
+        batched_objects=batched_objects, table_name=DYNAMODB_TABLE_NAME
     )
     logger.info("Successfully wrote data to DynamoDB.")

@@ -773,6 +773,14 @@ EOF
   }
 }
 
+resource "aws_lambda_layer_version" "shared_dependencies_layer" {
+  layer_name          = "league_onboarding_shared_dependencies"
+  description         = "Shared utility functions used by Lambda functions running in league onboarding process."
+  compatible_runtimes = ["python3.13"]
+  filename            = "../../lambda_layer/deployment_package.zip"
+  source_code_hash    = filebase64sha256("../../lambda_layer/deployment_package.zip")
+}
+
 resource "aws_lambda_function" "league_members_lambda" {
   function_name    = "fantasy-analytics-league-members-lambda"
   description      = "Lambda function to get league member and teams information for fantasy analytics app"
@@ -783,6 +791,7 @@ resource "aws_lambda_function" "league_members_lambda" {
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
   timeout          = 10
   memory_size      = 256
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"
