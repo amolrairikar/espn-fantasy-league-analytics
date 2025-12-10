@@ -8,6 +8,9 @@
       "module": "${input:moduleName}",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lambda_layer:${env:PYTHONPATH}"
+      }
     }
   ],
   "inputs": [
