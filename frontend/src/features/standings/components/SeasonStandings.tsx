@@ -36,31 +36,7 @@ function SeasonStandings() {
     {
       accessorKey: 'owner_full_name',
       header: 'Owner',
-      cell: ({ row }) => {
-        const isSelected = row.original.owner_full_name === selectedOwnerName;
-        const { playoff_status, championship_status } = row.original;
-
-        let suffix = '';
-        if (playoff_status === 'CLINCHED_FIRST_ROUND_BYE') {
-          suffix = 'z';
-        } else if (playoff_status === 'MADE_PLAYOFFS') {
-          suffix = 'x';
-        }
-
-        const crown = championship_status ? ' 👑' : '';
-
-        return (
-          <div
-            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
-                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
-            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
-          >
-            {row.original.owner_full_name}
-            {suffix && <span className="ml-3 lowercase font-semibold text-muted-foreground">{suffix}</span>}
-            {crown && <span className="ml-2">{crown}</span>}
-          </div>
-        );
-      },
+      cell: ({ row }) => <div className="px-2 py-1">{row.original.owner_full_name}</div>,
     },
     {
       accessorKey: 'record',
@@ -108,7 +84,7 @@ function SeasonStandings() {
       header: () => <div className="w-full text-center">Season</div>,
       cell: ({ row }) => (
         <div
-          className="text-center cursor-pointer hover:underline"
+          className="text-center cursor-pointer"
           onClick={() => {
             setSelectedSeason(row.original.season);
             setSelectedWeek(row.original.week);
@@ -123,7 +99,7 @@ function SeasonStandings() {
       header: () => <div className="w-full text-center">Week</div>,
       cell: ({ row }) => (
         <div
-          className="text-center cursor-pointer hover:underline"
+          className="text-center cursor-pointer"
           onClick={() => {
             setSelectedSeason(row.original.season);
             setSelectedWeek(row.original.week);
@@ -302,9 +278,13 @@ function SeasonStandings() {
               { id: 'win_pct', desc: true },
               { id: 'points_for_per_game', desc: true },
             ]}
+            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
+            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
           />
           <p className="text-sm text-muted-foreground italic mt-1">
             z = first round bye | x = playoffs | 👑 = won the championship
+            <br />
+            Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
           </p>
           <h1 className="font-semibold mt-6">Season Schedule for {selectedOwnerName}</h1>
           <DataTable
@@ -314,6 +294,18 @@ function SeasonStandings() {
               { id: 'season', desc: false },
               { id: 'week', desc: false },
             ]}
+            selectedRow={
+              selectedSeason && selectedWeek
+                ? scoresData.find(
+                    (matchup) =>
+                      matchup.season === selectedSeason && matchup.week === selectedWeek,
+                  ) ?? null
+                : null
+            }
+            onRowClick={(row) => {
+              setSelectedSeason(row.season);
+              setSelectedWeek(row.week);
+            }}
           />
           {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
             <MatchupSheet
@@ -337,9 +329,13 @@ function SeasonStandings() {
               { id: 'win_pct', desc: true },
               { id: 'points_for_per_game', desc: true },
             ]}
+            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
+            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
           />
           <p className="text-sm text-muted-foreground italic mt-1">
             z = first round bye | x = playoffs | 👑 = won the championship
+            <br />
+            Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
           </p>
         </div>
       )}
