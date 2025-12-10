@@ -808,6 +808,8 @@ def format_dynamodb_item(
             "win_pct": {"N": str(item["win_pct"])},
             "points_for_per_game": {"N": str(item["points_for_per_game"])},
             "points_against_per_game": {"N": str(item["points_against_per_game"])},
+            "playoff_status": {"S": item["playoff_status"]},
+            "championship_status": {"S": item["championship_status"]},
         }
     elif standings_type == "all_time":
         return {
