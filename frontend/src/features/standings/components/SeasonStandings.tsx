@@ -36,7 +36,30 @@ function SeasonStandings() {
     {
       accessorKey: 'owner_full_name',
       header: 'Owner',
-      cell: ({ row }) => <div className="px-2 py-1">{row.original.owner_full_name}</div>,
+      cell: ({ row }) => {
+        const isSelected = row.original.owner_full_name === selectedOwnerName;
+        const { playoff_status, championship_status } = row.original;
+        const crown = championship_status ? ' 👑' : '';
+
+        let suffix = '';
+        if (playoff_status === 'CLINCHED_FIRST_ROUND_BYE') {
+          suffix = 'z';
+        } else if (playoff_status === 'MADE_PLAYOFFS') {
+          suffix = 'x';
+        }
+
+        return (
+          <div
+            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
+                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
+            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
+          >
+            {row.original.owner_full_name}
+            {suffix && <span className="ml-3 lowercase font-semibold text-muted-foreground">{suffix}</span>}
+            {crown && <span className="ml-2">{crown}</span>}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'record',
