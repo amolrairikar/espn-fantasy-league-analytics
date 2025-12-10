@@ -38,18 +38,7 @@ function H2HStandings() {
     {
       accessorKey: 'opponent_full_name',
       header: 'Opponent',
-      cell: ({ row }) => {
-        const isSelected = row.original.opponent_full_name === selectedOpponentName;
-        return (
-          <div
-            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
-                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
-            onClick={() => setSelectedOpponentName(row.original.opponent_full_name)}
-          >
-            {row.original.opponent_full_name}
-          </div>
-        );
-      },
+      cell: ({ row }) => <div className="px-2 py-1">{row.original.opponent_full_name}</div>,
     },
     {
       accessorKey: 'games_played',
@@ -107,7 +96,7 @@ function H2HStandings() {
       header: () => <div className="w-full text-center">Season</div>,
       cell: ({ row }) => (
         <div
-          className="text-center cursor-pointer hover:underline"
+          className="text-center cursor-pointer"
           onClick={() => {
             setSelectedSeason(row.original.season);
             setSelectedWeek(row.original.week);
@@ -122,7 +111,7 @@ function H2HStandings() {
       header: () => <div className="w-full text-center">Week</div>,
       cell: ({ row }) => (
         <div
-          className="text-center cursor-pointer hover:underline"
+          className="text-center cursor-pointer"
           onClick={() => {
             setSelectedSeason(row.original.season);
             setSelectedWeek(row.original.week);
@@ -321,6 +310,8 @@ function H2HStandings() {
                 columns={columnsH2HStandings}
                 data={standingsData}
                 initialSorting={[{ id: 'win_pct', desc: true }]}
+                onRowClick={(row) => setSelectedOpponentName(row.opponent_full_name)}
+                selectedRow={standingsData.find(team => team.opponent_full_name === selectedOpponentName) ?? null}
               />
             </div>
           )}
@@ -332,6 +323,8 @@ function H2HStandings() {
                 columns={columnsH2HStandings}
                 data={standingsData}
                 initialSorting={[{ id: 'win_pct', desc: true }]}
+                onRowClick={(row) => setSelectedOpponentName(row.opponent_full_name)}
+                selectedRow={standingsData.find(team => team.opponent_full_name === selectedOpponentName) ?? null}
               />
               <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
               <p className="text-sm text-muted-foreground italic mt-2">
@@ -344,6 +337,14 @@ function H2HStandings() {
                   { id: 'season', desc: false },
                   { id: 'week', desc: false },
                 ]}
+                onRowClick={(row) => {
+                  setSelectedSeason(row.season);
+                  setSelectedWeek(row.week);
+                }}
+                selectedRow={scoresData.find(
+                  (matchup) =>
+                    matchup.season === selectedSeason && matchup.week === selectedWeek,
+                ) ?? null}
               />
 
               {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (

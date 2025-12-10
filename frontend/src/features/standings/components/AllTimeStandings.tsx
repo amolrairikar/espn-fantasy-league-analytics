@@ -13,6 +13,7 @@ import type { LeagueData } from '@/features/login/types';
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { DataTable } from '@/components/utils/dataTable';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
+import { request } from '@/components/utils/api_fetch';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 
@@ -32,18 +33,7 @@ function AllTimeStandings() {
     {
       accessorKey: 'owner_full_name',
       header: 'Owner',
-      cell: ({ row }) => {
-        const isSelected = row.original.owner_full_name === selectedOwnerName;
-        return (
-          <div
-            className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
-                        ${isSelected ? 'outline-2 outline-ring' : ''}`}
-            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
-          >
-            {row.original.owner_full_name}
-          </div>
-        );
-      },
+      cell: ({ row }) => <div className="px-2 py-1">{row.original.owner_full_name}</div>,
     },
     {
       accessorKey: 'games_played',
@@ -98,13 +88,6 @@ function AllTimeStandings() {
     platform: leagueData.platform,
   });
 
-  const { refetch: refetchAllSeasonStandings } = useGetResource<GetSeasonStandings['data']>(`/standings`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    standings_type: 'season',
-    team: selectedOwnerId,
-  });
-
   const chartConfig = {
     desktop: {
       label: 'Wins',
@@ -157,16 +140,20 @@ function AllTimeStandings() {
   }, [refetchLeaguemembers]);
 
   useEffect(() => {
-    const fetchStatus = async () => {
+    const fetchOwnerSeasonStandings = async () => {
+      if (!selectedOwnerId) return;
+
       try {
-        if (!selectedOwnerId) return;
-        const response = await refetchAllSeasonStandings();
-        if (response?.data?.data) {
-          console.log(response.data.data);
-          const transformedData: StandingsAllTimeBySeasonGraphView[] = response.data.data.map(({ season, wins }) => ({
-            season,
-            wins,
-          }));
+        const search = new URLSearchParams({
+          league_id: leagueData.leagueId,
+          platform: leagueData.platform,
+          standings_type: 'season',
+          team: selectedOwnerId,
+        });
+
+        const response = await request<GetSeasonStandings['data']>(`/standings?${search}`);
+        if (response?.data) {
+          const transformedData = response.data.map(({ season, wins }) => ({ season, wins }));
           setStandingsDataAllSeasons(transformedData);
         }
       } catch (err) {
@@ -174,15 +161,21 @@ function AllTimeStandings() {
       }
     };
 
-    void fetchStatus();
-  }, [refetchAllSeasonStandings, selectedOwnerId]);
+    void fetchOwnerSeasonStandings();
+  }, [selectedOwnerId, leagueData.leagueId, leagueData.platform]);
 
   return (
     <div className="space-y-4 my-4 px-2">
       <h1 className="font-semibold px-2">All-Time Standings</h1>
       {selectedOwnerName ? (
         <div className="space-y-2">
-          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+          <DataTable
+            columns={columns}
+            data={standingsData}
+            initialSorting={[{ id: 'win_pct', desc: true }]}
+            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
+            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
+          />
           <h1 className="font-semibold text-center">Wins Per Season for {selectedOwnerName}</h1>
           <ChartContainer config={chartConfig} className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -201,7 +194,13 @@ function AllTimeStandings() {
           <p className="text-sm text-muted-foreground italic">
             Click on an owner's name to display a chart of their wins per season
           </p>
-          <DataTable columns={columns} data={standingsData} initialSorting={[{ id: 'win_pct', desc: true }]} />
+          <DataTable
+            columns={columns}
+            data={standingsData}
+            initialSorting={[{ id: 'win_pct', desc: true }]}
+            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
+            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
+          />
         </div>
       )}
     </div>
