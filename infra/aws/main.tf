@@ -841,6 +841,7 @@ resource "aws_lambda_function" "league_draft_picks_lambda" {
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
   timeout          = 20
   memory_size      = 2048
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"
