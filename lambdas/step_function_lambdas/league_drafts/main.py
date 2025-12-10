@@ -1,46 +1,24 @@
 """Script to fetch draft results within an ESPN fantasy football league."""
 
 import json
-import logging
-import math
-import time
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Any
 
 import boto3
 import botocore.exceptions
 import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
-from urllib3.util.retry import Retry
 
 import requests
-from requests.adapters import HTTPAdapter
 
-# Set up standardized logger for Lambda
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(filename)s -  %(lineno)d - %(message)s"
-)
-console_handler.setFormatter(formatter)
-if not logger.hasHandlers():
-    logger.addHandler(console_handler)
+from common_utils.batch_write_dynamodb import batch_write_to_dynamodb
+from common_utils.logging_config import logger
+from common_utils.retryable_request_session import create_retry_session
 
-retry_strategy = Retry(
-    total=3,
-    backoff_factor=0.3,
-    status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET", "POST", "PUT", "DELETE"],
-)
-adapter = HTTPAdapter(max_retries=retry_strategy)
-session = requests.Session()
-session.mount("http://", adapter)
-session.mount("https://", adapter)
 
-DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
+session = create_retry_session()
 deserializer = TypeDeserializer()
-
+DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
 POSITION_ID_MAPPING = {
     1: "QB",
     2: "RB",
@@ -371,95 +349,6 @@ def enrich_draft_data(
     return dict_draft_results
 
 
-def batch_write_to_dynamodb(
-    data_to_write: list[dict[str, Any]], league_id: str, platform: str, season: str
-) -> None:
-    """
-    Writes data in batches to DynamoDB with retries of unprocessed items using
-    exponential backoff.
-
-    Args:
-        data_to_write (dict[str, str]): Output data to write to DynamoDB.
-        league_id (str): The unique ID of the fantasy football league.
-        platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        season (str): The NFL season to get data for.
-    """
-    batched_objects = []
-    for item in data_to_write:
-        batched_objects.append(
-            {
-                "PutRequest": {
-                    "Item": {
-                        "PK": {
-                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
-                        },
-                        "SK": {"S": f"DRAFT#{item['overall_pick_number']}"},
-                        "round": {"S": str(item["round"])},
-                        "pick_number": {"S": str(item["round_pick_number"])},
-                        "overall_pick_number": {"S": str(item["overall_pick_number"])},
-                        "reserved_for_keeper": {"BOOL": item["reserved_for_keeper"]},
-                        "bid_amount": {"S": str(item["bid_amount"])},
-                        "keeper": {"BOOL": item["keeper"]},
-                        "player_id": {"S": str(item["player_id"])},
-                        "player_full_name": {"S": item["player_name"]},
-                        "position": {"S": item["position"]},
-                        "points_scored": {"N": str(item["total_points"])},
-                        "position_rank": {"N": str(item["position_rank"])},
-                        "drafted_position_rank": {
-                            "N": str(item["position_draft_rank"])
-                        },
-                        "draft_delta": {"N": str(item["draft_position_rank_delta"])},
-                        "owner_id": {"S": str(item["owner_id"])},
-                        "owner_full_name": {"S": item["owner_full_name"]},
-                    }
-                }
-            }
-        )
-    dynamodb = boto3.client("dynamodb")
-    try:
-        backoff = 1.0
-        max_retries = 5
-
-        # BatchWriteItem has max limit of 25 items
-        batch_number = 0
-        for i in range(0, len(batched_objects), 25):
-            logger.info(
-                "Processing batch %d/%d",
-                batch_number + 1,
-                math.ceil(len(batched_objects) / 25),
-            )
-            batch = batched_objects[i : i + 25]
-            request_items = {DYNAMODB_TABLE_NAME: batch}
-            retries = 0
-            while True:
-                logger.info("Attempt number: %d", retries + 1)
-                response = dynamodb.batch_write_item(RequestItems=request_items)
-                unprocessed = response.get("UnprocessedItems", {})
-                if not unprocessed.get(DYNAMODB_TABLE_NAME):
-                    batch_number += 1
-                    break  # success, go to next batch
-
-                if retries >= max_retries:
-                    raise RuntimeError(
-                        f"Max retries exceeded. Still unprocessed: {unprocessed}"
-                    )
-
-                logger.info(
-                    "Failed to write %d items, retrying unprocessed items...",
-                    len(unprocessed),
-                )
-                retries += 1
-                sleep_time = backoff * (2 ** (retries - 1))
-                time.sleep(sleep_time)
-
-                # Retry only the failed items
-                request_items = unprocessed
-
-    except botocore.exceptions.ClientError:
-        logger.exception("Error writing draft data to DynamoDB")
-        raise
-
-
 def lambda_handler(event, context):
     """Lambda handler function to get league members and teams."""
     logger.info("Received event: %s", event)
@@ -497,10 +386,46 @@ def lambda_handler(event, context):
         player_totals=processed_player_totals,
         teams=teams,
     )
+    batched_objects = []
+    for item in joined_draft_data:
+        batched_objects.append(
+            {
+                "PutRequest": {
+                    "Item": {
+                        "PK": {
+                            "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
+                        },
+                        "SK": {"S": f"DRAFT#{item['overall_pick_number']}"},
+                        "round": {"S": str(item["round"])},
+                        "pick_number": {"S": str(item["round_pick_number"])},
+                        "overall_pick_number": {"S": str(item["overall_pick_number"])},
+                        "reserved_for_keeper": {"BOOL": item["reserved_for_keeper"]},
+                        "bid_amount": {"S": str(item["bid_amount"])},
+                        "keeper": {"BOOL": item["keeper"]},
+                        "player_id": {"S": str(item["player_id"])},
+                        "player_full_name": {"S": item["player_name"]},
+                        "position": {"S": item["position"]},
+                        "points_scored": {
+                            "N": str(
+                                Decimal(item["total_points"]).quantize(
+                                    Decimal("0.01"),
+                                    rounding=ROUND_HALF_UP,
+                                )
+                            )
+                        },
+                        "position_rank": {"N": str(item["position_rank"])},
+                        "drafted_position_rank": {
+                            "N": str(item["position_draft_rank"])
+                        },
+                        "draft_delta": {"N": str(item["draft_position_rank_delta"])},
+                        "owner_id": {"S": str(item["owner_id"])},
+                        "owner_full_name": {"S": item["owner_full_name"]},
+                    }
+                }
+            }
+        )
     batch_write_to_dynamodb(
-        data_to_write=joined_draft_data,
-        league_id=league_id,
-        platform=platform,
-        season=season,
+        batched_objects=batched_objects,
+        table_name=DYNAMODB_TABLE_NAME,
     )
     logger.info("Successfully wrote data to DynamoDB.")
