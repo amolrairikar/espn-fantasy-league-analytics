@@ -641,7 +641,9 @@ resource "aws_iam_role_policy" "step_functions_policy" {
           aws_lambda_function.league_members_lambda.arn,
           aws_lambda_function.league_scores_lambda.arn,
           aws_lambda_function.league_draft_picks_lambda.arn,
-          aws_lambda_function.league_standings_lambda.arn
+          aws_lambda_function.league_standings_lambda.arn,
+          aws_lambda_function.league_weekly_standings_lambda.arn,
+          aws_lambda_function.league_records_lambda.arn
         ]
       },
       {
@@ -747,17 +749,67 @@ resource "aws_sfn_state_machine" "league_onboarding" {
           }
         }
       },
-      "Next": "FetchStandings"
+      "Next": "FetchStandingsParallel"
     },
-    "FetchStandings": {
-      "Type": "Task",
-      "Resource": "${aws_lambda_function.league_standings_lambda.arn}",
-      "Retry": [
+    "FetchStandingsParallel": {
+      "Type": "Parallel",
+      "Branches": [
         {
-          "ErrorEquals": ["States.ALL"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
+          "StartAt": "FetchStandings",
+          "States": {
+            "FetchStandings": {
+              "Type": "Task",
+              "Resource": "${aws_lambda_function.league_standings_lambda.arn}",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "ResultPath": null,
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "FetchWeeklyStandings",
+          "States": {
+            "FetchWeeklyStandings": {
+              "Type": "Task",
+              "Resource": "${aws_lambda_function.league_weekly_standings_lambda.arn}",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "ResultPath": null,
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "FetchRecords",
+          "States": {
+            "FetchRecords": {
+              "Type": "Task",
+              "Resource": "${aws_lambda_function.league_records_lambda.arn}",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "ResultPath": null,
+              "End": true
+            }
+          }
         }
       ],
       "ResultPath": null,
@@ -823,8 +875,43 @@ resource "aws_lambda_function" "league_standings_lambda" {
   runtime          = "python3.13"
   filename         = "../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
   source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
-  timeout          = 180
+  timeout          = 60
   memory_size      = 2048
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_weekly_standings_lambda" {
+  function_name    = "fantasy-analytics-league-weekly-standings-lambda"
+  description      = "Lambda function to calculate league weekly standings snapshot for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "main.lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip")
+  timeout          = 60
+  memory_size      = 2048
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = "PROD"
+  }
+}
+
+resource "aws_lambda_function" "league_records_lambda" {
+  function_name    = "fantasy-analytics-league-records-lambda"
+  description      = "Lambda function to calculate league records for fantasy analytics app"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "main.lambda_handler"
+  runtime          = "python3.13"
+  filename         = "../../lambdas/step_function_lambdas/league_records/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_records/deployment_package.zip")
+  timeout          = 60
+  memory_size      = 2048
+  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = "PROD"
