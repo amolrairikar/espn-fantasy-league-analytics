@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 import botocore.exceptions
 import pytest
 
-# We need to import the base package prior to patching sys.modules
+# We need to import the base package prior to patching sys.modules to avoid an AttributeError
 import lambda_layer.common_utils  # noqa: F401
 
 with patch.dict("sys.modules", {"common_utils.logging_config": MagicMock()}):
