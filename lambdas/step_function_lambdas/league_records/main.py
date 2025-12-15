@@ -187,13 +187,13 @@ def compile_all_time_records(
 
 
 def format_dynamodb_item(
-    standings_type: str, item: dict[str, Any], league_id: str, platform: str
+    record_type: str, item: dict[str, Any], league_id: str, platform: str
 ) -> dict:
     """
     Formats an item into a DynamoDB schema for the given standings type.
 
     Args:
-        standings_type (str): The type of standings data (season, H2H, all-time).
+        record_type (str): The type of record data.
         item (dict[str, Any]): The item data to format.
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
@@ -201,7 +201,7 @@ def format_dynamodb_item(
     Returns:
         dict: Formatted DynamoDB item.
     """
-    if standings_type == "all_time_championships":
+    if record_type == "all_time_championships":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {"S": f"HALL_OF_FAME#CHAMPIONSHIPS#{item['owner_id']}"},
@@ -209,7 +209,7 @@ def format_dynamodb_item(
             "owner_full_name": {"S": item["owner_full_name"]},
             "championships_won": {"N": str(item["championships_won"])},
         }
-    elif standings_type == "top_10_scores":
+    elif record_type == "top_10_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -221,7 +221,7 @@ def format_dynamodb_item(
             "week": {"N": str(item["week"])},
             "points_scored": {"N": str(item["score"])},
         }
-    elif standings_type == "bottom_10_scores":
+    elif record_type == "bottom_10_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -233,7 +233,7 @@ def format_dynamodb_item(
             "week": {"N": str(item["week"])},
             "points_scored": {"N": str(item["score"])},
         }
-    elif standings_type == "top_10_qb_scores":
+    elif record_type == "top_10_qb_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -247,7 +247,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    elif standings_type == "top_10_rb_scores":
+    elif record_type == "top_10_rb_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -261,7 +261,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    elif standings_type == "top_10_wr_scores":
+    elif record_type == "top_10_wr_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -275,7 +275,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    elif standings_type == "top_10_te_scores":
+    elif record_type == "top_10_te_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -289,7 +289,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    elif standings_type == "top_10_dst_scores":
+    elif record_type == "top_10_dst_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -303,7 +303,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    elif standings_type == "top_10_k_scores":
+    elif record_type == "top_10_k_scores":
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {
@@ -317,7 +317,7 @@ def format_dynamodb_item(
             "points_scored": {"N": str(item["points_scored"])},
             "position": {"S": item["position"]},
         }
-    raise ValueError(f"Unsupported standings type: {standings_type}")
+    raise ValueError(f"Unsupported record type: {record_type}")
 
 
 def lambda_handler(event, context):
@@ -373,7 +373,7 @@ def lambda_handler(event, context):
         members_data=all_members,
         championship_team_data=all_championship_teams,
     )
-    standings_mapping = {
+    records_mapping = {
         "all_time_championships": all_time_championships,
         "top_10_scores": top_10_scores,
         "bottom_10_scores": bottom_10_scores,
@@ -384,14 +384,14 @@ def lambda_handler(event, context):
         "top_10_dst_scores": top_10_dst_scores,
         "top_10_k_scores": top_10_k_scores,
     }
-    for standings_type, standings_data in standings_mapping.items():
-        logger.info("Processing %s data", standings_type)
+    for record_type, record_data in records_mapping.items():
+        logger.info("Processing %s data", record_type)
         batched_objects = []
-        for item in standings_data:
+        for item in record_data:
             formatted_item = {
                 "PutRequest": {
                     "Item": format_dynamodb_item(
-                        standings_type=standings_type,
+                        record_type=record_type,
                         item=item,
                         league_id=league_id,
                         platform=platform,
@@ -403,5 +403,5 @@ def lambda_handler(event, context):
             batched_objects=batched_objects,
             table_name=DYNAMODB_TABLE_NAME,
         )
-        logger.info("Successfully processed %s data", standings_type)
+        logger.info("Successfully processed %s data", record_type)
     logger.info("Successfully wrote data to DynamoDB.")
