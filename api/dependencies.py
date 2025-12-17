@@ -28,7 +28,7 @@ BASE_PATH = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=BASE_PATH / ".env")
 
 dynamodb_client = boto3.client("dynamodb")
-table_name = os.getenv("DYNAMODB_TABLE_NAME", "fantasy-analytics-app-db")
+table_name = os.getenv("DYNAMODB_TABLE_NAME", "fantasy-analytics-app-db-dev")
 deserializer = TypeDeserializer()
 
 API_KEY = os.getenv("API_KEY")

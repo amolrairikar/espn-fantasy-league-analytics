@@ -203,15 +203,16 @@ resource "aws_lambda_function" "api_lambda" {
   role                           = aws_iam_role.lambda_role.arn
   handler                        = "api.main.handler"
   runtime                        = "python3.13"
-  filename                       = "../../api/deployment_package.zip"
-  source_code_hash               = filebase64sha256("../../api/deployment_package.zip")
+  filename                       = "../../../api/deployment_package.zip"
+  source_code_hash               = filebase64sha256("../../../api/deployment_package.zip")
   timeout                        = 10
   memory_size                    = 256
   reserved_concurrent_executions = 100
   environment {
     variables = {
-      API_KEY        = var.api_key
-      ACCOUNT_NUMBER = data.aws_caller_identity.current.account_id
+      API_KEY             = var.api_key
+      ACCOUNT_NUMBER      = data.aws_caller_identity.current.account_id
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
     }
   }
   tags = {
@@ -829,8 +830,8 @@ resource "aws_lambda_layer_version" "shared_dependencies_layer" {
   layer_name          = "league_onboarding_shared_dependencies"
   description         = "Shared utility functions used by Lambda functions running in league onboarding process."
   compatible_runtimes = ["python3.13"]
-  filename            = "../../lambda_layer/deployment_package.zip"
-  source_code_hash    = filebase64sha256("../../lambda_layer/deployment_package.zip")
+  filename            = "../../../lambda_layer/deployment_package.zip"
+  source_code_hash    = filebase64sha256("../../../lambda_layer/deployment_package.zip")
 }
 
 resource "aws_lambda_function" "league_members_lambda" {
@@ -839,8 +840,8 @@ resource "aws_lambda_function" "league_members_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_members/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_members/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
   timeout          = 10
   memory_size      = 256
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
@@ -856,8 +857,8 @@ resource "aws_lambda_function" "league_scores_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
   timeout          = 20
   memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
@@ -873,8 +874,8 @@ resource "aws_lambda_function" "league_standings_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
   timeout          = 60
   memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
@@ -890,8 +891,8 @@ resource "aws_lambda_function" "league_weekly_standings_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip")
   timeout          = 60
   memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
@@ -907,8 +908,8 @@ resource "aws_lambda_function" "league_records_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_records/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_records/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_records/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_records/deployment_package.zip")
   timeout          = 60
   memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
@@ -924,8 +925,8 @@ resource "aws_lambda_function" "league_draft_picks_lambda" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
-  filename         = "../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
+  filename         = "../../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
   timeout          = 20
   memory_size      = 2048
   layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]

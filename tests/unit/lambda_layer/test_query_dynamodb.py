@@ -36,7 +36,9 @@ def test_fetch_league_data_with_multiple_items():
         mock_boto_client.return_value = mock_dynamodb
         mock_dynamodb.query.return_value = mock_response
 
-        result = fetch_league_data("league#1", "player#")
+        result = fetch_league_data(
+            table_name="test-table", pk="league#1", sk_prefix="player#"
+        )
 
         assert len(result) == 2
         assert result[0]["name"] == "Player One"
@@ -56,7 +58,9 @@ def test_fetch_league_data_with_no_items():
         mock_boto_client.return_value = mock_dynamodb
         mock_dynamodb.query.return_value = mock_response
 
-        result = fetch_league_data("league#1", "player#")
+        result = fetch_league_data(
+            table_name="test-table", pk="league#1", sk_prefix="player#"
+        )
 
         assert result == []
 
@@ -81,7 +85,9 @@ def test_fetch_league_data_with_single_item():
         mock_boto_client.return_value = mock_dynamodb
         mock_dynamodb.query.return_value = mock_response
 
-        result = fetch_league_data("league#1", "config#")
+        result = fetch_league_data(
+            table_name="test-table", pk="league#1", sk_prefix="config#"
+        )
 
         assert len(result) == 1
         assert result[0]["leagueId"] == 123
@@ -97,10 +103,12 @@ def test_fetch_league_data_correct_query_parameters():
         mock_boto_client.return_value = mock_dynamodb
         mock_dynamodb.query.return_value = {"Items": []}
 
-        fetch_league_data("pk_value", "sk_prefix_value")
+        fetch_league_data(
+            table_name="test-table", pk="pk_value", sk_prefix="sk_prefix_value"
+        )
 
         mock_dynamodb.query.assert_called_once_with(
-            TableName="fantasy-analytics-app-db",
+            TableName="test-table",
             KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
             ExpressionAttributeValues={
                 ":pk": {"S": "pk_value"},
@@ -126,9 +134,11 @@ def test_fetch_league_data_client_error_handling():
         mock_dynamodb.query.side_effect = error
 
         with pytest.raises(botocore.exceptions.ClientError):
-            fetch_league_data("league#1", "player#")
+            fetch_league_data(
+                table_name="test-table", pk="pk_value", sk_prefix="sk_prefix_value"
+            )
 
         mock_logger.exception.assert_called_once()
         call_args = mock_logger.exception.call_args[0]
-        assert "league#1" in call_args
-        assert "player#" in call_args
+        assert "pk_value" in call_args
+        assert "sk_prefix_value" in call_args

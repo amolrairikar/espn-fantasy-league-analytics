@@ -9,10 +9,9 @@ from boto3.dynamodb.types import TypeDeserializer
 from common_utils.logging_config import logger
 
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
 
 
-def fetch_league_data(pk: str, sk_prefix: str) -> list[dict[str, Any]]:
+def fetch_league_data(table_name: str, pk: str, sk_prefix: str) -> list[dict[str, Any]]:
     """
     Generic helper to fetch items from DynamoDB for a given SK prefix.
 
@@ -26,7 +25,7 @@ def fetch_league_data(pk: str, sk_prefix: str) -> list[dict[str, Any]]:
     try:
         dynamodb = boto3.client("dynamodb")
         response = dynamodb.query(
-            TableName=DYNAMODB_TABLE_NAME,
+            TableName=table_name,
             KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
             ExpressionAttributeValues={
                 ":pk": {"S": pk},
