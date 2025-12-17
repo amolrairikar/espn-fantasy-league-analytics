@@ -71,7 +71,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                           >
                             <span className="text-foreground">{player?.full_name || ''}</span>
                             <span className="font-mono text-muted-foreground">
-                              {player ? Number(player.points_scored).toFixed(1) : ''}
+                              {player ? Number(player.points_scored).toFixed(2) : ''}
                             </span>
                           </div>
                         );
@@ -88,7 +88,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                             className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
                           >
                             <span className="font-mono text-muted-foreground">
-                              {player ? Number(player.points_scored).toFixed(1) : ''}
+                              {player ? Number(player.points_scored).toFixed(2) : ''}
                             </span>
                             <span className="text-foreground">{player?.full_name || ''}</span>
                           </div>
