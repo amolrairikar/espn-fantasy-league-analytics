@@ -53,7 +53,7 @@ def onboard_league(
         logger.info("Starting onboarding process for league %s", data.league_id)
         # TODO: Remove region hardcoding if in future the Step Function is multi-region
         response = sfn.start_execution(
-            stateMachineArn=f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:stateMachine:league-onboarding",
+            stateMachineArn=os.environ["ONBOARDING_SFN_ARN"],
             input=json.dumps(execution_input),
         )
         logger.info("Step Function response: %s", response)
@@ -95,7 +95,10 @@ def check_onboarding_status(
             "Checking status for onboarding execution: %s", onboarding_execution_id
         )
         # TODO: Remove region hardcoding if in future the Step Function is multi-region
-        execution_arn = f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding:{onboarding_execution_id}"
+        if os.environ["ENVIRONMENT"] == "PROD":
+            execution_arn = f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding:{onboarding_execution_id}"
+        else:
+            execution_arn = f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding-dev:{onboarding_execution_id}"
         response = sfn.describe_execution(
             executionArn=execution_arn,
         )

@@ -1,5 +1,6 @@
 """Script to fetch members within an ESPN fantasy football league."""
 
+import os
 from typing import Optional
 
 import pandas as pd
@@ -10,7 +11,7 @@ from common_utils.logging_config import logger
 from common_utils.retryable_request_session import create_retry_session
 
 session = create_retry_session()
-DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
+DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
 
 
 def get_league_members_and_teams(

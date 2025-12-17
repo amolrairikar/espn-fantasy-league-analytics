@@ -5,6 +5,8 @@ set -e
 DIRECTORY=$1
 cd "$DIRECTORY"
 
+ENVIRONMENT=$2
+
 # Clean up old deployment package
 if [ -f "deployment_package.zip" ]; then
     rm deployment_package.zip
@@ -29,6 +31,11 @@ docker rm temp-step-fn-lambda-packager
 rm Dockerfile
 
 # Run Terraform plan and apply to deploy new Lambda package
-cd ../../../infra/aws
+if [ "$ENVIRONMENT" == "prod" ]; then
+  cd ../../../infra/aws/prod
+else
+  cd ../../../infra/aws/dev
+fi
+
 terraform plan -out=terraform.tfplan
 terraform apply terraform.tfplan

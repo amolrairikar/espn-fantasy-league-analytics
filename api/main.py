@@ -17,16 +17,16 @@ from api.routers import (
     utils,
 )
 
-import os
-
-origins = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:5173,https://d2x0mi59wq972h.cloudfront.net"
-).split(",")
+ORIGINS = (
+    "https://d2x0mi59wq972h.cloudfront.net,https://d3ee0pfrs1t35a.cloudfront.net".split(
+        ","
+    )
+)
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

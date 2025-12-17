@@ -1,6 +1,7 @@
 """Script to fetch draft results within an ESPN fantasy football league."""
 
 import json
+import os
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Any
 
@@ -18,7 +19,7 @@ from common_utils.retryable_request_session import create_retry_session
 
 session = create_retry_session()
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
+DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
 POSITION_ID_MAPPING = {
     1: "QB",
     2: "RB",

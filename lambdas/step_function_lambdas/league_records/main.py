@@ -1,5 +1,6 @@
 """Script to compile all-time league records from fantasy league matchups."""
 
+import os
 from decimal import Decimal
 from typing import Any
 
@@ -11,7 +12,7 @@ from common_utils.logging_config import logger
 from common_utils.query_dynamodb import fetch_league_data
 
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = "fantasy-analytics-app-db"
+DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
 
 # Mainly used for debugging purposes
 pd.set_option("display.max_columns", None)
@@ -337,18 +338,21 @@ def lambda_handler(event, context):
     for season in seasons:
         logger.info("Processing season %s", season)
         matchups = fetch_league_data(
+            table_name=DYNAMODB_TABLE_NAME,
             pk=f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
             sk_prefix="MATCHUP#TEAMS#",
         )
         logger.info("Fetched %d matchups for season %s", len(matchups), season)
         all_matchups.extend(matchups)
         members = fetch_league_data(
+            table_name=DYNAMODB_TABLE_NAME,
             pk=f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
             sk_prefix="TEAM#",
         )
         logger.info("Fetched %d league members for season %s", len(members), season)
         all_members.extend(members)
         championship_team = fetch_league_data(
+            table_name=DYNAMODB_TABLE_NAME,
             pk=f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}",
             sk_prefix="LEAGUE_CHAMPION#",
         )

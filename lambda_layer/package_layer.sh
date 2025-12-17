@@ -3,6 +3,8 @@ set -e
 
 # Run this script from the root of the layer_common_utils directory
 
+ENVIRONMENT=$1
+
 # Clean up old deployment package
 if [ -f "deployment_package.zip" ]; then
     rm deployment_package.zip
@@ -21,6 +23,10 @@ docker cp temp-layer-packager:/app/deployment_package.zip ./deployment_package.z
 docker rm temp-layer-packager
 
 # Run Terraform plan and apply to deploy new Lambda package
-cd ../infra/aws
+if [ "$ENVIRONMENT" == "prod" ]; then
+  cd ../infra/aws/prod
+else
+  cd ../infra/aws/dev
+fi
 terraform plan -out=terraform.tfplan
 terraform apply terraform.tfplan
