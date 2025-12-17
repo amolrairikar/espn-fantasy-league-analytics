@@ -77,23 +77,51 @@ function SeasonStandings() {
       minSize: 100,
     },
     {
-      accessorKey: 'points_for_per_game',
+      accessorKey: 'points_for',
       header: ({ column }) => (
         <div className="w-full text-center min-w-[130px]">
-          <SortableHeader column={column} label="PF / Game" />
+          <SortableHeader column={column} label="Points For" />
         </div>
       ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_for_per_game.toFixed(1)}</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.points_for.toFixed(2)}</div>,
       minSize: 130,
     },
     {
-      accessorKey: 'points_against_per_game',
+      accessorKey: 'points_against',
       header: ({ column }) => (
         <div className="w-full text-center min-w-[130px]">
-          <SortableHeader column={column} label="PA / Game" />
+          <SortableHeader column={column} label="Points Against" />
         </div>
       ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_against_per_game.toFixed(1)}</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.points_against.toFixed(2)}</div>,
+      minSize: 130,
+    },
+    {
+      accessorKey: 'points_differential',
+      header: ({ column }) => (
+        <div className="w-full text-center min-w-[130px]">
+          <SortableHeader column={column} label="Differential" />
+        </div>
+      ),
+      cell: ({ row }) => {
+        const value = row.original.points_differential;
+
+        const formattedValue =
+          value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
+
+        const colorClass =
+          value > 0
+            ? 'text-green-600'
+            : value < 0
+            ? 'text-red-600'
+            : 'text-gray-900';
+
+        return (
+          <div className={`text-center ${colorClass}`}>
+            {formattedValue}
+          </div>
+        );
+      },
       minSize: 130,
     },
   ];
@@ -193,8 +221,9 @@ function SeasonStandings() {
               ...team,
               record: `${wins}-${losses}-${ties}`,
               win_pct: parseFloat(team.win_pct),
-              points_for_per_game: parseFloat(team.points_for_per_game),
-              points_against_per_game: parseFloat(team.points_against_per_game),
+              points_for: parseFloat(team.points_for),
+              points_against: parseFloat(team.points_against),
+              points_differential: parseFloat(team.points_differential),
             };
           });
           setStandingsData(transformedData);
@@ -299,7 +328,7 @@ function SeasonStandings() {
             data={standingsData}
             initialSorting={[
               { id: 'win_pct', desc: true },
-              { id: 'points_for_per_game', desc: true },
+              { id: 'points_for', desc: true },
             ]}
             selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
             onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
