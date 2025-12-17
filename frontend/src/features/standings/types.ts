@@ -39,8 +39,9 @@ type GetSeasonStandings = {
     losses: string;
     ties: string;
     win_pct: string;
-    points_for_per_game: string;
-    points_against_per_game: string;
+    points_for: string;
+    points_against: string;
+    points_differential: string;
     playoff_status: string;
     championship_status?: string;
   }[];
@@ -138,8 +139,9 @@ type StandingsSeason = {
   owner_full_name: string;
   record: string;
   win_pct: number;
-  points_for_per_game: number;
-  points_against_per_game: number;
+  points_for: number;
+  points_against: number;
+  points_differential: number;
   playoff_status: string;
   championship_status?: string;
 };

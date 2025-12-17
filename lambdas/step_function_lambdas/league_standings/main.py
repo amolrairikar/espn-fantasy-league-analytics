@@ -234,10 +234,32 @@ def compile_aggregate_standings_data(
     long_df_playoff[["win", "loss", "tie"]] = long_df_playoff.apply(outcome_row, axis=1)
 
     season_long = long_df[~long_df["team_owner_id"].isna()].copy()
-    season_group = compute_standings(
-        df=season_long,
-        group_cols=["season", "team_owner_id"],
-        member_map=df_unique_members,
+    season_group = (
+        season_long.groupby(["season", "team_owner_id"], dropna=False)
+        .agg(
+            wins=("win", "sum"),
+            losses=("loss", "sum"),
+            ties=("tie", "sum"),
+            games=("points_for", "count"),
+            points_for_total=("points_for", "sum"),
+            points_against_total=("points_against", "sum"),
+        )
+        .reset_index()
+    )
+
+    season_group = season_group.merge(
+        df_unique_members, how="inner", left_on="team_owner_id", right_on="owner_id"
+    )
+    season_group["win_pct"] = (
+        (
+            season_group["wins"]
+            / (season_group["wins"] + season_group["losses"]).replace(0, pd.NA)
+        )
+        .fillna(0)
+        .round(3)
+    )
+    season_group["point_differential"] = (
+        season_group["points_for_total"] - season_group["points_against_total"]
     )
     season_standings = season_group[
         [
@@ -248,8 +270,9 @@ def compile_aggregate_standings_data(
             "losses",
             "ties",
             "win_pct",
-            "points_for_per_game",
-            "points_against_per_game",
+            "points_for_total",
+            "points_against_total",
+            "point_differential",
         ]
     ]
 
@@ -456,8 +479,9 @@ def format_dynamodb_item(
             "losses": {"N": str(item["losses"])},
             "ties": {"N": str(item["ties"])},
             "win_pct": {"N": str(item["win_pct"])},
-            "points_for_per_game": {"N": str(item["points_for_per_game"])},
-            "points_against_per_game": {"N": str(item["points_against_per_game"])},
+            "points_for": {"N": str(item["points_for_total"])},
+            "points_against": {"N": str(item["points_against_total"])},
+            "points_differential": {"N": str(item["point_differential"])},
             "playoff_status": {"S": item["playoff_status"]},
             "championship_status": {"S": item["championship_status"]},
         }
