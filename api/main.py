@@ -18,7 +18,7 @@ from api.routers import (
 )
 
 ORIGINS = (
-    "https://d2x0mi59wq972h.cloudfront.net,https://d3ee0pfrs1t35a.cloudfront.net".split(
+    "https://d18dihad3pqxuq.cloudfront.net,https://d1rvfoubbo8sgf.cloudfront.net".split(
         ","
     )
 )
