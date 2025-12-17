@@ -3,3 +3,9 @@ variable "api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "environment" {
+  description = "Deployment environment (e.g., dev, prod)"
+  type        = string
+  default     = "prod"
+}
