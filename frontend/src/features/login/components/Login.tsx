@@ -1,295 +1,322 @@
-import { toast } from 'sonner';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
-import { usePostResource } from '@/components/hooks/genericPostRequest';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { LoadingButton } from '@/components/utils/loadingButton';
-import type {
-  GetLeagueMetadata,
-  LoginProps,
-  PostLeagueMetadataPayload,
-  PostLeagueMetadataResponse,
-  ValidateLeagueReponse,
-} from '@/features/login/types';
+import { type FormValues, loginSchema } from '@/features/login/form_schema';
+import {
+  getLeagueMetadata,
+  validateLeagueMetadata,
+  postLeagueMetadata,
+} from '@/api/league_metadata/api_calls';
+import type { LoginProps } from '@/api/league_metadata/types';
 
 function Login({ onLoginSuccess }: LoginProps) {
-  const [formData, setFormData] = useState({
-    leagueId: '',
-    platform: 'ESPN',
-    privacy: '',
-    oldestSeason: '',
-    mostRecentSeason: '',
-    swidCookie: '',
-    espnS2Cookie: '',
-  });
-
-  const updateField = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-  const [showOnboardDialog, setShowOnboardDialog] = useState(false);
-  const [loginFormErrors, setLoginFormErrors] = useState<{
-    leagueId?: string;
-    platform?: string;
-    privacy?: string;
-    firstSeason?: string;
-    lastSeason?: string;
-    swidCookie?: string;
-    espnS2Cookie?: string;
-  }>({});
-
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showOnboardDialog, setShowOnboardDialog] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      leagueId: '',
+      platform: 'ESPN',
+      privacy: '',
+      oldestSeason: '',
+      mostRecentSeason: '',
+      swidCookie: '',
+      espnS2Cookie: '',
+    },
+  });
+
+  // Watch form fields to refetch metadata if they change
+  const leagueId = form.watch('leagueId');
+  const platform = form.watch('platform');
+  const privacy = form.watch('privacy');
+  const watchedOldest = form.watch('oldestSeason');
+  const watchedRecent = form.watch('mostRecentSeason');
+  const swidCookie = form.watch('swidCookie');
+  const espnS2Cookie = form.watch('espnS2Cookie');
 
   const seasons = useMemo(() => {
-    const start = Number(formData.oldestSeason);
-    const end = Number(formData.mostRecentSeason);
-    if (!start || !end || isNaN(start) || isNaN(end)) return [];
+    const start = Number(watchedOldest);
+    const end = Number(watchedRecent);
+    // Validations for season range:
+    // - Both start and end must be valid numbers
+    // - Range cannot exceed 50 seasons
+    // - Start cannot be after end
+    if (!start || !end || isNaN(start) || isNaN(end) || end - start > 50 || start > end) return [];
     return Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
-  }, [formData.oldestSeason, formData.mostRecentSeason]);
+  }, [watchedOldest, watchedRecent]);
 
-  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata>(`/leagues/${formData.leagueId}`, {
-    platform: formData.platform,
-  });
-  const { refetch: refetchLeagueValid } = useGetResource<ValidateLeagueReponse>(`/leagues/validate`, {
-    league_id: formData.leagueId,
-    platform: formData.platform,
-    privacy: formData.privacy.toLowerCase(),
-    season: formData.mostRecentSeason,
-    swid_cookie: formData.swidCookie,
-    espn_s2_cookie: formData.espnS2Cookie,
-  });
-  const { mutateAsync } = usePostResource<PostLeagueMetadataPayload, PostLeagueMetadataResponse>('/leagues');
-
+  // Logic for initial Login click
+  // Checks if the league has already been registered
   const checkLeagueExists = async () => {
+    // Only trigger validation for the fields visible on the main card
+    const isValid = await form.trigger(['leagueId', 'platform', 'privacy']);
+    if (!isValid) return;
+
     setLoading(true);
     try {
-      const newErrors: typeof loginFormErrors = {};
-      if (!formData.leagueId) newErrors.leagueId = 'Please enter your league ID';
-      if (!formData.platform) newErrors.platform = 'Please select which platform your league is on';
-      if (!formData.privacy) newErrors.privacy = 'Please indicate your league privacy settings';
-      setLoginFormErrors(newErrors);
-
-      // if no missing fields, proceed with API call
-      if (Object.keys(newErrors).length === 0) {
-        const result = await refetchLeagueMetadata();
-        if (result.error) {
-          const err = result.error as Error & { status?: number };
-          if (err.status === 404) {
-            setShowOnboardDialog(true);
-            toast.error('League not found, please sign up your league using the form.');
-            return;
-          } else {
-            console.log(`An unexpected error occurred: ${err.message}`);
-            toast.error('An unexpected error occurred. Please try again.');
-            return;
-          }
-        }
-        console.log('League metadata:', result.data);
-        onLoginSuccess({ leagueId: formData.leagueId, platform: formData.platform });
-        void navigate('/home');
-      } else {
-        toast.error('Please fill in all form fields before clicking "Login".');
+      await getLeagueMetadata(leagueId, platform);
+      // If the league exists, store the league ID and platform in local storage and navigate to home page
+      onLoginSuccess({ 
+        leagueId: leagueId, 
+        platform: platform, 
+      });
+      navigate('/home');
+    } catch (error: any) {
+      // A 404 error is valid and indicates that the league is not registered yet
+      if (error.status === 404) {
+        setShowOnboardDialog(true);
+        toast.info('League not found. Please complete the registration form.');
+        return;
       }
-    } catch (error) {
-      console.error('Error checking league existence:', error);
-      toast.error('An error occurred while checking the league. Please try again.');
+      else {
+        console.log('Login error:', error);
+        toast.error('An unexpected error occurred. Please try again and create a support ticket if the issue persists.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const onboardLeagueMetadata = async () => {
+    // Validate all fields including cookies/seasons
+    const isValid = await form.trigger();
+    if (!isValid) return;
+
     setLoading(true);
     try {
-      const newErrors: typeof loginFormErrors = {};
-      if (!formData.leagueId) newErrors.leagueId = 'Please enter your league ID';
-      if (!formData.platform) newErrors.platform = 'Please select which platform your league is on';
-      if (!formData.privacy) newErrors.privacy = 'Please indicate your league privacy settings';
-      if (!formData.oldestSeason) newErrors.firstSeason = 'Please enter the season your league started in';
-      if (!formData.mostRecentSeason)
-        newErrors.lastSeason = 'Please enter the most recent season your league was active for';
-      if (!formData.swidCookie) newErrors.swidCookie = 'Please enter your SWID cookie';
-      if (!formData.espnS2Cookie) newErrors.espnS2Cookie = 'Please enter your ESPN S2 cookie';
-      setLoginFormErrors(newErrors);
-
-      // if no missing fields, proceed with API call(s)
-      if (Object.keys(newErrors).length === 0) {
-        const validLeagueResult = await refetchLeagueValid();
-        if (validLeagueResult.status === 'success') {
-          console.log('Valid league information entered');
-          const payload = {
-            league_id: formData.leagueId,
-            platform: formData.platform,
-            privacy: formData.privacy.toLowerCase(),
-            swid: formData.swidCookie,
-            espn_s2: formData.espnS2Cookie,
-            seasons: seasons,
-          };
-          try {
-            await mutateAsync(payload);
-            toast.success('League successfully reigstered!');
-            setShowOnboardDialog(false);
-            onLoginSuccess({ leagueId: formData.leagueId, platform: formData.platform });
-            void navigate('/home');
-          } catch (error) {
-            console.error('Error registering league:', error);
-            toast.error('An error occurred while registering the league. Please try again.');
-            return;
-          }
-        }
-      } else {
-        toast.error('Please fill in all form fields before clicking "Register".');
-      }
-    } catch (error) {
-      console.error('Error validating league:', error);
-      toast.error(
-        'An error occurred while validating the league information you entered. Please check your inputs and try again.',
+      // Sends API request to validate form information with ESPN
+      await validateLeagueMetadata(
+        leagueId, 
+        platform,
+        privacy.toLowerCase(),
+        watchedRecent!,
+        espnS2Cookie!,
+        swidCookie!,
       );
+
+      // If successful, proceed to register the league
+      const values = form.getValues();
+      await postLeagueMetadata({
+        league_id: values.leagueId,
+        platform: values.platform,
+        privacy: values.privacy.toLowerCase(),
+        swid: values.swidCookie ?? "",
+        espn_s2: values.espnS2Cookie ?? "",
+        seasons: seasons,
+      });
+
+      // Notify user and navigate to home page
+      toast.success('League successfully registered!');
+      setShowOnboardDialog(false);
+      onLoginSuccess({ leagueId: values.leagueId, platform: values.platform });
+      navigate('/home');
+    } catch (error: any) {
+      if (error.status === 401) {
+        toast.error('Invalid Credentials: The SWID or ESPN_S2 cookies are incorrect.');
+      } else {
+        toast.error('League validation failed. Please double check your information or raise a support ticket.');
+      }
+      return;
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div>
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>Provide your league information</CardTitle>
-          <CardDescription>
-            Enter your league ID, platform, and privacy setting. For ESPN, your league ID is in the URL like this:
-            leagueId=12345. For Sleeper, you can find it in the URL like this: /leagues/12345.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <div className="grid gap-3">
-            <Label htmlFor="league-id">League ID</Label>
-            <Input
-              id="league-id"
-              type="text"
-              placeholder="12345"
-              value={formData.leagueId}
-              onChange={(e) => updateField('leagueId', e.target.value)}
+    <Form {...form}>
+      <div className="space-y-6">
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>Provide your league information</CardTitle>
+            <CardDescription>
+              Enter your league ID, platform, and privacy setting. For ESPN, your league ID is in the URL like this:
+              leagueId=12345. For Sleeper, you can find it in the URL like this: /leagues/12345.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6">
+            <FormField
+              control={form.control}
+              name="leagueId"
+              render={({ field }) => (
+                <FormItem className="w-full">
+                  <FormLabel>League ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="12345" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {loginFormErrors.leagueId && <p className="text-red-500 text-sm">{loginFormErrors.leagueId}</p>}
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="platform">Platform</Label>
-            <Select onValueChange={(value) => updateField('platform', value)} value={formData.platform}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a platform" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ESPN">ESPN</SelectItem>
-              </SelectContent>
-            </Select>
-            {loginFormErrors.platform && <p className="text-red-500 text-sm">{loginFormErrors.platform}</p>}
-          </div>
-          <div className="grid gap-3">
-            <Label htmlFor="privacy">League Privacy</Label>
-            <Select onValueChange={(value) => updateField('privacy', value)} value={formData.privacy}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="League privacy setting" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Public">Public</SelectItem>
-                <SelectItem value="Private">Private</SelectItem>
-              </SelectContent>
-            </Select>
-            {loginFormErrors.privacy && <p className="text-red-500 text-sm">{loginFormErrors.privacy}</p>}
-          </div>
-        </CardContent>
-        <CardFooter className="flex items-center justify-between">
-          <LoadingButton onClick={() => void checkLeagueExists()} loading={loading}>
-            Login
-          </LoadingButton>
-        </CardFooter>
-      </Card>
-      <Dialog open={showOnboardDialog} onOpenChange={setShowOnboardDialog}>
-        <DialogContent className="max-w-lg w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="text-center">Your league hasn't been registered yet</DialogTitle>
-            <DialogDescription className="text-center">
-              Fill in your fantasy league information to register your league. Instructions on how to find your ESPN
-              cookies can be found{' '}
-              <a href="https://www.espn.com" target="_blank" className="text-blue-600">
-                here
-              </a>
-              .
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4">
-            <Card className="w-full max-w-md mx-auto">
-              <CardContent className="grid gap-6">
-                <div className="grid gap-3">
-                  <Label htmlFor="league-id">League ID</Label>
-                  <Input id="league-id" type="text" value={formData.leagueId} readOnly />
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="league-platform">League Platform</Label>
-                  <Input id="league-platform" type="text" value={formData.platform} readOnly />
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="league-privacy">League Privacy Setting</Label>
-                  <Input id="league-privacy" type="text" value={formData.privacy} readOnly />
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="swid-cookie">First Season</Label>
-                  <Input
-                    id="oldest-season"
-                    type="text"
-                    value={formData.oldestSeason}
-                    onChange={(e) => updateField('oldestSeason', e.target.value)}
-                  />
-                  {loginFormErrors.firstSeason && <p className="text-red-500 text-sm">{loginFormErrors.firstSeason}</p>}
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="swid-cookie">Most Recent Season</Label>
-                  <Input
-                    id="most-recent-season"
-                    type="text"
-                    value={formData.mostRecentSeason}
-                    onChange={(e) => updateField('mostRecentSeason', e.target.value)}
-                  />
-                  {loginFormErrors.lastSeason && <p className="text-red-500 text-sm">{loginFormErrors.lastSeason}</p>}
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="swid-cookie">SWID Cookie</Label>
-                  <Input
-                    id="swid-cookie"
-                    type="text"
-                    value={formData.swidCookie}
-                    onChange={(e) => updateField('swidCookie', e.target.value)}
-                  />
-                  {loginFormErrors.swidCookie && <p className="text-red-500 text-sm">{loginFormErrors.swidCookie}</p>}
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="espn-s2-cookie">ESPN S2 Cookie</Label>
-                  <Input
-                    id="espn-s2-cookie"
-                    type="text"
-                    value={formData.espnS2Cookie}
-                    onChange={(e) => updateField('espnS2Cookie', e.target.value)}
-                  />
-                  {loginFormErrors.espnS2Cookie && (
-                    <p className="text-red-500 text-sm">{loginFormErrors.espnS2Cookie}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="shrink-0 p-4 border-t">
-            <LoadingButton onClick={() => void onboardLeagueMetadata()} loading={loading}>
-              Register
+
+            <FormField
+              control={form.control}
+              name="platform"
+              render={({ field }) => (
+                <FormItem className="w-full">
+                  <FormLabel>Platform</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select platform" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ESPN">ESPN</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="privacy"
+              render={({ field }) => (
+                <FormItem className="w-full">
+                  <FormLabel>League Privacy</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select privacy" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Public">Public</SelectItem>
+                      <SelectItem value="Private">Private</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+          <CardFooter>
+            <LoadingButton 
+              onClick={checkLeagueExists} 
+              loading={loading}
+            >
+              Login
             </LoadingButton>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </CardFooter>
+        </Card>
+
+        <Dialog open={showOnboardDialog} onOpenChange={setShowOnboardDialog}>
+          <DialogContent className="max-w-lg w-[90vw] max-h-[90vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Register Your League</DialogTitle>
+              <DialogDescription>
+                We couldn't find your league. Please provide extra details to onboard it.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto p-1 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="oldestSeason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Season</FormLabel>
+                      <FormControl>
+                        <Input placeholder="2020" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mostRecentSeason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Most Recent Season</FormLabel>
+                      <FormControl>
+                        <Input placeholder="2024" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="swidCookie"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SWID Cookie</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="espnS2Cookie"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ESPN S2 Cookie</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="pt-4 border-t">
+              <LoadingButton
+                onClick={onboardLeagueMetadata} 
+                loading={loading}
+              >
+                Register League
+              </LoadingButton>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Form>
   );
 }
 

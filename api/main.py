@@ -17,11 +17,11 @@ from api.routers import (
     utils,
 )
 
-ORIGINS = (
-    "https://d18dihad3pqxuq.cloudfront.net,https://d1rvfoubbo8sgf.cloudfront.net".split(
-        ","
-    )
-)
+ORIGINS = [
+    "http://localhost:5173",
+    "https://d18dihad3pqxuq.cloudfront.net",
+    "https://d1rvfoubbo8sgf.cloudfront.net",
+]
 
 app = FastAPI()
 app.add_middleware(

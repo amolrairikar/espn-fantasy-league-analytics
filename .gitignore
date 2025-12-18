@@ -222,3 +222,6 @@ deployment_package
 
 # DS Store files
 .DS_Store
+
+# Cookie credentials
+cookies.txt
