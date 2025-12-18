@@ -411,10 +411,9 @@ resource "aws_api_gateway_deployment" "deployment" {
 #     redeploy_forced = timestamp()
 #   }
 
-#   # Comment this part out if a redeploy is not needed
-#   lifecycle {
-#     create_before_destroy = true
-#   }
+  lifecycle {
+    create_before_destroy = true
+  }
 
   depends_on = [
     aws_api_gateway_integration.lambda_integration
