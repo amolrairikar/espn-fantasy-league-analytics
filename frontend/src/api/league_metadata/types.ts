@@ -28,6 +28,8 @@ type PostLeagueMetadataPayload = {
   espn_s2: string;
   swid: string;
   seasons: string[];
+  onboarded_date?: string;
+  onboarded_status?: boolean;
 };
 
 type PostLeagueMetadataResponse = {

@@ -2,6 +2,7 @@ import apiClient from "@/api/api_client";
 import type { 
   GetLeagueMetadata,
   ValidateLeagueReponse,
+  PostLeagueMetadataPayload,
   PostLeagueMetadataResponse,
 } from "@/api/league_metadata/types";
 
@@ -36,27 +37,13 @@ export async function validateLeagueMetadata(
 }
 
 // Create league metadata entry
-export async function postLeagueMetadata(payload: {
-  league_id: string;
-  platform: string;
-  privacy: string;
-  espn_s2: string;
-  swid: string;
-  seasons: string[];
-}): Promise<PostLeagueMetadataResponse> {
+export async function postLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
   const response = await apiClient.post('/leagues', payload);
   return response.data;
 }
 
 // Update league metadata entry
-export async function putLeagueMetadata(payload: {
-  league_id: string;
-  platform: string;
-  privacy: string;
-  espn_s2: string;
-  swid: string;
-  seasons: string[];
-}): Promise<PostLeagueMetadataResponse> {
+export async function putLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
   const response = await apiClient.put<PostLeagueMetadataResponse>(`/leagues/${payload.league_id}`, payload);
   return response.data;
 }
