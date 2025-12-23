@@ -102,6 +102,7 @@ function Home() {
       }
     } catch (error) {
       console.error('Error onboarding league:', error);
+      toast.error('Error occurred while onboarding')
       setCurrentlyOnboarding(false);
     } finally {
       setCurrentlyOnboarding(false);
