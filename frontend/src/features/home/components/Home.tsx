@@ -1,53 +1,55 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import { getResource, useGetResource } from '@/components/hooks/genericGetRequest';
-import { usePostResource } from '@/components/hooks/genericPostRequest';
-import { putResource } from '@/components/hooks/genericPutRequest';
 import { LoadingButton } from '@/components/utils/loadingButton';
 import type { LeagueData } from '@/features/login/types';
-import type { GetLeagueMetadata } from '@/features/login/types';
-import type {
-  OnboardResponse,
-  OnboardStatusResponse,
-  PostLeagueOnboardingPayload,
-  PutLeagueMetadataPayload,
-} from '@/features/home/types';
 import AllTimeRecords from '@/features/home/components/AllTimeRecords';
 import { poll } from '@/features/home/utils/poll';
+import { getLeagueOnboardingStatus, postLeagueOnboarding } from '@/api/onboarding/api_calls';
+import { getLeagueMetadata, putLeagueMetadata } from '@/api/league_metadata/api_calls';
+
+function useLeagueMetadata(leagueId: string, platform: string) {
+  return useQuery({
+    queryKey: ['leagueMetadata', leagueId, platform],
+    queryFn: () => getLeagueMetadata(leagueId, platform),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!leagueId && !!platform, // only run if leagueId and platform are available
+  });
+};
 
 function Home() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
   const [currentlyOnboarding, setCurrentlyOnboarding] = useState<boolean>(false);
+  const queryClient = useQueryClient();
 
-  const {
-    data,
-    refetch: refetchLeagueMetadata,
-    isLoading,
-    isError,
-  } = useGetResource<GetLeagueMetadata['data']>(
-    leagueData ? `/leagues/${leagueData.leagueId}` : '',
-    { platform: leagueData?.platform },
-    { enabled: !!leagueData?.leagueId && !!leagueData?.platform },
+  // Hook must be called before any returns
+  const { data: leagueMetadata, isLoading, isError, error } = useLeagueMetadata(
+    leagueData!.leagueId,
+    leagueData!.platform,
   );
 
-  const { mutateAsync: PostOnboarding } = usePostResource<PostLeagueOnboardingPayload, OnboardResponse>('/onboard');
-
-  if (isLoading) {
-    return <p>Loading...</p>;
-  }
-
-  if (isError || !data?.data) {
+  // Early return if saving league data to local storage fails
+  if (!leagueData) {
     return (
       <p>
-        Unable to retrieve your fantasy football league information. Please try refreshing and if the issue persists,
-        raise a GitHub issue.
+        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
+        create a support ticket.
       </p>
     );
   }
 
+  if (isLoading) {
+    return <p className="text-center">Loading...</p>;
+  }
+
+  if (isError || !leagueMetadata || !leagueMetadata.data) {
+    console.error('Error getting league metadata', { isError, error, leagueMetadata });
+    return <p>Error getting league metadata. Please try reloading and if the issue persists raise a support ticket.</p>;
+  }
+
   const { league_id, platform, privacy, espn_s2_cookie, swid_cookie, seasons, onboarded_date, onboarded_status } =
-    data.data;
+    leagueMetadata.data;
 
   const onboarded = Boolean(onboarded_status && onboarded_date);
 
@@ -62,26 +64,24 @@ function Home() {
         swid: swid_cookie,
         seasons,
       };
-      const result = await PostOnboarding(payload);
-      if (!result.data?.execution_id) {
-        const errorMessage = 'Onboarding response missing execution_id';
-        console.error(errorMessage);
-        toast.error(errorMessage);
+      const result = await postLeagueOnboarding(payload);
+      if (!result.data.execution_id) {
+        console.error('Onboarding response missing execution_id');
+        toast.error('Error occurred while onboarding league. Please try again.');
         return;
       }
       const execution_id = result.data.execution_id;
       console.log('Onboarding execution id: ', execution_id);
 
-      await poll(() => getResource<OnboardStatusResponse>(`/onboard/${execution_id}`), {
+      await poll(() => getLeagueOnboardingStatus(execution_id), {
         interval: 2000,
         timeout: 60000,
         validate: (status) => status.data?.execution_status === 'SUCCEEDED',
       });
-      console.log('Onboarding completed!');
 
       // Update metadata to set onboarded_status to true
       try {
-        await putResource<PutLeagueMetadataPayload, OnboardResponse>(`/leagues/${league_id}`, {
+        await putLeagueMetadata({
           league_id,
           platform,
           privacy,
@@ -91,8 +91,12 @@ function Home() {
           onboarded_date: new Date().toISOString(),
           onboarded_status: true,
         });
-        console.log('Updated league metadata to set onboarded_status to true');
-        await refetchLeagueMetadata();
+        console.log('Onboarding completed!');
+        toast.success('Onboarding completed successfully!');
+        // Refetch league metadata after onboarding completed
+        queryClient.invalidateQueries({
+          queryKey: ['leagueMetadata', league_id, platform]
+        });
       } catch (error) {
         console.error('Error updating league metadata:', error);
       }
@@ -103,15 +107,6 @@ function Home() {
       setCurrentlyOnboarding(false);
     }
   };
-
-  if (isError || !league_id || !platform || !privacy || !espn_s2_cookie || !swid_cookie || !seasons) {
-    return (
-      <p>
-        Unable to retrieve your fantasy football league information. Please try refreshing and if the issue persists,
-        raise a GitHub issue.
-      </p>
-    );
-  }
 
   return (
     <div className="flex flex-col items-center gap-4">
