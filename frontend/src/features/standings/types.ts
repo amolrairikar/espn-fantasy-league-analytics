@@ -92,7 +92,7 @@ type GetMatchupsBetweenTeams = {
 };
 
 type MatchupTableView = {
-  season: number;
+  season: string;
   week: number;
   opponent_full_name?: string;
   result: string;
@@ -108,7 +108,7 @@ type PlayerScoringDetails = {
   player_id: string;
   full_name: string;
   position: string;
-  points_scored: string;
+  points_scored: number;
 };
 
 type StandingsAllTime = {

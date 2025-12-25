@@ -1,35 +1,125 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
-import type {
-  GetAllTimeStandings,
-  GetLeagueMembers,
-  GetMatchupsBetweenTeams,
-  MatchupTableView,
-  Member,
-  StandingsAllTime,
-} from '@/features/standings/types';
+import type { MatchupTableView, StandingsAllTime } from '@/features/standings/types';
 import type { LeagueData } from '@/features/login/types';
 import { DataTable } from '@/components/utils/dataTable';
 import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { SortableHeader } from '@/components/utils/sortableColumnHeader';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
+import { fetchPlayoffStandings } from '@/api/standings/api_calls';
+import { fetchMatchups } from '@/api/matchups/api_calls';
+import { useFetchLeagueOwners } from '@/components/hooks/fetchOwners';
+import { StandingsTableSkeleton } from '@/features/standings/components/SkeletonStandingsTable';
+
+function useFetchPlayoffStandings(
+  league_id: string,
+  platform: string,
+  standings_type: string,
+) {
+  return useQuery({
+    queryKey: ['playoff_standings', league_id, platform, standings_type],
+    queryFn: () => fetchPlayoffStandings(
+      league_id,
+      platform,
+      standings_type,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform && !!standings_type, // only run if input args are available
+  });
+};
+
+function useFetchPlayoffMatchupsForTeam(
+  league_id: string,
+  platform: string,
+  playoff_filter: string,
+  team1_id: string,
+) {
+  return useQuery({
+    queryKey: ['single_team_playoff_matchups', league_id, platform, playoff_filter, team1_id],
+    queryFn: () => fetchMatchups(
+      league_id,
+      platform,
+      playoff_filter,
+      team1_id,
+      undefined, // team2_id
+      undefined, // week_number
+      undefined, // season
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id, // only run if input args are available
+  });
+};
+
+function useFetchSpecificPlayoffMatchup(
+  league_id: string,
+  platform: string,
+  playoff_filter: string,
+  team1_id: string,
+  week_number: string,
+  season: string,
+) {
+  return useQuery({
+    queryKey: ['specified_playoff_matchup', league_id, platform, playoff_filter, team1_id, week_number, season],
+    queryFn: () => fetchMatchups(
+      league_id,
+      platform,
+      playoff_filter,
+      team1_id,
+      undefined, // team2_id
+      week_number,
+      season,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id && !!week_number && !!season, // only run if input args are available
+  });
+};
 
 function PlayoffStandings() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
-    throw new Error('Invalid league metadata: missing leagueId and/or platform.');
-  }
 
-  const [standingsData, setStandingsData] = useState<StandingsAllTime[]>([]);
-  const [scoresData, setScoresData] = useState<MatchupTableView[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const { data: rawStandings, isLoading: loadingStandings } = useFetchPlayoffStandings(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    'playoffs',
+  );
+
+  const { data: owners } = useFetchLeagueOwners(
+    leagueData!.leagueId,
+    leagueData!.platform
+  );
+
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
-  const selectedOwnerId = members.find((m) => m.owner_full_name === selectedOwnerName)?.owner_id ?? undefined;
-  const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
+  const selectedOwnerId = owners?.data.find((m) => m.owner_full_name === selectedOwnerName)?.owner_id ?? undefined;
+  const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
   const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
-  const [H2HMatchupData, setH2HMatchupData] = useState<GetMatchupsBetweenTeams['data']>();
   const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
+
+  const { data: PlayoffMatchups, isLoading: loadingPlayoffMatchups } = useFetchPlayoffMatchupsForTeam(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    'only',
+    selectedOwnerId!,
+  )
+
+  const { data: specifiedMatchup } = useFetchSpecificPlayoffMatchup(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    'include',
+    selectedOwnerId!,
+    String(selectedWeek!),
+    selectedSeason!,
+  )
+
+  // Early return if saving league data to local storage fails
+  if (!leagueData) {
+    return (
+      <p>
+        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
+        create a support ticket.
+      </p>
+    );
+  };
 
   const columns: ColumnDef<StandingsAllTime>[] = [
     {
@@ -84,7 +174,7 @@ function PlayoffStandings() {
   ];
 
   const columnsH2HMatchups = (
-    setSelectedSeason: (season: number) => void,
+    setSelectedSeason: (season: string) => void,
     setSelectedWeek: (week: number) => void,
   ): ColumnDef<MatchupTableView>[] => [
     {
@@ -134,127 +224,38 @@ function PlayoffStandings() {
     },
   ];
 
-  const { refetch: refetchPlayoffStandings } = useGetResource<GetAllTimeStandings['data']>(`/standings`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    standings_type: 'playoffs',
-  });
+  const standingsData = useMemo(() => {
+    if (!rawStandings?.data) return [];
+    
+    return rawStandings.data.map((team) => ({
+      ...team,
+      games_played: Number(team.games_played),
+      record: `${team.wins}-${team.losses}`,
+      win_pct: parseFloat(team.win_pct),
+      points_for_per_game: parseFloat(team.points_for_per_game),
+      points_against_per_game: parseFloat(team.points_against_per_game),
+    }));
+  }, [rawStandings?.data]);
 
-  const { refetch: refetchLeagueMembers } = useGetResource<GetLeagueMembers['data']>(`/owners`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-  });
+  const scoresData = useMemo(() => {
+    if (!PlayoffMatchups?.data || !selectedOwnerId) return [];
 
-  const { refetch: refetchPlayoffMatchups } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    playoff_filter: 'only',
-    team1_id: selectedOwnerId,
-  });
+    return PlayoffMatchups.data.map((matchup) => {
+      const isTeamA = matchup.team_a_owner_id === selectedOwnerId;
+      const ownerScore = isTeamA ? matchup.team_a_score : matchup.team_b_score;
+      const opponentScore = isTeamA ? matchup.team_b_score : matchup.team_a_score;
+      const opponentName = isTeamA ? matchup.team_b_owner_full_name : matchup.team_a_owner_full_name;
+      const ownerWon = matchup.winner === selectedOwnerId;
 
-  const { refetch: refetchPlayoffMatchup } = useGetResource<GetMatchupsBetweenTeams['data']>(`/matchups`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    playoff_filter: 'include',
-    team1_id: selectedOwnerId,
-    season: selectedSeason,
-    week_number: selectedWeek,
-  });
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await refetchPlayoffStandings();
-        if (response?.data?.data) {
-          console.log(response.data.data);
-          const transformedData: StandingsAllTime[] = response.data.data.map((team) => {
-            const wins = Number(team.wins);
-            const losses = Number(team.losses);
-            return {
-              ...team,
-              games_played: Number(team.games_played),
-              record: `${wins}-${losses}`,
-              win_pct: parseFloat(team.win_pct),
-              points_for_per_game: parseFloat(team.points_for_per_game),
-              points_against_per_game: parseFloat(team.points_against_per_game),
-            };
-          });
-          setStandingsData(transformedData);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    void fetchStatus();
-  }, [refetchPlayoffStandings]);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await refetchLeagueMembers();
-        if (response.data?.data) {
-          const membersData = response.data?.data;
-          setMembers(membersData);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    void fetchStatus();
-  }, [refetchLeagueMembers]);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      if (!selectedOwnerName) return;
-      try {
-        const response = await refetchPlayoffMatchups();
-        if (response?.data?.data) {
-          console.log(response);
-          const transformedData = response.data.data.map((matchup) => {
-            const ownerScore =
-              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_a_score : matchup.team_b_score;
-            const opponentScore =
-              matchup.team_a_owner_id === selectedOwnerId ? matchup.team_b_score : matchup.team_a_score;
-            const opponentName =
-              matchup.team_a_owner_id === selectedOwnerId
-                ? matchup.team_b_owner_full_name
-                : matchup.team_a_owner_full_name;
-            const ownerWon = matchup.winner === selectedOwnerId;
-
-            return {
-              ...matchup,
-              season: Number(matchup.season),
-              week: Number(matchup.week),
-              opponent_full_name: opponentName,
-              result: `${ownerScore} - ${opponentScore}`,
-              outcome: ownerWon ? 'W' : 'L',
-            };
-          });
-          setScoresData(transformedData);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    void fetchStatus();
-  }, [refetchPlayoffMatchups, selectedOwnerName, selectedOwnerId]);
-
-  useEffect(() => {
-    if (!selectedSeason || !selectedWeek) return;
-    const fetchStatus = async () => {
-      try {
-        const response = await refetchPlayoffMatchup();
-        if (response.data?.data) {
-          setH2HMatchupData(response.data?.data);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    void fetchStatus();
-  }, [refetchPlayoffMatchup, selectedSeason, selectedWeek, H2HMatchupData]);
+      return {
+        ...matchup,
+        week: Number(matchup.week),
+        opponent_full_name: opponentName,
+        result: `${ownerScore} - ${opponentScore}`,
+        outcome: ownerWon ? 'W' : 'L',
+      };
+    });
+  }, [PlayoffMatchups?.data, selectedOwnerId]);
 
   // Open matchup box score whenever season/week are selected
   useEffect(() => {
@@ -279,25 +280,29 @@ function PlayoffStandings() {
           <p className="text-sm text-muted-foreground italic mt-2">
             Click on a matchup to view the detailed box score.
           </p>
-          <DataTable
-            columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
-            data={scoresData}
-            initialSorting={[
-              { id: 'season', desc: false },
-              { id: 'week', desc: false },
-            ]}
-            onRowClick={(row) => {
-              setSelectedSeason(row.season);
-              setSelectedWeek(row.week);
-            }}
-            selectedRow={scoresData.find(
-              (matchup) =>
-                matchup.season === selectedSeason && matchup.week === selectedWeek,
-            ) ?? null}
-          />
-          {selectedSeason && selectedWeek && H2HMatchupData && H2HMatchupData.length > 0 && (
+          {loadingPlayoffMatchups ? (
+            <StandingsTableSkeleton />
+          ) : (
+            <DataTable
+              columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
+              data={scoresData}
+              initialSorting={[
+                { id: 'season', desc: false },
+                { id: 'week', desc: false },
+              ]}
+              onRowClick={(row) => {
+                setSelectedSeason(row.season);
+                setSelectedWeek(row.week);
+              }}
+              selectedRow={scoresData.find(
+                (matchup) =>
+                  matchup.season === selectedSeason && matchup.week === selectedWeek,
+              ) ?? null}
+            />
+          )}
+          {selectedSeason && selectedWeek && specifiedMatchup && specifiedMatchup.data.length > 0 && (
             <MatchupSheet
-              matchup={H2HMatchupData[0]}
+              matchup={specifiedMatchup.data[0]}
               open={expandedBoxScoreOpen}
               onClose={() => {
                 setSelectedSeason(undefined);
@@ -311,13 +316,17 @@ function PlayoffStandings() {
           <p className="text-sm text-muted-foreground italic">
             Click on an owner's name to display a table with all their playoff matchups.
           </p>
-          <DataTable
-            columns={columns}
-            data={standingsData}
-            initialSorting={[{ id: 'win_pct', desc: true }]}
-            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
-            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
-          />
+          {loadingStandings ? (
+            <StandingsTableSkeleton />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={standingsData}
+              initialSorting={[{ id: 'win_pct', desc: true }]}
+              onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
+              selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
+            />
+          )}
         </div>
       )}
     </div>

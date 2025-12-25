@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import { useGetResource } from '@/components/hooks/genericGetRequest';
 import type { LeagueData } from '@/features/login/types';
-import type { GetMatchupsBetweenTeams, GetWeeklyStandings } from '@/features/standings/types';
+import type { GetMatchups } from '@/api/matchups/types';
+import type { GetWeeklyStandings } from '@/features/standings/types';
 
 interface ScoreboardCardProps {
-  matchup: GetMatchupsBetweenTeams['data'][number];
+  matchup: GetMatchups['data'][number];
   onClick?: () => void;
 }
 
@@ -89,7 +90,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
             </div>
           </div>
           <div className={`text-right text-lg ${isTeamAWinner ? 'font-bold' : ''}`}>
-            {parseFloat(matchup.team_a_score).toFixed(2)}
+            {Number(matchup.team_a_score).toFixed(2)}
           </div>
         </div>
 
@@ -105,7 +106,7 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
             </div>
           </div>
           <div className={`text-right text-lg ${isTeamBWinner ? 'font-bold' : ''}`}>
-            {parseFloat(matchup.team_b_score).toFixed(2)}
+            {Number(matchup.team_b_score).toFixed(2)}
           </div>
         </div>
       </div>

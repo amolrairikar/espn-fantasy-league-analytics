@@ -10,9 +10,7 @@ import { WeekSelect } from '@/components/utils/WeekSelect';
 import type { GetMatchups } from '@/api/matchups/types';
 import { fetchMatchups } from '@/api/matchups/api_calls';
 
-type Matchup = GetMatchups['data'] extends (infer T)[] ? T : never;
-
-function useFetchMatchups(
+function useFetchWeeklyMatchups(
   league_id: string,
   platform: string,
   playoff_filter: string,
@@ -20,7 +18,7 @@ function useFetchMatchups(
   season: string,
 ) {
   return useQuery({
-    queryKey: ['matchups', league_id, platform, playoff_filter, week_number, season],
+    queryKey: ['weekly_matchups', league_id, platform, playoff_filter, week_number, season],
     queryFn: () => fetchMatchups(
       league_id,
       platform,
@@ -40,9 +38,9 @@ function Scores() {
 
   const [selectedSeason, setSelectedSeason] = useState<string>();
   const [selectedWeek, setSelectedWeek] = useState<string | undefined>(undefined);
-  const [selectedMatchup, setSelectedMatchup] = useState<Matchup | null>(null);
+  const [selectedMatchup, setSelectedMatchup] = useState<GetMatchups['data'][number] | null>(null);
 
-  const { data: matchupResponse, isLoading, isError } = useFetchMatchups(
+  const { data: matchupResponse, isLoading, isError } = useFetchWeeklyMatchups(
     leagueData!.leagueId,
     leagueData!.platform,
     'include',
@@ -52,7 +50,7 @@ function Scores() {
 
   // Memoize the sorted data to prevent recalculating on every render
   const sortedMatchups = useMemo(() => {
-    if (!matchupResponse?.data || !Array.isArray(matchupResponse.data)) return [];
+    if (!matchupResponse?.data) return [];
     
     return [...matchupResponse.data].sort((a, b) => {
       const aIsPlayoff = a.playoff_tier_type === 'WINNERS_BRACKET';
