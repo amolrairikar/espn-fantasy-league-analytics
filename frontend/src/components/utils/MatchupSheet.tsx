@@ -1,8 +1,9 @@
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import type { GetMatchupsBetweenTeams, PlayerScoringDetails } from '@/features/standings/types';
+import type { GetMatchups } from '@/api/matchups/types';
+import type { PlayerScoringDetails } from '@/features/standings/types';
 
 interface MatchupSheetProps {
-  matchup: GetMatchupsBetweenTeams['data'][number];
+  matchup: GetMatchups['data'][number];
   open: boolean;
   onClose: () => void;
 }
@@ -32,16 +33,16 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
           <div className="flex justify-between text-center font-semibold mb-4">
             {/* Team A */}
             <div className="w-1/2 flex flex-col items-center">
-              <div className="flex items-center justify-center text-lg text-center min-h-[3rem] leading-tight">
-                <span className="line-clamp-2 break-words">{matchup.team_a_team_name}</span>
+              <div className="flex items-center justify-center text-lg text-center min-h-12 leading-tight">
+                <span className="line-clamp-2 wrap-break-word">{matchup.team_a_team_name}</span>
               </div>
               <div className="text-2xl mt-1">{matchup.team_a_score}</div>
             </div>
 
             {/* Team B */}
             <div className="w-1/2 flex flex-col items-center">
-              <div className="flex items-center justify-center text-lg text-center min-h-[3rem] leading-tight">
-                <span className="line-clamp-2 break-words">{matchup.team_b_team_name}</span>
+              <div className="flex items-center justify-center text-lg text-center min-h-12 leading-tight">
+                <span className="line-clamp-2 wrap-break-word">{matchup.team_b_team_name}</span>
               </div>
               <div className="text-2xl mt-1">{matchup.team_b_score}</div>
             </div>
@@ -67,7 +68,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                         return (
                           <div
                             key={idx}
-                            className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
+                            className="flex justify-between border-b border-border pb-1 text-sm min-h-6"
                           >
                             <span className="text-foreground">{player?.full_name || ''}</span>
                             <span className="font-mono text-muted-foreground">
@@ -85,7 +86,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                         return (
                           <div
                             key={idx}
-                            className="flex justify-between border-b border-border pb-1 text-sm min-h-[1.5rem]"
+                            className="flex justify-between border-b border-border pb-1 text-sm min-h-6"
                           >
                             <span className="font-mono text-muted-foreground">
                               {player ? Number(player.points_scored).toFixed(2) : ''}
