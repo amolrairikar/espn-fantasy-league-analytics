@@ -60,8 +60,8 @@ function Home() {
         league_id,
         platform,
         privacy,
-        espn_s2: espn_s2_cookie,
-        swid: swid_cookie,
+        espn_s2: espn_s2_cookie ?? '',
+        swid: swid_cookie ?? '',
         seasons,
       };
       const result = await postLeagueOnboarding(payload);

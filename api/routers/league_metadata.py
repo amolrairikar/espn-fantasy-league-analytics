@@ -56,14 +56,16 @@ def validate_league_info(
     if platform == "ESPN":
         logger.info("Validating ESPN league")
         url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-        headers = build_api_request_headers(
-            privacy=privacy,
-            cookies={
-                "swid": swid_cookie,
-                "espn_s2": espn_s2_cookie,
-            },
-        )
-        logger.info("API headers: %s", headers)
+        headers = {}
+        if swid_cookie and espn_s2_cookie:
+            headers = build_api_request_headers(
+                privacy=privacy,
+                cookies={
+                    "swid": swid_cookie,
+                    "espn_s2": espn_s2_cookie,
+                },
+            )
+            logger.info("API headers: %s", headers)
         try:
             response = requests.get(url=url, headers=headers)
             response.raise_for_status()
@@ -187,8 +189,12 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
                 "league_id": {"S": data.league_id},
                 "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},
-                "espn_s2_cookie": {"S": data.espn_s2},
-                "swid_cookie": {"S": data.swid},
+                "espn_s2_cookie": {"S": data.espn_s2}
+                if data.privacy.lower() == "private"
+                else {"S": ""},
+                "swid_cookie": {"S": data.swid}
+                if data.privacy.lower() == "private"
+                else {"S": ""},
                 "seasons": {"SS": data.seasons},
             },
         )
@@ -227,8 +233,12 @@ def update_league_metadata(
                 "league_id": {"S": league_id},
                 "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},
-                "espn_s2_cookie": {"S": data.espn_s2},
-                "swid_cookie": {"S": data.swid},
+                "espn_s2_cookie": {"S": data.espn_s2}
+                if data.privacy.lower() == "private"
+                else {"S": ""},
+                "swid_cookie": {"S": data.swid}
+                if data.privacy.lower() == "private"
+                else {"S": ""},
                 "seasons": {"SS": data.seasons},
                 "onboarded_date": {"S": data.onboarded_date},
                 "onboarded_status": {"BOOL": True},
