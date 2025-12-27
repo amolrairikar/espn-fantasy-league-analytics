@@ -13,8 +13,8 @@ type GetLeagueMetadata = {
     league_id: string;
     platform: string;
     privacy: string;
-    espn_s2_cookie: string;
-    swid_cookie: string;
+    espn_s2_cookie?: string;
+    swid_cookie?: string;
     seasons: string[];
     onboarded_status?: boolean;
     onboarded_date?: string;
@@ -25,8 +25,8 @@ type PostLeagueMetadataPayload = {
   league_id: string;
   platform: string;
   privacy: string;
-  espn_s2: string;
-  swid: string;
+  espn_s2?: string;
+  swid?: string;
   seasons: string[];
   onboarded_date?: string;
   onboarded_status?: boolean;

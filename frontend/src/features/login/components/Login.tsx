@@ -90,7 +90,13 @@ function Login({ onLoginSuccess }: LoginProps) {
 
     setLoading(true);
     try {
-      await getLeagueMetadata(leagueId, platform);
+      const metadata = await getLeagueMetadata(leagueId, platform);
+      console.log(metadata);
+      console.log(privacy);
+      if (privacy.toLowerCase() != metadata.data.privacy) {
+        toast.error('Incorrect league privacy setting selected.')
+        return;
+      }
       // If the league exists, store the league ID and platform in local storage and navigate to home page
       onLoginSuccess({ 
         leagueId: leagueId, 
@@ -276,34 +282,40 @@ function Login({ onLoginSuccess }: LoginProps) {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="swidCookie"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SWID Cookie</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {privacy.toLowerCase() === 'private' ? (
+                <>
+                <FormField
+                  control={form.control}
+                  name="swidCookie"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SWID Cookie</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="espnS2Cookie"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>ESPN S2 Cookie</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                <FormField
+                  control={form.control}
+                  name="espnS2Cookie"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ESPN S2 Cookie</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                </>
+              ) : (
+                <></>
+              )}
+          </div>
 
             <div className="pt-4 border-t">
               <LoadingButton
