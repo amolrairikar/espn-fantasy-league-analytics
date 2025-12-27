@@ -1,5 +1,6 @@
 import DraftPickCard from '@/features/draft/components/DraftPickCard';
-import type { DraftResultItem, GetDraftResults } from '@/features/draft/types';
+import type { DraftResultItem } from '@/features/draft/types';
+import type { GetDraftResults } from '@/api/draft_results/types';
 
 interface DraftBoardProps {
   draftResults: GetDraftResults['data'];
