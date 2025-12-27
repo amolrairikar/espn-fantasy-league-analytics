@@ -220,6 +220,11 @@ function SeasonStandings() {
       },
       minSize: 130,
     },
+    {
+      accessorKey: 'record_vs_league',
+      header: () => <div className="w-full text-center">Record vs. League</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.record_vs_league}</div>,
+    },
   ];
 
   const columnsH2HMatchups = (
@@ -282,6 +287,7 @@ function SeasonStandings() {
       points_for: parseFloat(team.points_for),
       points_against: parseFloat(team.points_against),
       points_differential: parseFloat(team.points_differential),
+      record_vs_league: `${team.all_play_wins}-${team.all_play_losses}`
     }));
   }, [rawStandings]);
 

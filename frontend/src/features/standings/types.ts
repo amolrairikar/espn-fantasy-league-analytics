@@ -142,6 +142,7 @@ type StandingsSeason = {
   points_for: number;
   points_against: number;
   points_differential: number;
+  record_vs_league: string;
   playoff_status: string;
   championship_status?: string;
 };
