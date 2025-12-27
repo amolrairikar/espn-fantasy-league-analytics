@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
 import type { LeagueData } from '@/components/types/league_data';
-import type { GetLeagueMetadata } from '@/features/login/types';
+import { getLeagueMetadata } from '@/api/league_metadata/api_calls';
 
 interface SeasonSelectProps {
   leagueData: LeagueData;
@@ -12,6 +12,21 @@ interface SeasonSelectProps {
   className?: string;
 }
 
+function useFetchLeagueMetadata(
+  league_id: string,
+  platform: string,
+) {
+  return useQuery({
+    queryKey: ['league_metadata', league_id, platform],
+    queryFn: () => getLeagueMetadata(
+      league_id,
+      platform,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform, // only run if input args are available
+  });
+};
+
 export function SeasonSelect({
   leagueData,
   onSeasonChange,
@@ -19,40 +34,24 @@ export function SeasonSelect({
   defaultSeason,
   className,
 }: SeasonSelectProps) {
-  const [seasons, setSeasons] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const { refetch: refetchLeagueMetadata } = useGetResource<GetLeagueMetadata['data']>(
-    `/leagues/${leagueData.leagueId}`,
-    { platform: leagueData.platform },
+  const { data: leagueMetadata, isLoading: loadingMetadata } = useFetchLeagueMetadata(
+    leagueData!.leagueId,
+    leagueData!.platform,
   );
 
+  const seasons = useMemo(() => {
+    const rawSeasons = leagueMetadata?.data?.seasons ?? [];
+    // Sort descending (latest year first)
+    return [...rawSeasons].sort((a, b) => Number(b) - Number(a));
+  }, [leagueMetadata]);
+
+  // useEffect just for the initial "Auto-Select" logic
   useEffect(() => {
-    const fetchSeasons = async () => {
-      try {
-        setLoading(true);
-        const response = await refetchLeagueMetadata();
-        const fetchedSeasons = response.data?.data?.seasons ?? [];
-        setSeasons(fetchedSeasons);
-
-        if (fetchedSeasons.length > 0) {
-          const latestSeason = fetchedSeasons.sort((a, b) => Number(b) - Number(a))[0];
-
-          // ✅ only set a default if parent hasn't already set one
-          if (!selectedSeason) {
-            const initialSeason = defaultSeason ?? latestSeason;
-            onSeasonChange(initialSeason);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching seasons:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchSeasons();
-  }, [refetchLeagueMetadata, defaultSeason, onSeasonChange, selectedSeason]);
+    if (!loadingMetadata && seasons.length > 0 && !selectedSeason) {
+      const initialSeason = defaultSeason ?? seasons[0];
+      onSeasonChange(initialSeason);
+    }
+  }, [seasons, loadingMetadata, selectedSeason, defaultSeason, onSeasonChange]);
 
   const handleSeasonChange = (value: string) => {
     onSeasonChange(value);
@@ -63,12 +62,12 @@ export function SeasonSelect({
       <label htmlFor="season" className="font-medium text-sm w-20 md:w-auto">
         Season:
       </label>
-      <Select onValueChange={handleSeasonChange} value={selectedSeason ?? ''} disabled={loading}>
+      <Select onValueChange={handleSeasonChange} value={selectedSeason ?? ''} disabled={loadingMetadata}>
         <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder={loading ? 'Loading seasons...' : 'Select a season'} />
+          <SelectValue placeholder={loadingMetadata ? 'Loading seasons...' : 'Select a season'} />
         </SelectTrigger>
         <SelectContent>
-          {loading ? (
+          {loadingMetadata ? (
             <SelectItem disabled value="loading">
               Loading...
             </SelectItem>
