@@ -1,25 +1,6 @@
-type GetDraftResults = {
-  status: string;
-  detail: string;
-  data: {
-    round: string;
-    pick_number: string;
-    overall_pick_number: string;
-    reserved_for_keeper: boolean;
-    bid_amount: string;
-    player_id: string;
-    player_full_name: string;
-    position: string;
-    points_scored: number;
-    position_rank: number;
-    drafted_position_rank: number;
-    draft_delta: number;
-    owner_id: string;
-    owner_full_name: string;
-  }[];
-};
+import type { fetchDraftResults } from "@/api/draft_results/types";
 
-type ApiDraftResult = GetDraftResults['data'][number];
+type ApiDraftResult = fetchDraftResults['data'][number];
 
 type DraftResultItem = Omit<ApiDraftResult, 'round' | 'pick_number' | 'overall_pick_number'> & {
   round: number;
@@ -27,4 +8,4 @@ type DraftResultItem = Omit<ApiDraftResult, 'round' | 'pick_number' | 'overall_p
   overall_pick_number: number;
 };
 
-export type { DraftResultItem, GetDraftResults };
+export type { DraftResultItem };

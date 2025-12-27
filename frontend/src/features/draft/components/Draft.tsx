@@ -1,49 +1,55 @@
-import { useEffect, useState } from 'react';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
 import type { LeagueData } from '@/components/types/league_data';
 import DraftBoard from '@/features/draft/components/DraftBoard';
-
-import type { GetDraftResults } from '@/features/draft/types';
 import { SeasonSelect } from '@/components/utils/SeasonSelect';
+import { fetchDraftResults } from '@/api/draft_results/api_calls';
+import { DraftBoardSkeleton } from '@/features/draft/components/DraftPickBoardSkeleton';
+
+function useFetchDraftResults(
+  league_id: string,
+  platform: string,
+  season: string,
+) {
+  return useQuery({
+    queryKey: ['draft_results', league_id, platform, season],
+    queryFn: () => fetchDraftResults(
+      league_id,
+      platform,
+      season,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform && !!season, // only run if input args are available
+  });
+};
 
 function Draft() {
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  if (!leagueData || !leagueData.leagueId || !leagueData.platform) {
-    throw new Error('Invalid league metadata: missing leagueId and/or platform.');
-  }
 
   const [selectedSeason, setSelectedSeason] = useState<string>();
-  const [draftResults, setDraftResults] = useState<GetDraftResults['data']>([]);
+  // const [draftResults, setDraftResults] = useState<GetDraftResults['data']>([]);
 
-  const { refetch: refetchDraftData } = useGetResource<GetDraftResults['data']>(`/draft-results`, {
-    league_id: leagueData.leagueId,
-    platform: leagueData.platform,
-    season: selectedSeason,
-  });
+  const { data: rawDraftData, isLoading: loadingDraftResults } = useFetchDraftResults(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    selectedSeason!,
+  );
 
-  useEffect(() => {
-    const fetchStatus = async () => {
-      if (!selectedSeason) return;
-      try {
-        const response = await refetchDraftData();
-        if (response?.data?.data) {
-          setDraftResults(response.data.data);
-          console.log('Draft Results:', response.data.data);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
+  // Early return if saving league data to local storage fails
+  if (!leagueData) {
+    return (
+      <p>
+        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
+        create a support ticket.
+      </p>
+    );
+  };
 
-    void fetchStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSeason]);
-
-  // Clear draft results when season or week changes to avoid showing stale data
-  useEffect(() => {
-    setDraftResults([]);
-  }, [selectedSeason]);
+  const draftResults = useMemo(() => {
+    if (!rawDraftData?.data) return [];
+    return rawDraftData.data;
+  }, [rawDraftData]);
 
   return (
       <div className="space-y-6 my-6 px-4 md:px-0">
@@ -59,7 +65,11 @@ function Draft() {
       </div>
 
       {/* Draft Board Cards */}
-      <DraftBoard draftResults={draftResults} />
+      {loadingDraftResults ? (
+        <DraftBoardSkeleton />
+      ) : (
+        <DraftBoard draftResults={draftResults} />
+      )}
 
     </div>
     );
