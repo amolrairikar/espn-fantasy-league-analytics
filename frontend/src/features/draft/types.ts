@@ -1,6 +1,6 @@
-import type { fetchDraftResults } from "@/api/draft_results/types";
+import type { GetDraftResults } from "@/api/draft_results/types";
 
-type ApiDraftResult = fetchDraftResults['data'][number];
+type ApiDraftResult = GetDraftResults['data'][number];
 
 type DraftResultItem = Omit<ApiDraftResult, 'round' | 'pick_number' | 'overall_pick_number'> & {
   round: number;
