@@ -57,6 +57,8 @@ type GetSeasonStandings = {
     points_for: string;
     points_against: string;
     points_differential: string;
+    all_play_wins: string;
+    all_play_losses: string;
     playoff_status: string;
     championship_status?: string;
   }[];

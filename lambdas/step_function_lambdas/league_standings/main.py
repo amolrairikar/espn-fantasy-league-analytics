@@ -84,6 +84,26 @@ def compute_standings(
     return group
 
 
+def calculate_weekly_vs_league_standings(group: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate standings vs. entire league for a given week.
+
+    Args:
+        group (pd.DataFrame): A dataframe of weekly scores for a league.
+
+    Returns:
+        pd.DataFrame: The weekly wins/losses for a team vs. the entire league.
+    """
+    # Sort scores for the week to determine rank
+    group = group.sort_values("points_for", ascending=False).reset_index(drop=True)
+    num_teams = len(group)
+    # All-play wins = how many teams you outscored
+    group["ap_wins"] = num_teams - 1 - group.index
+    # All-play losses = how many teams outscored you
+    group["ap_losses"] = group.index
+    return group
+
+
 def compile_aggregate_standings_data(
     matchup_data: list[dict[str, Any]],
     members_data: list[dict[str, Any]],
@@ -300,6 +320,46 @@ def compile_aggregate_standings_data(
     season_standings.fillna("", inplace=True)
     season_standings = season_standings.drop(columns=["owner_id"])
 
+    # Compute records vs. entire league
+    all_play_base = long_df[["season", "week", "team_owner_id", "points_for"]].copy()
+
+    # Group by season and week to calculate record vs the league
+    all_play_weekly = (
+        all_play_base.groupby(["season", "week"])
+        .apply(calculate_weekly_vs_league_standings)
+        .reset_index(drop=True)
+    )
+
+    # Sum up the all-play stats for the season
+    all_play_season = (
+        all_play_weekly.groupby(["season", "team_owner_id"])
+        .agg(all_play_wins=("ap_wins", "sum"), all_play_losses=("ap_losses", "sum"))
+        .reset_index()
+    )
+
+    # Merge with season standings data
+    season_standings = season_standings.merge(
+        all_play_season, on=["season", "team_owner_id"], how="left"
+    )
+    season_standings = season_standings[
+        [
+            "season",
+            "owner_full_name",
+            "team_owner_id",
+            "wins",
+            "losses",
+            "ties",
+            "win_pct",
+            "all_play_wins",
+            "all_play_losses",
+            "points_for_total",
+            "points_against_total",
+            "point_differential",
+            "playoff_status",
+            "championship_status",
+        ]
+    ]
+
     alltime_long = long_df[~long_df["team_owner_id"].isna()].copy()
     alltime_group = compute_standings(
         df=alltime_long, group_cols=["team_owner_id"], member_map=df_unique_members
@@ -480,6 +540,8 @@ def format_dynamodb_item(
             "losses": {"N": str(item["losses"])},
             "ties": {"N": str(item["ties"])},
             "win_pct": {"N": str(item["win_pct"])},
+            "all_play_wins": {"N": str(item["all_play_wins"])},
+            "all_play_losses": {"N": str(item["all_play_losses"])},
             "points_for": {"N": str(item["points_for_total"])},
             "points_against": {"N": str(item["points_against_total"])},
             "points_differential": {"N": str(item["point_differential"])},

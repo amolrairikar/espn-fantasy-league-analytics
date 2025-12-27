@@ -11,4 +11,4 @@ COPY api ./api
 # Install dependencies directly into /app (same as deployment package root)
 RUN pip install -r requirements.txt -t .
 
-RUN zip -r deployment_package.zip . -x "*__pycache__*" "*.pyc"
+RUN zip -r deployment_package.zip . -x "api/deployment_package.zip" "*__pycache__*" "*.pyc"
