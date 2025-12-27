@@ -76,13 +76,13 @@ export function DataTable<TData, TValue>({
                 >
                   {row.getVisibleCells().map((cell, cellIndex) => (
                     <TableCell
-                    key={cell.id}
-                    className={`${
-                      cellIndex === 0
-                        ? 'sticky left-0 z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]'
-                        : ''
-                    } bg-inherit`}
-                  >
+                      key={cell.id}
+                      className={`${
+                        cellIndex === 0
+                          ? 'sticky left-0 z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)] bg-background'
+                          : ''
+                      }`}
+                    >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                   ))}
