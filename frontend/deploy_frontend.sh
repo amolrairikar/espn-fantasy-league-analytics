@@ -12,9 +12,9 @@ source .env
 set +o allexport
 
 if [ "$ENVIRONMENT" == "prod" ]; then
-  S3_BUCKET_NAME=s3://${AWS_ACCOUNT_NUMBER}-fantasy-insights-app-react-site
+  S3_BUCKET_NAME=s3://${AWS_ACCOUNT_NUMBER}-fantasy-recap-react-site
 else
-  S3_BUCKET_NAME=s3://${AWS_ACCOUNT_NUMBER}-fantasy-insights-app-react-site-dev
+  S3_BUCKET_NAME=s3://${AWS_ACCOUNT_NUMBER}-fantasy-recap-react-site-dev
 fi
 
 echo $S3_BUCKET_NAME

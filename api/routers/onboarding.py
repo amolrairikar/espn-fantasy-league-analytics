@@ -94,11 +94,10 @@ def check_onboarding_status(
         logger.info(
             "Checking status for onboarding execution: %s", onboarding_execution_id
         )
-        # TODO: Remove region hardcoding if in future the Step Function is multi-region
         if os.environ["ENVIRONMENT"] == "PROD":
-            execution_arn = f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding:{onboarding_execution_id}"
+            execution_arn = f"arn:aws:states:{os.environ['AWS_REGION']}:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding:{onboarding_execution_id}"
         else:
-            execution_arn = f"arn:aws:states:us-east-2:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding-dev:{onboarding_execution_id}"
+            execution_arn = f"arn:aws:states:{os.environ['AWS_REGION']}:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding-dev:{onboarding_execution_id}"
         response = sfn.describe_execution(
             executionArn=execution_arn,
         )

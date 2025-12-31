@@ -3,7 +3,7 @@
 ###############################################################################
 
 resource "aws_dynamodb_table" "application_table" {
-  name         = var.environment == "prod" ? "fantasy-analytics-app-db" : "fantasy-analytics-app-db-dev"
+  name         = var.environment == "prod" ? "fantasy-recap-app-db" : "fantasy-recap-app-db-dev"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "PK"
   range_key    = "SK"
@@ -120,7 +120,7 @@ data "aws_iam_policy_document" "lambda_assume_role_policy" {
 }
 
 resource "aws_iam_role" "lambda_role" {
-  name               = var.environment == "prod" ? "fantasy_analytics_app_lambda_role" : "fantasy_analytics_app_lambda_role_dev"
+  name               = var.environment == "prod" ? "fantasy_recap_app_lambda_role" : "fantasy_recap_app_lambda_role_dev"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
   tags = {
     Project     = "fantasy-analytics-app"
@@ -169,14 +169,14 @@ data "aws_iam_policy_document" "lambda_policy" {
 
     resources = [
         var.environment == "prod"
-            ? "arn:aws:states:us-east-2:${data.aws_caller_identity.current.account_id}:execution:league-onboarding:*"
-            : "arn:aws:states:us-east-2:${data.aws_caller_identity.current.account_id}:execution:league-onboarding-dev:*"
+            ? "arn:aws:states:us-east-1:${data.aws_caller_identity.current.account_id}:execution:league-onboarding:*"
+            : "arn:aws:states:us-east-1:${data.aws_caller_identity.current.account_id}:execution:league-onboarding-dev:*"
     ]
   }
 }
 
 resource "aws_iam_role_policy" "lambda_role_policy" {
-  name   = var.environment == "prod" ? "fantasy_analytics_app_lambda_access_policy" : "fantasy_analytics_app_lambda_access_policy_dev"
+  name   = var.environment == "prod" ? "fantasy_recap_app_lambda_access_policy" : "fantasy_recap_app_lambda_access_policy_dev"
   role   = aws_iam_role.lambda_role.id
   policy = data.aws_iam_policy_document.lambda_policy.json
 }
@@ -187,8 +187,8 @@ resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
 }
 
 resource "aws_lambda_function" "api_lambda" {
-  function_name                  = var.environment == "prod" ? "fantasy-analytics-api-lambda" : "fantasy-analytics-api-lambda-dev"
-  description                    = "Lambda function containing API for fantasy analytics app"
+  function_name                  = var.environment == "prod" ? "fantasy-recap-api-lambda" : "fantasy-recap-api-lambda-dev"
+  description                    = "Lambda function containing API for fantasy recap app"
   role                           = aws_iam_role.lambda_role.arn
   handler                        = "api.main.handler"
   runtime                        = "python3.13"
@@ -213,8 +213,8 @@ resource "aws_lambda_function" "api_lambda" {
 }
 
 resource "aws_api_gateway_rest_api" "fastapi_api" {
-  name        = var.environment == "prod" ? "fantasy-analytics-app-api" : "fantasy-analytics-app-api-dev"
-  description = "REST API for fantasy analytics app using FastAPI running on Lambda"
+  name        = var.environment == "prod" ? "fantasy-recap-app-api" : "fantasy-recap-app-api-dev"
+  description = "REST API for fantasy recap app using FastAPI running on Lambda"
   endpoint_configuration {
     types = ["REGIONAL"]
   }
@@ -301,15 +301,16 @@ resource "aws_api_gateway_method_response" "proxy_options_response" {
 }
 
 resource "aws_api_gateway_integration_response" "proxy_options_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.proxy_options.http_method
-  status_code = aws_api_gateway_method_response.proxy_options_response.status_code
+  rest_api_id       = aws_api_gateway_rest_api.fastapi_api.id
+  resource_id       = aws_api_gateway_resource.proxy.id
+  http_method       = aws_api_gateway_method.proxy_options.http_method
+  status_code       = aws_api_gateway_method_response.proxy_options_response.status_code
+  selection_pattern = "200"
 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers"     = "'x-api-key,Content-Type'"
     "method.response.header.Access-Control-Allow-Methods"     = "'OPTIONS,GET,POST,PUT,DELETE'"
-    "method.response.header.Access-Control-Allow-Origin"      = "'https://${aws_cloudfront_distribution.react_distribution.domain_name}'"
+    "method.response.header.Access-Control-Allow-Origin"      = "'${var.environment == "prod" ? "https://fantasy-recap.com" : "https://fantasy-recap-dev.com"}'"
     "method.response.header.Access-Control-Allow-Credentials" = "'true'"
   }
 
@@ -374,7 +375,7 @@ resource "aws_api_gateway_api_key" "api_key" {
 }
 
 resource "aws_api_gateway_usage_plan" "usage_plan" {
-  name = var.environment == "prod" ? "fantasy-analytics-app-api-usage-plan" : "fantasy-analytics-app-api-usage-plan-dev"
+  name = var.environment == "prod" ? "fantasy-recap-app-api-usage-plan" : "fantasy-recap-app-api-usage-plan-dev"
 
   api_stages {
     api_id = aws_api_gateway_rest_api.fastapi_api.id
@@ -406,10 +407,10 @@ resource "aws_api_gateway_usage_plan_key" "plan_key" {
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
 
-#   # Add this trigger block to force redeployment
-#   triggers = {
-#     redeploy_forced = timestamp()
-#   }
+  # # Add this trigger block to force redeployment
+  # triggers = {
+  #   redeploy_forced = timestamp()
+  # }
 
   lifecycle {
     create_before_destroy = true
@@ -474,7 +475,7 @@ resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_role_attach" {
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "react_site" {
-  bucket = var.environment == "prod" ? "${data.aws_caller_identity.current.account_id}-fantasy-insights-app-react-site" : "${data.aws_caller_identity.current.account_id}-fantasy-insights-app-react-site-dev"
+  bucket = var.environment == "prod" ? "${data.aws_caller_identity.current.account_id}-fantasy-recap-react-site" : "${data.aws_caller_identity.current.account_id}-fantasy-recap-react-site-dev"
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = upper(var.environment)
@@ -520,7 +521,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "react_site_lifecycle" {
 }
 
 resource "aws_cloudfront_origin_access_control" "oac" {
-  name                              = var.environment == "prod" ? "fantasy-insights-react-app-oac" : "fantasy-insights-react-app-oac-dev"
+  name                              = var.environment == "prod" ? "fantasy-recap-react-app-oac" : "fantasy-recap-react-app-oac-dev"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -559,10 +560,15 @@ resource "aws_cloudfront_distribution" "react_distribution" {
     }
   }
 
+  aliases = [var.environment == "prod" ? "fantasy-recap.com" : "fantasy-recap-dev.com"]
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.cert_validation.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
+  # The custom error responses ensure on page refresh we serve from index.html
   custom_error_response {
     error_code         = 404
     response_code      = 200
@@ -578,7 +584,7 @@ resource "aws_cloudfront_distribution" "react_distribution" {
   tags = {
     Project     = "fantasy-analytics-app"
     Environment = upper(var.environment)
-    Name        = var.environment == "prod" ? "fantasy-insights-app-cloudfront-distribution" : "fantasy-insights-app-cloudfront-distribution-dev"
+    Name        = var.environment == "prod" ? "fantasy-recap-app-cloudfront-distribution" : "fantasy-recap-app-cloudfront-distribution-dev"
   }
 }
 
@@ -602,6 +608,59 @@ resource "aws_s3_bucket_policy" "bucket_policy" {
       }
     ]
   })
+}
+
+resource "aws_route53_record" "cloudfront_alias" {
+  zone_id = data.aws_route53_zone.r53_zone.zone_id
+  name    = var.environment == "prod" ? "fantasy-recap.com" : "fantasy-recap-dev.com"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.react_distribution.domain_name
+    zone_id                = aws_cloudfront_distribution.react_distribution.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_acm_certificate" "cert" {
+  domain_name       = var.environment == "prod" ? "fantasy-recap.com" : "fantasy-recap-dev.com"
+  validation_method = "DNS"
+
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = upper(var.environment)
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+data "aws_route53_zone" "r53_zone" {
+  name         = var.environment == "prod" ? "fantasy-recap.com" : "fantasy-recap-dev.com"
+  private_zone = false
+}
+
+resource "aws_route53_record" "cert_records" {
+  for_each = {
+    for dvo in aws_acm_certificate.cert.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.r53_zone.zone_id
+}
+
+resource "aws_acm_certificate_validation" "cert_validation" {
+  certificate_arn         = aws_acm_certificate.cert.arn
+  validation_record_fqdns = [for record in aws_route53_record.cert_records : record.fqdn]
 }
 
 # ###############################################################################
@@ -835,8 +894,8 @@ resource "aws_lambda_layer_version" "shared_dependencies_layer" {
 }
 
 resource "aws_lambda_function" "league_members_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-members-lambda" : "fantasy-analytics-league-members-lambda-dev"
-  description      = "Lambda function to get league member and teams information for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-members-lambda" : "fantasy-recap-league-members-lambda-dev"
+  description      = "Lambda function to get league member and teams information for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
@@ -857,8 +916,8 @@ resource "aws_lambda_function" "league_members_lambda" {
 }
 
 resource "aws_lambda_function" "league_scores_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-scores-lambda" : "fantasy-analytics-league-scores-lambda-dev"
-  description      = "Lambda function to get league matchup score information for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-scores-lambda" : "fantasy-recap-league-scores-lambda-dev"
+  description      = "Lambda function to get league matchup score information for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
@@ -879,8 +938,8 @@ resource "aws_lambda_function" "league_scores_lambda" {
 }
 
 resource "aws_lambda_function" "league_standings_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-standings-lambda" : "fantasy-analytics-league-standings-lambda-dev"
-  description      = "Lambda function to calculate league standings for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-standings-lambda" : "fantasy-recap-league-standings-lambda-dev"
+  description      = "Lambda function to calculate league standings for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
@@ -901,8 +960,8 @@ resource "aws_lambda_function" "league_standings_lambda" {
 }
 
 resource "aws_lambda_function" "league_weekly_standings_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-weekly-standings-lambda" : "fantasy-analytics-league-weekly-standings-lambda-dev"
-  description      = "Lambda function to calculate league weekly standings snapshot for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-weekly-standings-lambda" : "fantasy-recap-league-weekly-standings-lambda-dev"
+  description      = "Lambda function to calculate league weekly standings snapshot for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
@@ -923,8 +982,8 @@ resource "aws_lambda_function" "league_weekly_standings_lambda" {
 }
 
 resource "aws_lambda_function" "league_records_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-records-lambda" : "fantasy-analytics-league-records-lambda-dev"
-  description      = "Lambda function to calculate league records for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-records-lambda" : "fantasy-recap-league-records-lambda-dev"
+  description      = "Lambda function to calculate league records for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
@@ -945,8 +1004,8 @@ resource "aws_lambda_function" "league_records_lambda" {
 }
 
 resource "aws_lambda_function" "league_draft_picks_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-analytics-league-draft-picks-lambda" : "fantasy-analytics-league-draft-picks-lambda-dev"
-  description      = "Lambda function to get league draft picks for fantasy analytics app"
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-draft-picks-lambda" : "fantasy-recap-league-draft-picks-lambda-dev"
+  description      = "Lambda function to get league draft picks for fantasy recap app"
   role             = aws_iam_role.lambda_role.arn
   handler          = "main.lambda_handler"
   runtime          = "python3.13"
