@@ -29,13 +29,3 @@ docker rm temp-step-fn-lambda-packager
 
 # Remove the copied Dockerfile
 rm Dockerfile
-
-# Run Terraform plan and apply to deploy new Lambda package
-if [ "$ENVIRONMENT" == "prod" ]; then
-  cd ../../../infra/aws/prod
-else
-  cd ../../../infra/aws/dev
-fi
-
-terraform plan -out=terraform.tfplan
-terraform apply terraform.tfplan

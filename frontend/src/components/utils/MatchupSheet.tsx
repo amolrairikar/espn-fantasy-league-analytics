@@ -22,8 +22,8 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
     }, {});
   };
 
-  const teamAGrouped = groupPlayersByPosition(matchup.team_a_players || []);
-  const teamBGrouped = groupPlayersByPosition(matchup.team_b_players || []);
+  const teamAGrouped = groupPlayersByPosition(matchup.team_a_starting_players || []);
+  const teamBGrouped = groupPlayersByPosition(matchup.team_b_starting_players || []);
 
   return (
     <Sheet open={open} onOpenChange={(val) => !val && onClose()}>

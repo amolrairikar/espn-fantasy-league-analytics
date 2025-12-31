@@ -59,11 +59,11 @@ def compile_all_time_records(
             "team_a_owner_id",
             "team_a_owner_full_name",
             "team_a_score",
-            "team_a_players",
+            "team_a_starting_players",
             "team_b_owner_id",
             "team_b_owner_full_name",
             "team_b_score",
-            "team_b_players",
+            "team_b_starting_players",
         ]
     ]
     df_scores = pd.melt(
@@ -105,7 +105,7 @@ def compile_all_time_records(
         for team_prefix in ["team_a", "team_b"]:
             owner_name = matchup.get(f"{team_prefix}_owner_full_name")
             owner_id = matchup.get(f"{team_prefix}_owner_id")
-            players = matchup.get(f"{team_prefix}_players", [])
+            players = matchup.get(f"{team_prefix}_starting_players", [])
             if not owner_name or not owner_id or not players:
                 continue
             for p in players:
