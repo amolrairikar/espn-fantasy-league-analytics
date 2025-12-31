@@ -9,7 +9,7 @@ import type {
 // Fetch league metadata
 export async function getLeagueMetadata(leagueId: string, platform: string): Promise<GetLeagueMetadata> {
   const response = await apiClient.get<GetLeagueMetadata>(`/leagues/${leagueId}`, {
-    params: { league_id: leagueId, platform: platform },
+    params: { platform: platform },
   });
   return response.data;
 }

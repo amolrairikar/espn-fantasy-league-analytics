@@ -11,7 +11,13 @@ type GetMatchups = {
     team_a_owner_id: string;
     team_a_team_name: string;
     team_a_score: number;
-    team_a_players: {
+    team_a_starting_players: {
+      player_id: string;
+      full_name: string;
+      position: string;
+      points_scored: number;
+    }[];
+    team_a_bench_players: {
       player_id: string;
       full_name: string;
       position: string;
@@ -22,7 +28,13 @@ type GetMatchups = {
     team_b_owner_id: string;
     team_b_team_name: string;
     team_b_score: number;
-    team_b_players: {
+    team_b_starting_players: {
+      player_id: string;
+      full_name: string;
+      position: string;
+      points_scored: number;
+    }[];
+    team_b_bench_players: {
       player_id: string;
       full_name: string;
       position: string;

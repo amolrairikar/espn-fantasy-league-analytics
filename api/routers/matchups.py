@@ -32,6 +32,7 @@ def filter_dynamo_db_response(
     Returns:
         list[dict[str, Any]]: The filtered list of items.
     """
+    items = []
     if playoff_filter == "include":
         items = [
             {

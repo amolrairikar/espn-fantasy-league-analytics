@@ -202,11 +202,19 @@ def process_league_scores(
         away_team = matchup.get("away", {}).get("teamId", "")
         away_score = matchup.get("away", {}).get("totalPoints", "0.00")
         week = matchup.get("matchupPeriodId", "")
-        players_home = matchup.get("home", {}).get("rosterForMatchupPeriod", {})
-        players_home_stats: list[dict[str, Any]] = []
-        players_away = matchup.get("away", {}).get("rosterForMatchupPeriod", {})
-        players_away_stats: list[dict[str, Any]] = []
-        for player in players_home.get("entries", []):
+
+        # Get starting players and their stats
+        starting_players_home = matchup.get("home", {}).get(
+            "rosterForMatchupPeriod", {}
+        )
+        starting_players_home_stats: list[dict[str, Any]] = []
+        starting_players_home_ids: list[str] = []
+        starting_players_away = matchup.get("away", {}).get(
+            "rosterForMatchupPeriod", {}
+        )
+        starting_players_away_stats: list[dict[str, Any]] = []
+        starting_players_away_ids: list[str] = []
+        for player in starting_players_home.get("entries", []):
             player_stats = {}
             player_stats["player_id"] = player["playerId"]
             player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
@@ -216,8 +224,9 @@ def process_league_scores(
             player_stats["position"] = POSITION_ID_MAPPING[
                 player["playerPoolEntry"]["player"]["defaultPositionId"]
             ]
-            players_home_stats.append(player_stats)
-        for player in players_away.get("entries", []):
+            starting_players_home_stats.append(player_stats)
+            starting_players_home_ids.append(player["playerId"])
+        for player in starting_players_away.get("entries", []):
             player_stats = {}
             player_stats["player_id"] = player["playerId"]
             player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
@@ -227,7 +236,43 @@ def process_league_scores(
             player_stats["position"] = POSITION_ID_MAPPING[
                 player["playerPoolEntry"]["player"]["defaultPositionId"]
             ]
-            players_away_stats.append(player_stats)
+            starting_players_away_stats.append(player_stats)
+            starting_players_away_ids.append(player["playerId"])
+
+        # Get bench players and their stats
+        bench_players_home = matchup.get("home", {}).get(
+            "rosterForCurrentScoringPeriod", {}
+        )
+        bench_players_home_stats: list[dict[str, Any]] = []
+        bench_players_away = matchup.get("away", {}).get(
+            "rosterForCurrentScoringPeriod", {}
+        )
+        bench_players_away_stats: list[dict[str, Any]] = []
+        for player in bench_players_home.get("entries", []):
+            player_id = player["playerId"]
+            if player_id in starting_players_home_ids:
+                continue
+            player_stats = {}
+            player_stats["player_id"] = player_id
+            player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
+            player_stats["points_scored"] = player["playerPoolEntry"][
+                "appliedStatTotal"
+            ]
+            player_stats["position"] = POSITION_ID_MAPPING[
+                player["playerPoolEntry"]["player"]["defaultPositionId"]
+            ]
+            bench_players_home_stats.append(player_stats)
+        for player in bench_players_away.get("entries", []):
+            player_stats = {}
+            player_stats["player_id"] = player["playerId"]
+            player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
+            player_stats["points_scored"] = player["playerPoolEntry"][
+                "appliedStatTotal"
+            ]
+            player_stats["position"] = POSITION_ID_MAPPING[
+                player["playerPoolEntry"]["player"]["defaultPositionId"]
+            ]
+            bench_players_away_stats.append(player_stats)
 
         # Skip matchups where both teams scored 0 (these are future weeks)
         if float(home_score) == 0.0 and float(away_score) == 0.0:
@@ -243,14 +288,18 @@ def process_league_scores(
         team_a, team_b = sorted([home_team, away_team], key=safe_int)
         if team_a == home_team:
             team_a_score = home_score
-            team_a_players = players_home_stats
+            team_a_starting_players = starting_players_home_stats
+            team_a_bench_players = bench_players_home_stats
             team_b_score = away_score
-            team_b_players = players_away_stats
+            team_b_starting_players = starting_players_away_stats
+            team_b_bench_players = bench_players_away_stats
         else:
             team_a_score = away_score
-            team_a_players = players_away_stats
+            team_a_starting_players = starting_players_away_stats
+            team_a_bench_players = bench_players_away_stats
             team_b_score = home_score
-            team_b_players = players_home_stats
+            team_b_starting_players = starting_players_home_stats
+            team_b_bench_players = bench_players_home_stats
 
         # Determine winner in terms of team_a/team_b
         if float(team_a_score) > float(team_b_score):
@@ -268,8 +317,10 @@ def process_league_scores(
             "team_b": str(team_b),
             "team_a_score": team_a_score,
             "team_b_score": team_b_score,
-            "team_a_players": team_a_players,
-            "team_b_players": team_b_players,
+            "team_a_starting_players": team_a_starting_players,
+            "team_a_bench_players": team_a_bench_players,
+            "team_b_starting_players": team_b_starting_players,
+            "team_b_bench_players": team_b_bench_players,
             "playoff_tier_type": matchup.get("playoffTierType", ""),
             "winner": winner,
             "loser": loser,
@@ -507,7 +558,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_a_players": {
+                                "team_a_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -532,7 +583,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_a_players"]
+                                        for player in item["team_a_starting_players"]
+                                    ]
+                                },
+                                "team_a_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_a_bench_players"]
                                     ]
                                 },
                                 "team_b_id": {"S": str(item["team_b"])},
@@ -550,7 +629,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_b_players": {
+                                "team_b_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -575,7 +654,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_b_players"]
+                                        for player in item["team_b_starting_players"]
+                                    ]
+                                },
+                                "team_b_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_b_bench_players"]
                                     ]
                                 },
                             }
@@ -619,7 +726,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_a_players": {
+                                "team_a_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -644,7 +751,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_a_players"]
+                                        for player in item["team_a_starting_players"]
+                                    ]
+                                },
+                                "team_a_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_a_bench_players"]
                                     ]
                                 },
                                 "team_b_id": {"S": str(item["team_b"])},
@@ -662,7 +797,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_b_players": {
+                                "team_b_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -687,7 +822,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_b_players"]
+                                        for player in item["team_b_starting_players"]
+                                    ]
+                                },
+                                "team_b_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_b_bench_players"]
                                     ]
                                 },
                             }
@@ -730,7 +893,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_a_players": {
+                                "team_a_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -755,7 +918,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_a_players"]
+                                        for player in item["team_a_starting_players"]
+                                    ]
+                                },
+                                "team_a_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_a_bench_players"]
                                     ]
                                 },
                                 "team_b_id": {"S": str(item["team_b"])},
@@ -773,7 +964,7 @@ def lambda_handler(event, context):
                                         )
                                     ),
                                 },
-                                "team_b_players": {
+                                "team_b_starting_players": {
                                     "L": [
                                         {
                                             "M": {
@@ -798,7 +989,35 @@ def lambda_handler(event, context):
                                                 },
                                             }
                                         }
-                                        for player in item["team_b_players"]
+                                        for player in item["team_b_starting_players"]
+                                    ]
+                                },
+                                "team_b_bench_players": {
+                                    "L": [
+                                        {
+                                            "M": {
+                                                "player_id": {
+                                                    "S": str(player["player_id"])
+                                                },
+                                                "full_name": {
+                                                    "S": str(player["full_name"])
+                                                },
+                                                "points_scored": {
+                                                    "N": str(
+                                                        Decimal(
+                                                            player["points_scored"]
+                                                        ).quantize(
+                                                            Decimal("0.01"),
+                                                            rounding=ROUND_HALF_UP,
+                                                        )
+                                                    )
+                                                },
+                                                "position": {
+                                                    "S": str(player["position"])
+                                                },
+                                            }
+                                        }
+                                        for player in item["team_b_bench_players"]
                                     ]
                                 },
                             }
