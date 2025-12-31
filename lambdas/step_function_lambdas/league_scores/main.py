@@ -263,8 +263,11 @@ def process_league_scores(
             ]
             bench_players_home_stats.append(player_stats)
         for player in bench_players_away.get("entries", []):
+            player_id = player["playerId"]
+            if player_id in starting_players_away_ids:
+                continue
             player_stats = {}
-            player_stats["player_id"] = player["playerId"]
+            player_stats["player_id"] = player_id
             player_stats["full_name"] = player["playerPoolEntry"]["player"]["fullName"]
             player_stats["points_scored"] = player["playerPoolEntry"][
                 "appliedStatTotal"
