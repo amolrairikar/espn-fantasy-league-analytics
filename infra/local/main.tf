@@ -8,14 +8,14 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-2"
+  region = "us-east-1"
 }
 
 data "aws_caller_identity" "current" {}
 
 # S3 bucket to hold state for rest of project
 resource "aws_s3_bucket" "state_bucket" {
-  bucket = "${data.aws_caller_identity.current.account_id}-fantasy-analytics-app-terraform-state-bucket"
+  bucket = "${data.aws_caller_identity.current.account_id}-fantasy-recap-terraform-state-bucket"
 
   tags = {
     Project     = "fantasy-analytics-app"

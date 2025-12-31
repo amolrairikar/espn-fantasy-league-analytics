@@ -18,9 +18,9 @@ from api.routers import (
 )
 
 ORIGINS = [
-    "http://localhost:5173",
-    "https://d18dihad3pqxuq.cloudfront.net",
-    "https://d1rvfoubbo8sgf.cloudfront.net",
+    "http://localhost:5173",  # LOCAL
+    "https://fantasy-recap-dev.com",  # DEV
+    "https://fantasy-recap.com",  # PROD
 ]
 
 app = FastAPI()

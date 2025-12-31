@@ -13,7 +13,7 @@ router = APIRouter(
     dependencies=[Depends(get_api_key)],
 )
 
-dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 table = dynamodb.Table(table_name)
 
 
