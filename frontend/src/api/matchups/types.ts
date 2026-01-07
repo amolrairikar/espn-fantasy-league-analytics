@@ -23,6 +23,7 @@ type GetMatchups = {
       position: string;
       points_scored: number;
     }[];
+    team_a_efficiency: number;
     team_b_id: string;
     team_b_owner_full_name: string;
     team_b_owner_id: string;
@@ -40,6 +41,7 @@ type GetMatchups = {
       position: string;
       points_scored: number;
     }[];
+    team_b_efficiency: number;
   }[];
 };
 

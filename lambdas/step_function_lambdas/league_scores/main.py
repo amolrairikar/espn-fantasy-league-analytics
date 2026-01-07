@@ -17,7 +17,7 @@ from common_utils.retryable_request_session import create_retry_session
 
 session = create_retry_session()
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 POSITION_ID_MAPPING = {
     1: "QB",
     2: "RB",
@@ -25,6 +25,24 @@ POSITION_ID_MAPPING = {
     4: "TE",
     5: "K",
     16: "D/ST",
+}
+POSITION_LINEUP_SPOT_MAPPING = {
+    0: ["QB"],
+    2: ["RB"],
+    4: ["WR"],
+    6: ["TE"],
+    16: ["D/ST"],
+    17: ["K"],
+    23: ["RB", "WR", "TE"],  # Assumes position ID 23 is regular FLEX
+}
+POSITION_LINEUP_SPOT_NAMES = {
+    0: "QB",
+    2: "RB",
+    4: "WR",
+    6: "TE",
+    16: "D/ST",
+    17: "K",
+    23: "FLEX",
 }
 
 
@@ -164,6 +182,76 @@ def get_league_scores(
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
 
+def get_league_lineup_settings(
+    league_id: str,
+    platform: str,
+    season: str,
+    swid_cookie: Optional[str],
+    espn_s2_cookie: Optional[str],
+) -> dict[str, int]:
+    """
+    Fetch league lineup settings for a fantasy football league in a given season.
+
+    Args:
+        league_id (str): The unique ID of the fantasy football league.
+        platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        season (str): The NFL season to get data for.
+        swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
+        espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
+
+    Returns:
+        dict: A mapping of position ID to number of starting spots.
+
+    Raises:
+        ValueError: If unsupported platform is specified, or if a required ESPN cookie is missing.
+        requests.RequestException: If an error occurs while making API request.
+        Exception: If uncaught exception occurs.
+    """
+    if platform == "ESPN":
+        if not swid_cookie or not espn_s2_cookie:
+            raise ValueError("Missing required SWID and/or ESPN S2 cookies")
+        settings: dict[str, int] = {}
+        try:
+            base_params = [
+                ("view", "mSettings"),
+                ("view", "mTeam"),
+            ]
+            if int(season) >= 2018:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+                params = [*base_params]
+            else:
+                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
+                params = [("seasonId", season), *base_params]
+            logger.info("Making request for league settings info to URL: %s", url)
+            response = session.get(
+                url=url,
+                params=params,
+                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
+            )
+            response.raise_for_status()
+            logger.info("Successfully got league settings info")
+            if int(season) >= 2018:
+                settings = (
+                    response.json()
+                    .get("settings", {})
+                    .get("rosterSettings", {})
+                    .get("lineupSlotCounts", {})
+                )
+            else:
+                settings = (
+                    response.json()[0]
+                    .get("settings", {})
+                    .get("rosterSettings", {})
+                    .get("lineupSlotCounts", {})
+                )
+        except requests.RequestException:
+            logger.exception("Request error while fetching league settings.")
+            raise
+        return settings
+    else:
+        raise ValueError("Unsupported platform. Only ESPN is currently supported.")
+
+
 def safe_int(team_id: str) -> int:
     """
     Convert team_id to int if possible, else use a very large int.
@@ -180,8 +268,80 @@ def safe_int(team_id: str) -> int:
         return 10**12
 
 
+def calculate_lineup_efficiency(
+    lineup_limits: dict[str, int],
+    starting_players: list[dict[str, Any]],
+    bench_players: list[dict[str, Any]],
+    team_score: float,
+) -> float:
+    """
+    Calculates lineup efficiency for a given team in a matchup by comparing starting lineup points
+    to the optimal starting lineup.
+
+    Args:
+        lineup_limits (dict[str, int]): Mapping of position ID to number of starting spots.
+        starting_players (list[dict[str, Any]]): List of starting players with their stats.
+        bench_players (list[dict[str, Any]]): List of bench players with their stats.
+        team_score (float): Total points scored by the team in the matchup.
+
+    Returns:
+        float: The lineup efficiency as a ratio of actual score to optimal score.
+    """
+    all_players = starting_players + bench_players
+    if not all_players:
+        return 1.0
+    optimal_score: float = 0.0
+
+    # Filter lineup spots to only those with non-zero limits
+    lineup_limits = {k: v for k, v in lineup_limits.items() if v > 0}
+
+    # Sort the lineup spots so slots with fewer eligible positions are filled first
+    sorted_lineup_spots = sorted(
+        lineup_limits.items(),
+        key=lambda x: len(POSITION_LINEUP_SPOT_MAPPING.get(int(x[0]), [])),
+    )
+
+    for lineup_spot, num_spots in sorted_lineup_spots:
+        if int(lineup_spot) not in POSITION_LINEUP_SPOT_MAPPING:
+            continue
+        valid_positions = POSITION_LINEUP_SPOT_MAPPING.get(int(lineup_spot), [])
+
+        for _ in range(num_spots):
+            # Re-filter and re-sort inside the loop to get the current best available
+            eligible_players = [
+                p for p in all_players if p["position"] in valid_positions
+            ]
+
+            if not eligible_players:
+                break
+            logger.info(
+                "Eligible players for lineup spot %s: %s",
+                POSITION_LINEUP_SPOT_NAMES[int(lineup_spot)],
+                eligible_players,
+            )
+
+            # Get the highest scorer among eligible remaining players
+            best_player = max(
+                eligible_players, key=lambda x: float(x.get("points_scored", 0))
+            )
+            logger.info(
+                "Selected player %s with score %s for lineup spot %s",
+                best_player["full_name"],
+                float(best_player.get("points_scored", 0)),
+                POSITION_LINEUP_SPOT_NAMES[int(lineup_spot)],
+            )
+
+            optimal_score += float(best_player.get("points_scored", 0))
+            all_players.remove(best_player)  # Mark as used
+
+    return team_score / round(optimal_score, 2)
+
+
 def process_league_scores(
-    matchups: list[dict[str, Any]], members: list[dict[str, Any]]
+    matchups: list[dict[str, Any]],
+    members: list[dict[str, Any]],
+    lineup_limits_data: dict[str, int],
+    season: str,
 ) -> list:
     """
     Extracts relevant fields from fantasy matchup scores.
@@ -191,6 +351,8 @@ def process_league_scores(
             for the league that season.
         members (list[dict[str, Any]]): Raw list of dictionaries with all members for
             the league that season.
+        lineup_limits_data (dict[str, int]): Mapping of position ID to number of starting spots.
+        season (str): The fantasy football season that matchups occurred in.
 
     Returns:
         list: Processed dictionary with relevant data from fantasy matchup scores.
@@ -315,6 +477,24 @@ def process_league_scores(
             winner = "TIE"
             loser = "TIE"
 
+        # Calculate lineup efficiency for both teams
+        if int(season) >= 2018:
+            team_a_lineup_efficiency = calculate_lineup_efficiency(
+                lineup_limits=lineup_limits_data,
+                starting_players=team_a_starting_players,
+                bench_players=team_a_bench_players,
+                team_score=float(team_a_score),
+            )
+            team_b_lineup_efficiency = calculate_lineup_efficiency(
+                lineup_limits=lineup_limits_data,
+                starting_players=team_b_starting_players,
+                bench_players=team_b_bench_players,
+                team_score=float(team_b_score),
+            )
+        else:
+            team_a_lineup_efficiency = 1.0
+            team_b_lineup_efficiency = 1.0
+
         matchup_result = {
             "team_a": str(team_a),
             "team_b": str(team_b),
@@ -322,8 +502,10 @@ def process_league_scores(
             "team_b_score": team_b_score,
             "team_a_starting_players": team_a_starting_players,
             "team_a_bench_players": team_a_bench_players,
+            "team_a_efficiency": team_a_lineup_efficiency,
             "team_b_starting_players": team_b_starting_players,
             "team_b_bench_players": team_b_bench_players,
+            "team_b_efficiency": team_b_lineup_efficiency,
             "playoff_tier_type": matchup.get("playoffTierType", ""),
             "winner": winner,
             "loser": loser,
@@ -501,7 +683,19 @@ def lambda_handler(event, context):
         raise ValueError("'matchups' list must not be empty.")
 
     logger.info("Processing raw matchup data")
-    scores_data = process_league_scores(matchups=matchups, members=members)
+    lineup_limits_data = get_league_lineup_settings(
+        league_id=league_id,
+        platform=platform,
+        season=season,
+        swid_cookie=swid_cookie,
+        espn_s2_cookie=espn_s2_cookie,
+    )
+    scores_data = process_league_scores(
+        matchups=matchups,
+        members=members,
+        lineup_limits_data=lineup_limits_data,
+        season=season,
+    )
     playoff_teams, league_champion = get_playoff_status(
         matchups=matchups, season=season
     )
@@ -617,6 +811,13 @@ def lambda_handler(event, context):
                                         for player in item["team_a_bench_players"]
                                     ]
                                 },
+                                "team_a_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_a_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
+                                },
                                 "team_b_id": {"S": str(item["team_b"])},
                                 "team_b_owner_full_name": {
                                     "S": str(item["team_b_full_name"])
@@ -687,6 +888,13 @@ def lambda_handler(event, context):
                                         }
                                         for player in item["team_b_bench_players"]
                                     ]
+                                },
+                                "team_b_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_b_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
                                 },
                             }
                         }
@@ -785,6 +993,13 @@ def lambda_handler(event, context):
                                         for player in item["team_a_bench_players"]
                                     ]
                                 },
+                                "team_a_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_a_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
+                                },
                                 "team_b_id": {"S": str(item["team_b"])},
                                 "team_b_owner_full_name": {
                                     "S": str(item["team_b_full_name"])
@@ -855,6 +1070,13 @@ def lambda_handler(event, context):
                                         }
                                         for player in item["team_b_bench_players"]
                                     ]
+                                },
+                                "team_b_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_b_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
                                 },
                             }
                         }
@@ -952,6 +1174,13 @@ def lambda_handler(event, context):
                                         for player in item["team_a_bench_players"]
                                     ]
                                 },
+                                "team_a_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_a_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
+                                },
                                 "team_b_id": {"S": str(item["team_b"])},
                                 "team_b_owner_full_name": {
                                     "S": str(item["team_b_full_name"])
@@ -1022,6 +1251,13 @@ def lambda_handler(event, context):
                                         }
                                         for player in item["team_b_bench_players"]
                                     ]
+                                },
+                                "team_b_efficiency": {
+                                    "N": str(
+                                        Decimal(item["team_b_efficiency"]).quantize(
+                                            Decimal("0.0001"), rounding=ROUND_HALF_UP
+                                        )
+                                    ),
                                 },
                             }
                         }
