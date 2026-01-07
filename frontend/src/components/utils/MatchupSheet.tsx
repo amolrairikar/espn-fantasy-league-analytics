@@ -39,6 +39,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                 <span className="line-clamp-2 wrap-break-word">{matchup.team_a_team_name}</span>
               </div>
               <div className="text-2xl mt-1">{matchup.team_a_score}</div>
+              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.team_a_efficiency*100).toFixed(2)}%</div>
             </div>
 
             {/* Team B */}
@@ -47,6 +48,7 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
                 <span className="line-clamp-2 wrap-break-word">{matchup.team_b_team_name}</span>
               </div>
               <div className="text-2xl mt-1">{matchup.team_b_score}</div>
+              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.team_b_efficiency*100).toFixed(2)}%</div>
             </div>
           </div>
 
