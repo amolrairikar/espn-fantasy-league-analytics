@@ -594,7 +594,7 @@ def format_dynamodb_item(
 
 
 def lambda_handler(event, context):
-    """Lambda handler function to get league members and teams."""
+    """Lambda handler function to get league standings."""
     logger.info("Received event: %s", event)
 
     league_id = event[0][0]["leagueId"]

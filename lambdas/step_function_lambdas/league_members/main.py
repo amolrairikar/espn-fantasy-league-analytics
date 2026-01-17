@@ -4,22 +4,21 @@ import os
 from typing import Optional
 
 import pandas as pd
-import requests
 
 from common_utils.batch_write_dynamodb import batch_write_to_dynamodb
+from common_utils.espn_api_request import make_espn_api_request
 from common_utils.logging_config import logger
-from common_utils.retryable_request_session import create_retry_session
 
-session = create_retry_session()
-DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 
 
 def get_league_members_and_teams(
     league_id: str,
     platform: str,
+    privacy: str,
     season: str,
-    swid_cookie: Optional[str],
-    espn_s2_cookie: Optional[str],
+    swid_cookie: Optional[str] = None,
+    espn_s2_cookie: Optional[str] = None,
 ) -> tuple[list, list]:
     """
     Fetch league members for a fantasy football league in a given season.
@@ -27,6 +26,7 @@ def get_league_members_and_teams(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -36,57 +36,33 @@ def get_league_members_and_teams(
 
     Raises:
         ValueError: If unsupported platform is specified, or if a required ESPN cookie is missing.
-        requests.RequestException: If an error occurs while making API request.
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if not swid_cookie or not espn_s2_cookie:
+        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
-        try:
-            params = {
-                "view": "mTeam",
-            }
-            if int(season) >= 2018:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-            else:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                params["seasonId"] = season
 
-            # League members
-            logger.info("Making request for league member info to URL: %s", url)
-            members_response = session.get(
-                url=url,
-                params=params,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-            )
-            members_response.raise_for_status()
-            logger.info("Successfully got league member info")
-            if int(season) >= 2018:
-                members = members_response.json().get("members", [])
-            else:
-                members = members_response.json()[0].get("members", [])
-            logger.info("Found %d members in league", len(members))
+        # Send appropriate query params based on the season
+        params = {
+            "view": "mTeam",
+        }
+        if int(season) < 2018:
+            params["seasonId"] = season
 
-            # League teams
-            logger.info("Making request for league team info to URL: %s", url)
-            teams_response = session.get(
-                url=url,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-            )
-            teams_response.raise_for_status()
-            logger.info("Successfully got league teams info")
-            if int(season) >= 2018:
-                teams = members_response.json().get("teams", [])
-            else:
-                teams = members_response.json()[0].get("teams", [])
-            logger.info("Found %d teams in league", len(teams))
-            return members, teams
-        except requests.RequestException:
-            logger.exception("Request error while fetching league members or teams.")
-            raise
-        except Exception:
-            logger.exception("Unexpected error while fetching league members or teams.")
-            raise
+        response = make_espn_api_request(
+            season=int(season),
+            league_id=league_id,
+            params=params,
+            swid_cookie=swid_cookie,
+            espn_s2_cookie=espn_s2_cookie,
+        )
+        logger.info("Successfully got league member and team info")
+
+        # Extract members and teams from response
+        members = response.get("members", [])
+        teams = response.get("teams", [])
+        logger.info("Found %d members and %d teams in league", len(members), len(teams))
+        return members, teams
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
@@ -146,6 +122,7 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", event)
     league_id = event["leagueId"]
     platform = event["platform"]
+    privacy = event["privacy"]
     swid_cookie = event["swidCookie"]
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
@@ -153,6 +130,7 @@ def lambda_handler(event, context):
     members, teams = get_league_members_and_teams(
         league_id=league_id,
         platform=platform,
+        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,

@@ -21,6 +21,9 @@ def fetch_league_data(table_name: str, pk: str, sk_prefix: str) -> list[dict[str
 
     Returns:
         list[dict[str, Any]]: A list of dictionary mappings containing the fetched data.
+
+    Raises:
+        botocore.exceptions.ClientError: If a boto3 error occurs while querying DynamoDB.
     """
     try:
         dynamodb = boto3.client("dynamodb")

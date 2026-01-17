@@ -20,6 +20,10 @@ def batch_write_to_dynamodb(
     Args:
         batched_objects (list): List of items to write to DynamoDB.
         table_name (str): The name of the DynamoDB table.
+
+    Raises:
+        botocore.exceptions.ClientError: If a boto3 error occurs while writing to DynamoDB
+        RuntimeError: If maximum retries are exceeded for unprocessed items.
     """
     dynamodb = boto3.client("dynamodb")
     try:
