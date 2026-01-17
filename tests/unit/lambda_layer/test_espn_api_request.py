@@ -3,17 +3,10 @@ from unittest.mock import patch, MagicMock
 
 import requests
 
-# We need to import the base package prior to patching sys.modules to avoid an AttributeError
-import lambda_layer.common_utils  # noqa: F401
-
-with patch.dict("sys.modules", {"common_utils.logging_config": MagicMock()}):
-    with patch.dict(
-        "sys.modules", {"common_utils.retryable_request_session": MagicMock()}
-    ):
-        from lambda_layer.common_utils.espn_api_request import (
-            get_base_api_url,
-            make_espn_api_request,
-        )
+from lambda_layer.common_utils.espn_api_request import (
+    get_base_api_url,
+    make_espn_api_request,
+)
 
 
 class TestGetBaseUrl(unittest.TestCase):
