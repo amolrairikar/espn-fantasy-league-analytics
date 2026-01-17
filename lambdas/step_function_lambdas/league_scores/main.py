@@ -9,13 +9,10 @@ import botocore.exceptions
 import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
 
-import requests
-
 from common_utils.batch_write_dynamodb import batch_write_to_dynamodb
+from common_utils.espn_api_request import make_espn_api_request
 from common_utils.logging_config import logger
-from common_utils.retryable_request_session import create_retry_session
 
-session = create_retry_session()
 deserializer = TypeDeserializer()
 DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 POSITION_ID_MAPPING = {
@@ -106,6 +103,7 @@ def create_team_id_member_id_mapping(
 def get_league_scores(
     league_id: str,
     platform: str,
+    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -116,6 +114,7 @@ def get_league_scores(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -129,54 +128,39 @@ def get_league_scores(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if not swid_cookie or not espn_s2_cookie:
+        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         weeks = range(1, 18, 1) if int(season) < 2021 else range(1, 19, 1)
         scores: list[dict[str, Any]] = []
         for week in weeks:
-            try:
-                base_params = [
-                    ("scoringPeriodId", str(week)),
-                    ("view", "mBoxscore"),
-                    ("view", "mMatchupScore"),
-                ]
-                if int(season) >= 2018:
-                    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-                    params = [*base_params]
-                else:
-                    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                    params = [("seasonId", season), *base_params]
-                logger.info("Making request for league scores info to URL: %s", url)
-                response = session.get(
-                    url=url,
-                    params=params,
-                    cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-                )
-                response.raise_for_status()
-                logger.info("Successfully got league score info")
-                if int(season) >= 2018:
-                    weekly_scores = response.json().get("schedule", [])
-                    filtered_weekly_scores = [
-                        d for d in weekly_scores if d.get("matchupPeriodId") == week
-                    ]
-                else:
-                    weekly_scores = response.json()[0].get("schedule", [])
-                    filtered_weekly_scores = [
-                        d for d in weekly_scores if d.get("matchupPeriodId") == week
-                    ]
-                logger.info(
-                    "Found %d matchups in league for %s season week %s",
-                    len(filtered_weekly_scores),
-                    season,
-                    week,
-                )
-                scores.extend(filtered_weekly_scores)
-            except requests.RequestException:
-                logger.exception("Request error while fetching league scores.")
-                raise
-            except Exception:
-                logger.exception("Unexpected error while fetching league scores.")
-                raise
+            base_params = [
+                ("scoringPeriodId", str(week)),
+                ("view", "mBoxscore"),
+                ("view", "mMatchupScore"),
+            ]
+            if int(season) >= 2018:
+                params = [*base_params]
+            else:
+                params = [("seasonId", season), *base_params]
+            response = make_espn_api_request(
+                season=int(season),
+                league_id=league_id,
+                params=params,
+                swid_cookie=swid_cookie,
+                espn_s2_cookie=espn_s2_cookie,
+            )
+            logger.info("Successfully got league score info")
+            weekly_scores = response.get("schedule", [])
+            filtered_weekly_scores = [
+                d for d in weekly_scores if d.get("matchupPeriodId") == week
+            ]
+            logger.info(
+                "Found %d matchups in league for %s season week %s",
+                len(filtered_weekly_scores),
+                season,
+                week,
+            )
+            scores.extend(filtered_weekly_scores)
         return scores
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
@@ -185,6 +169,7 @@ def get_league_scores(
 def get_league_lineup_settings(
     league_id: str,
     platform: str,
+    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -195,6 +180,7 @@ def get_league_lineup_settings(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -208,45 +194,30 @@ def get_league_lineup_settings(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if not swid_cookie or not espn_s2_cookie:
+        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         settings: dict[str, int] = {}
-        try:
-            base_params = [
-                ("view", "mSettings"),
-                ("view", "mTeam"),
-            ]
-            if int(season) >= 2018:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-                params = [*base_params]
-            else:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                params = [("seasonId", season), *base_params]
-            logger.info("Making request for league settings info to URL: %s", url)
-            response = session.get(
-                url=url,
-                params=params,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-            )
-            response.raise_for_status()
-            logger.info("Successfully got league settings info")
-            if int(season) >= 2018:
-                settings = (
-                    response.json()
-                    .get("settings", {})
-                    .get("rosterSettings", {})
-                    .get("lineupSlotCounts", {})
-                )
-            else:
-                settings = (
-                    response.json()[0]
-                    .get("settings", {})
-                    .get("rosterSettings", {})
-                    .get("lineupSlotCounts", {})
-                )
-        except requests.RequestException:
-            logger.exception("Request error while fetching league settings.")
-            raise
+        base_params = [
+            ("view", "mSettings"),
+            ("view", "mTeam"),
+        ]
+        if int(season) >= 2018:
+            params = [*base_params]
+        else:
+            params = [("seasonId", season), *base_params]
+        response = make_espn_api_request(
+            season=int(season),
+            league_id=league_id,
+            params=params,
+            swid_cookie=swid_cookie,
+            espn_s2_cookie=espn_s2_cookie,
+        )
+        logger.info("Successfully got league settings info")
+        settings = (
+            response.get("settings", {})
+            .get("rosterSettings", {})
+            .get("lineupSlotCounts", {})
+        )
         return settings
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
@@ -661,6 +632,7 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", event)
     league_id = event["leagueId"]
     platform = event["platform"]
+    privacy = event["privacy"]
     swid_cookie = event["swidCookie"]
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
@@ -675,6 +647,7 @@ def lambda_handler(event, context):
     matchups = get_league_scores(
         league_id=league_id,
         platform=platform,
+        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,
@@ -686,6 +659,7 @@ def lambda_handler(event, context):
     lineup_limits_data = get_league_lineup_settings(
         league_id=league_id,
         platform=platform,
+        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,

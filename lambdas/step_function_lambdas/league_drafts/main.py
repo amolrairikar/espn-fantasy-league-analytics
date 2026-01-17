@@ -10,9 +10,8 @@ import botocore.exceptions
 import pandas as pd
 from boto3.dynamodb.types import TypeDeserializer
 
-import requests
-
 from common_utils.batch_write_dynamodb import batch_write_to_dynamodb
+from common_utils.espn_api_request import make_espn_api_request
 from common_utils.logging_config import logger
 from common_utils.retryable_request_session import create_retry_session
 
@@ -62,6 +61,7 @@ def get_teams(league_id: str, platform: str, season: str) -> list:
 def get_draft_results(
     league_id: str,
     platform: str,
+    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -72,6 +72,7 @@ def get_draft_results(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -85,37 +86,25 @@ def get_draft_results(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if not swid_cookie or not espn_s2_cookie:
+        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
-        try:
-            base_params = [
-                ("view", "mDraftDetail"),
-            ]
-            if int(season) >= 2018:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-                params = [*base_params]
-            else:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                params = [("seasonId", season), *base_params]
-            logger.info("Making request for league draft info to URL: %s", url)
-            response = session.get(
-                url=url,
-                params=params,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
-            )
-            response.raise_for_status()
-            logger.info("Successfully got league draft info")
-            if int(season) >= 2018:
-                all_picks = response.json()["draftDetail"].get("picks", [])
-            else:
-                all_picks = response.json()[0]["draftDetail"].get("picks", [])
-            return all_picks
-        except requests.RequestException:
-            logger.exception("Request error while fetching draft results.")
-            raise
-        except Exception:
-            logger.exception("Unexpected error while fetching draft results.")
-            raise
+        base_params = [
+            ("view", "mDraftDetail"),
+        ]
+        if int(season) >= 2018:
+            params = [*base_params]
+        else:
+            params = [("seasonId", season), *base_params]
+        response = make_espn_api_request(
+            season=int(season),
+            league_id=league_id,
+            params=params,
+            swid_cookie=swid_cookie,
+            espn_s2_cookie=espn_s2_cookie,
+        )
+        logger.info("Successfully got league draft info")
+        all_picks = response["draftDetail"].get("picks", [])
+        return all_picks
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
@@ -123,6 +112,7 @@ def get_draft_results(
 def get_player_season_totals(
     league_id: str,
     platform: str,
+    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -133,6 +123,7 @@ def get_player_season_totals(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
+        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -146,52 +137,40 @@ def get_player_season_totals(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if not swid_cookie or not espn_s2_cookie:
+        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
-        try:
-            base_params = [
-                ("view", "kona_player_info"),
-            ]
-            headers = {
-                "X-Fantasy-Filter": json.dumps(
-                    {
-                        "players": {
-                            "limit": 1500,
-                            "sortAppliedStatTotal": {
-                                "sortAsc": False,
-                                "sortPriority": 2,
-                                "value": "002024",
-                            },
-                        }
+        base_params = [
+            ("view", "kona_player_info"),
+        ]
+        headers = {
+            "X-Fantasy-Filter": json.dumps(
+                {
+                    "players": {
+                        "limit": 1500,
+                        "sortAppliedStatTotal": {
+                            "sortAsc": False,
+                            "sortPriority": 2,
+                            "value": "002024",
+                        },
                     }
-                )
-            }
-            if int(season) >= 2018:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-                params = [*base_params]
-            else:
-                url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/{league_id}"
-                params = [("seasonId", season), *base_params]
-            logger.info("Making request for player scoring totals to URL: %s", url)
-            response = session.get(
-                url=url,
-                headers=headers,
-                params=params,
-                cookies={"SWID": swid_cookie, "espn_s2": espn_s2_cookie},
+                }
             )
-            response.raise_for_status()
-            logger.info("Successfully got player scoring totals")
-            if int(season) >= 2018:
-                player_totals = response.json().get("players", [])
-            else:
-                player_totals = response.json()[0].get("players", [])
-            return player_totals
-        except requests.RequestException:
-            logger.exception("Request error while fetching player scoring totals.")
-            raise
-        except Exception:
-            logger.exception("Unexpected error while fetching player scoring totals.")
-            raise
+        }
+        if int(season) >= 2018:
+            params = [*base_params]
+        else:
+            params = [("seasonId", season), *base_params]
+        response = make_espn_api_request(
+            season=int(season),
+            league_id=league_id,
+            params=params,
+            headers=headers,
+            swid_cookie=swid_cookie,
+            espn_s2_cookie=espn_s2_cookie,
+        )
+        logger.info("Successfully got player scoring totals")
+        player_totals = response.get("players", [])
+        return player_totals
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
 
@@ -355,6 +334,7 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", event)
     league_id = event["leagueId"]
     platform = event["platform"]
+    privacy = event["privacy"]
     swid_cookie = event["swidCookie"]
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
@@ -367,6 +347,7 @@ def lambda_handler(event, context):
     draft_picks = get_draft_results(
         league_id=league_id,
         platform=platform,
+        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,
@@ -374,6 +355,7 @@ def lambda_handler(event, context):
     player_scoring_totals = get_player_season_totals(
         league_id=league_id,
         platform=platform,
+        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,
