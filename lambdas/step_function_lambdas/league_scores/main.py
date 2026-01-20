@@ -486,9 +486,6 @@ def process_league_scores(
 
     df_matchup_results = pd.DataFrame(processed_matchup_results)
     df_members = pd.DataFrame(members)
-    df_members["full_name"] = (
-        df_members["owner_first_name"] + " " + df_members["owner_last_name"]
-    )
     df_matchup_results = df_matchup_results.merge(
         df_members[["team_id", "owner_full_name", "team_name"]],
         left_on="team_a",
@@ -498,12 +495,12 @@ def process_league_scores(
     df_matchup_results = df_matchup_results.drop(columns=["team_id"])
     df_matchup_results = df_matchup_results.rename(
         columns={
-            "full_name": "team_a_full_name",
+            "owner_full_name": "team_a_full_name",
             "team_name": "team_a_team_name",
         }
     )
     df_matchup_results = df_matchup_results.merge(
-        df_members[["team_id", "full_name", "team_name"]],
+        df_members[["team_id", "owner_full_name", "team_name"]],
         left_on="team_b",
         right_on="team_id",
         how="inner",
@@ -511,7 +508,7 @@ def process_league_scores(
     df_matchup_results = df_matchup_results.drop(columns=["team_id"])
     df_matchup_results = df_matchup_results.rename(
         columns={
-            "full_name": "team_b_full_name",
+            "owner_full_name": "team_b_full_name",
             "team_name": "team_b_team_name",
         }
     )
@@ -716,7 +713,7 @@ def lambda_handler(event, context):
                                 "loser": {"S": losing_member_id},
                                 "team_a_id": {"S": str(item["team_a"])},
                                 "team_a_owner_full_name": {
-                                    "S": str(item["owner_full_name"])
+                                    "S": str(item["team_a_full_name"])
                                 },
                                 "team_a_owner_id": {"S": team_a_member_id},
                                 "team_a_team_name": {
@@ -898,7 +895,7 @@ def lambda_handler(event, context):
                                 "loser": {"S": losing_member_id},
                                 "team_a_id": {"S": str(item["team_a"])},
                                 "team_a_owner_full_name": {
-                                    "S": str(item["owner_full_name"])
+                                    "S": str(item["team_a_full_name"])
                                 },
                                 "team_a_owner_id": {"S": team_a_member_id},
                                 "team_a_team_name": {
@@ -1079,7 +1076,7 @@ def lambda_handler(event, context):
                                 "loser": {"S": losing_member_id},
                                 "team_a_id": {"S": str(item["team_a"])},
                                 "team_a_owner_full_name": {
-                                    "S": str(item["owner_full_name"])
+                                    "S": str(item["team_a_full_name"])
                                 },
                                 "team_a_owner_id": {"S": team_a_member_id},
                                 "team_a_team_name": {
