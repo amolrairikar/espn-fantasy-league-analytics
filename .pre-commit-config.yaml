@@ -21,7 +21,7 @@ repos:
       - id: run-unit-tests
         name: Run unit tests
         description: "Run unit tests locally to ensure all tests pass before committing code."
-        entry: pipenv run pytest --cov=api --cov=lambda_layer --cov=lambdas tests/unit --cov-report=term-missing
+        entry: pipenv run pytest --cov=api --cov=lambda_layer --cov=lambdas tests/unit --cov-report=term-missing -vv
         language: system
         types: [python]
         pass_filenames: false
