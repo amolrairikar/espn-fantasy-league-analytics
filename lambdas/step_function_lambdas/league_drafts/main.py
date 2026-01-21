@@ -18,7 +18,7 @@ from common_utils.retryable_request_session import create_retry_session
 
 session = create_retry_session()
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 POSITION_ID_MAPPING = {
     1: "QB",
     2: "RB",
