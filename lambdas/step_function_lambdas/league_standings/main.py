@@ -11,7 +11,7 @@ from common_utils.logging_config import logger
 from common_utils.query_dynamodb import fetch_league_data
 
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 
 # Mainly used for debugging purposes
 pd.set_option("display.max_columns", None)
@@ -325,9 +325,13 @@ def compile_aggregate_standings_data(
 
     # Group by season and week to calculate record vs the league
     all_play_weekly = (
-        all_play_base.groupby(["season", "week"])
+        all_play_base.groupby(["season", "week"])[
+            # We select only the columns the function needs to see.
+            # This prevents the grouping columns from being passed into the function.
+            ["team_owner_id", "points_for"]
+        ]
         .apply(calculate_weekly_vs_league_standings)
-        .reset_index(drop=True)
+        .reset_index()
     )
 
     # Sum up the all-play stats for the season
@@ -600,8 +604,6 @@ def lambda_handler(event, context):
     league_id = event[0][0]["leagueId"]
     platform = event[0][0]["platform"]
     seasons = [e[0]["season"] for e in event]
-    if not seasons:
-        raise ValueError("'seasons' list must not be empty.")
     logger.info("Processing seasons %s", seasons)
 
     all_matchups = []
