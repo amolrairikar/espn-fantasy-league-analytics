@@ -11,7 +11,7 @@ from common_utils.logging_config import logger
 from common_utils.query_dynamodb import fetch_league_data
 
 deserializer = TypeDeserializer()
-DYNAMODB_TABLE_NAME = os.environ["DYNAMODB_TABLE_NAME"]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "fantasy-recap-app-db-dev")
 
 # Mainly used for debugging purposes
 pd.set_option("display.max_columns", None)
@@ -225,8 +225,6 @@ def lambda_handler(event, context):
     league_id = event[0][0]["leagueId"]
     platform = event[0][0]["platform"]
     seasons = [e[0]["season"] for e in event]
-    if not seasons:
-        raise ValueError("'seasons' list must not be empty.")
     logger.info("Processing seasons %s", seasons)
 
     all_matchups = []
