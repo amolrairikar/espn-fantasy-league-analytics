@@ -16,6 +16,7 @@ requests = "*"
 uvicorn = "*"
 
 [dev-packages]
+behave = "*"
 boto3-stubs = "*"
 httpx = "*"
 pandas-stubs = "*"
