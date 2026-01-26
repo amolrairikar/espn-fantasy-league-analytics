@@ -25,6 +25,13 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: run-integration-tests
+        name: Run league onboarding integration tests
+        description: "Run league onboarding integration tests locally to ensure all tests pass before committing code."
+        entry: pipenv run behave -v tests/integration/step_function_lambdas
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: ruff-check
         name: Ruff linter
         description: "Uses Ruff to lint and fix Python code."
