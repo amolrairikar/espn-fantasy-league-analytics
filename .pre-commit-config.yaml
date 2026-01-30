@@ -25,10 +25,17 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: run-integration-tests
+      - id: run-league-onboarding-integration-tests
         name: Run league onboarding integration tests
         description: "Run league onboarding integration tests locally to ensure all tests pass before committing code."
         entry: pipenv run behave -v tests/integration/step_function_lambdas
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: run-lambda-layer-integration-tests
+        name: Run lambda layer integration tests
+        description: "Run lambda layer integration tests locally to ensure all tests pass before committing code."
+        entry: pipenv run behave -v tests/integration/lambda_layer
         language: system
         types: [python]
         pass_filenames: false
