@@ -51,7 +51,7 @@ def onboard_league(
             "seasons": data.seasons,
         }
         logger.info("Starting onboarding process for league %s", data.league_id)
-        # TODO: Remove region hardcoding if in future the Step Function is multi-region
+        # TODO: Remove region hardcoding in env variable if in future the Step Function is multi-region
         response = sfn.start_execution(
             stateMachineArn=os.environ["ONBOARDING_SFN_ARN"],
             input=json.dumps(execution_input),
