@@ -8,13 +8,13 @@ from api.routers import (
     all_time_records,
     draft,
     health,
-    league_metadata,
-    matchups,
-    onboarding,
-    owners,
-    standings,
-    teams,
-    utils,
+    # league_metadata,
+    # matchups,
+    # onboarding,
+    # owners,
+    # standings,
+    # teams,
+    # utils,
 )
 
 ORIGINS = [
@@ -34,11 +34,11 @@ app.add_middleware(
 app.include_router(all_time_records.router)
 app.include_router(draft.router)
 app.include_router(health.router)
-app.include_router(league_metadata.router)
-app.include_router(matchups.router)
-app.include_router(onboarding.router)
-app.include_router(owners.router)
-app.include_router(standings.router)
-app.include_router(teams.router)
-app.include_router(utils.router)
+# app.include_router(league_metadata.router)
+# app.include_router(matchups.router)
+# app.include_router(onboarding.router)
+# app.include_router(owners.router)
+# app.include_router(standings.router)
+# app.include_router(teams.router)
+# app.include_router(utils.router)
 handler = Mangum(app)
