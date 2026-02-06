@@ -1,14 +1,10 @@
 """FastAPI router for league team endpoints."""
 
-import botocore.exceptions
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import (
-    deserializer,
-    dynamodb_client,
     get_api_key,
-    table_name,
-    logger,
+    query_dynamodb,
 )
 from api.models import APIResponse
 
@@ -19,7 +15,7 @@ router = APIRouter(
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-def get_members(
+def get_owners(
     league_id: str = Query(description="The ID of the league."),
     platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
 ) -> APIResponse:
@@ -30,32 +26,7 @@ def get_members(
         team_id (str): The ID of the team to retrieve metadata for.
         league_id (str): The ID of the league the team is in.
     """
-    try:
-        response = dynamodb_client.query(
-            TableName=table_name,
-            KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues={
-                ":pk": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
-                ":prefix": {
-                    "S": "OWNERS",
-                },
-            },
-        )
-        items = [
-            {
-                k: deserializer.deserialize(v)
-                for k, v in sorted(item.items())
-                if k not in ("PK", "SK") and not k.endswith(("PK", "SK"))
-            }
-            for item in response.get("Items", [])
-        ]
-        return APIResponse(
-            detail=f"Found {len(items)} total unique owners for league",
-            data=items,
-        )
-    except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error fetching unique owners")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
-        )
+    return query_dynamodb(
+        pk=f"LEAGUE#{league_id}#PLATFORM#{platform}",
+        sk_prefix="OWNERS",
+    )
