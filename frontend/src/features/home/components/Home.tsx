@@ -48,7 +48,7 @@ function Home() {
     return <p>Error getting league metadata. Please try reloading and if the issue persists raise a support ticket.</p>;
   }
 
-  const { league_id, platform, privacy, espn_s2_cookie, swid_cookie, seasons, onboarded_date, onboarded_status } =
+  const { league_id, platform, espn_s2_cookie, swid_cookie, seasons, onboarded_date, onboarded_status } =
     leagueMetadata.data;
 
   const onboarded = Boolean(onboarded_status && onboarded_date);
@@ -59,9 +59,8 @@ function Home() {
       const payload = {
         league_id,
         platform,
-        privacy,
-        espn_s2: espn_s2_cookie ?? '',
-        swid: swid_cookie ?? '',
+        espn_s2: espn_s2_cookie,
+        swid: swid_cookie,
         seasons,
       };
       const result = await postLeagueOnboarding(payload);
@@ -84,7 +83,6 @@ function Home() {
         await putLeagueMetadata({
           league_id,
           platform,
-          privacy,
           espn_s2: espn_s2_cookie,
           swid: swid_cookie,
           seasons,

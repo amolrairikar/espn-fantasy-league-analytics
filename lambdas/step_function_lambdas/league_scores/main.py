@@ -103,7 +103,6 @@ def create_team_id_member_id_mapping(
 def get_league_scores(
     league_id: str,
     platform: str,
-    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -114,7 +113,6 @@ def get_league_scores(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -128,7 +126,7 @@ def get_league_scores(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
+        if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         weeks = range(1, 18, 1) if int(season) < 2021 else range(1, 19, 1)
         scores: list[dict[str, Any]] = []
@@ -169,7 +167,6 @@ def get_league_scores(
 def get_league_lineup_settings(
     league_id: str,
     platform: str,
-    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -180,7 +177,6 @@ def get_league_lineup_settings(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -194,7 +190,7 @@ def get_league_lineup_settings(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
+        if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         settings: dict[str, int] = {}
         base_params = [
@@ -629,7 +625,6 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", event)
     league_id = event["leagueId"]
     platform = event["platform"]
-    privacy = event["privacy"]
     swid_cookie = event["swidCookie"]
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
@@ -644,7 +639,6 @@ def lambda_handler(event, context):
     matchups = get_league_scores(
         league_id=league_id,
         platform=platform,
-        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,
@@ -656,7 +650,6 @@ def lambda_handler(event, context):
     lineup_limits_data = get_league_lineup_settings(
         league_id=league_id,
         platform=platform,
-        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,

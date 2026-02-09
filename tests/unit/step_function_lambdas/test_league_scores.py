@@ -180,7 +180,6 @@ class TestGetLeagueScores(unittest.TestCase):
         scores = get_league_scores(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2023",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -235,7 +234,6 @@ class TestGetLeagueScores(unittest.TestCase):
         scores = get_league_scores(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2017",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -263,7 +261,6 @@ class TestGetLeagueScores(unittest.TestCase):
             get_league_scores(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -276,10 +273,9 @@ class TestGetLeagueScores(unittest.TestCase):
             get_league_scores(
                 league_id="12345",
                 platform="Sleeper",
-                privacy="private",
                 season="2017",
-                swid_cookie=None,
-                espn_s2_cookie=None,
+                swid_cookie="{ABC-123}",
+                espn_s2_cookie="S2-COOKIE",
             )
 
 
@@ -317,7 +313,6 @@ class TestGetLeagueSettings(unittest.TestCase):
         lineup_settings = get_league_lineup_settings(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2023",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -367,7 +362,6 @@ class TestGetLeagueSettings(unittest.TestCase):
         lineup_settings = get_league_lineup_settings(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2017",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -394,7 +388,6 @@ class TestGetLeagueSettings(unittest.TestCase):
             get_league_lineup_settings(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -407,10 +400,9 @@ class TestGetLeagueSettings(unittest.TestCase):
             get_league_lineup_settings(
                 league_id="12345",
                 platform="Sleeper",
-                privacy="private",
                 season="2017",
-                swid_cookie=None,
-                espn_s2_cookie=None,
+                swid_cookie="{ABC-123}",
+                espn_s2_cookie="S2-COOKIE",
             )
 
 
@@ -1804,7 +1796,6 @@ class TestLambdaHandler(unittest.TestCase):
             event={
                 "leagueId": "12345",
                 "platform": "ESPN",
-                "privacy": "private",
                 "swidCookie": None,
                 "espnS2Cookie": None,
                 "season": "2023",

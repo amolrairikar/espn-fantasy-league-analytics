@@ -18,7 +18,6 @@ export async function getLeagueMetadata(leagueId: string, platform: string): Pro
 export async function validateLeagueMetadata(
   leagueId: string,
   platform: string,
-  privacy: string,
   season: string,
   espn_s2_cookie: string,
   swid_cookie: string
@@ -27,7 +26,6 @@ export async function validateLeagueMetadata(
     params: {
       league_id: leagueId,
       platform: platform,
-      privacy: privacy,
       season: season,
       espn_s2_cookie: espn_s2_cookie,
       swid_cookie: swid_cookie,

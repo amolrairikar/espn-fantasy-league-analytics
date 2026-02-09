@@ -72,26 +72,22 @@ def get_api_key(api_key_header: str = Security(api_key_header)):
     return api_key_header
 
 
-def build_api_request_headers(
-    privacy: str, cookies: dict[str, Optional[str]]
-) -> Optional[dict]:
+def build_api_request_headers(cookies: dict[str, Optional[str]]) -> Optional[dict]:
     """
     Builds headers for API requests sent to fantasy platform APIs.
 
     Args:
-        data (LeagueMetadata): The league information (ID, cookies, platform).
+        cookies (dict[str, Optional[str]]): A dictionary containing the espn_s2 and swid cookies.
 
     Returns:
         dict (str, str): A dictionary with cookies in the request header
     """
-    if privacy == "private":
-        if not (cookies["espn_s2"] and cookies["swid"]):
-            raise HTTPException(
-                status_code=400,
-                detail="Missing required espn_s2 and swid cookies.",
-            )
-        return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
-    return {}
+    if not (cookies["espn_s2"] and cookies["swid"]):
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required espn_s2 and swid cookies.",
+        )
+    return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
 
 
 def filter_dynamodb_response(response: dict[str, Any]) -> list[dict[str, Any]]:

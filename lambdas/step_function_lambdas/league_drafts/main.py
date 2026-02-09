@@ -61,7 +61,6 @@ def get_teams(league_id: str, platform: str, season: str) -> list:
 def get_draft_results(
     league_id: str,
     platform: str,
-    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -72,7 +71,6 @@ def get_draft_results(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -86,7 +84,7 @@ def get_draft_results(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
+        if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         base_params = [
             ("view", "mDraftDetail"),
@@ -112,7 +110,6 @@ def get_draft_results(
 def get_player_season_totals(
     league_id: str,
     platform: str,
-    privacy: str,
     season: str,
     swid_cookie: Optional[str],
     espn_s2_cookie: Optional[str],
@@ -123,7 +120,6 @@ def get_player_season_totals(
     Args:
         league_id (str): The unique ID of the fantasy football league.
         platform (str): The platform the fantasy football league is on (e.g., ESPN, Sleeper).
-        privacy (str): The privacy setting of the league (e.g., public, private).
         season (str): The NFL season to get data for.
         swid_cookie (Optional[str]): The SWID cookie used for getting ESPN private league data.
         espn_s2_cookie (Optional[str]): The espn S2 cookie used for getting ESPN private league data.
@@ -137,7 +133,7 @@ def get_player_season_totals(
         Exception: If uncaught exception occurs.
     """
     if platform == "ESPN":
-        if privacy == "private" and (not swid_cookie or not espn_s2_cookie):
+        if not swid_cookie or not espn_s2_cookie:
             raise ValueError("Missing required SWID and/or ESPN S2 cookies")
         base_params = [
             ("view", "kona_player_info"),
@@ -334,7 +330,6 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", event)
     league_id = event["leagueId"]
     platform = event["platform"]
-    privacy = event["privacy"]
     swid_cookie = event["swidCookie"]
     espn_s2_cookie = event["espnS2Cookie"]
     season = event["season"]
@@ -347,7 +342,6 @@ def lambda_handler(event, context):
     draft_picks = get_draft_results(
         league_id=league_id,
         platform=platform,
-        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,
@@ -355,7 +349,6 @@ def lambda_handler(event, context):
     player_scoring_totals = get_player_season_totals(
         league_id=league_id,
         platform=platform,
-        privacy=privacy,
         season=season,
         swid_cookie=swid_cookie,
         espn_s2_cookie=espn_s2_cookie,

@@ -109,39 +109,6 @@ class TestMakeEspnApiRequest(unittest.TestCase):
         self.assertEqual(response, {"status": "success"})
 
     @patch("lambda_layer.common_utils.espn_api_request.session.get")
-    def test_make_espn_api_request_after_2018_without_cookies(self, mock_get):
-        """Test API request after 2018 without SWID and ESPN S2 cookies."""
-        # Set up test variables
-        season = 2021
-        league_id = "12345"
-        params = {"view": "mTeam"}
-
-        # Mock API response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"status": "success"}
-        mock_get.return_value = mock_response
-
-        # Act
-        response = make_espn_api_request(
-            season=season,
-            league_id=league_id,
-            params=params,
-            swid_cookie=None,
-            espn_s2_cookie=None,
-        )
-
-        # Assert
-        mock_get.assert_called_once()
-        _, called_kwargs = mock_get.call_args
-        self.assertIn("params", called_kwargs)
-        self.assertEqual(
-            called_kwargs["params"],
-            params,
-        )
-        self.assertNotIn("cookies", called_kwargs)
-        self.assertEqual(response, {"status": "success"})
-
-    @patch("lambda_layer.common_utils.espn_api_request.session.get")
     def test_make_espn_api_request_before_2018_with_cookies(self, mock_get):
         """Test API request with SWID and ESPN S2 cookies."""
         # Set up test variables
@@ -181,39 +148,6 @@ class TestMakeEspnApiRequest(unittest.TestCase):
         self.assertEqual(response, {"status": "success"})
 
     @patch("lambda_layer.common_utils.espn_api_request.session.get")
-    def test_make_espn_api_request_before_2018_without_cookies(self, mock_get):
-        """Test API request before 2018 without SWID and ESPN S2 cookies."""
-        # Set up test variables
-        season = 2017
-        league_id = "12345"
-        params = {"view": "mTeam"}
-
-        # Mock API response
-        mock_response = MagicMock()
-        mock_response.json.return_value = [{"status": "success"}]
-        mock_get.return_value = mock_response
-
-        # Act
-        response = make_espn_api_request(
-            season=season,
-            league_id=league_id,
-            params=params,
-            swid_cookie=None,
-            espn_s2_cookie=None,
-        )
-
-        # Assert
-        mock_get.assert_called_once()
-        _, called_kwargs = mock_get.call_args
-        self.assertIn("params", called_kwargs)
-        self.assertEqual(
-            called_kwargs["params"],
-            params,
-        )
-        self.assertNotIn("cookies", called_kwargs)
-        self.assertEqual(response, {"status": "success"})
-
-    @patch("lambda_layer.common_utils.espn_api_request.session.get")
     def test_make_espn_api_request_exception(self, mock_get):
         """Test that a requests.RequestException is raised on request failure."""
         # Set up test variables
@@ -230,8 +164,8 @@ class TestMakeEspnApiRequest(unittest.TestCase):
                 season=season,
                 league_id=league_id,
                 params=params,
-                swid_cookie=None,
-                espn_s2_cookie=None,
+                swid_cookie="",
+                espn_s2_cookie="",
             )
 
         # Assert

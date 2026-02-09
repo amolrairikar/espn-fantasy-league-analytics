@@ -13,7 +13,6 @@ class APIResponse(BaseModel):
 class LeagueMetadata(BaseModel):
     league_id: str
     platform: str
-    privacy: str
     espn_s2: Optional[str]
     swid: Optional[str]
     seasons: List[str]

@@ -8,7 +8,6 @@ type GetLeagueOnboardingStatus = {
 type PostLeagueOnboardingPayload = {
   league_id: string;
   platform: string;
-  privacy: string;
   espn_s2: string;
   swid: string;
   seasons: string[];

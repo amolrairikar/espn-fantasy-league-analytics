@@ -14,47 +14,11 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
     """Tests for get_league_members_and_teams function."""
 
     @patch("lambdas.step_function_lambdas.league_members.main.make_espn_api_request")
-    def test_get_league_members_and_teams_public_league(self, mock_make_request):
-        """Test fetching league members and teams for a public ESPN league."""
+    def test_get_league_members_and_teams(self, mock_make_request):
+        """Test fetching league members and teams."""
         # Set up test variables
         league_id = "12345"
         platform = "ESPN"
-        privacy = "public"
-        season = "2021"
-
-        # Mock API response
-        mock_response = {
-            "members": [{"id": "1", "firstName": "John", "lastName": "Doe"}],
-            "teams": [{"id": "10", "ownerId": "1", "teamName": "Team A"}],
-        }
-        mock_make_request.return_value = mock_response
-
-        # Act
-        members, teams = get_league_members_and_teams(
-            league_id=league_id,
-            platform=platform,
-            privacy=privacy,
-            season=season,
-        )
-
-        # Assert
-        self.assertEqual(members, mock_response["members"])
-        self.assertEqual(teams, mock_response["teams"])
-        mock_make_request.assert_called_once_with(
-            season=int(season),
-            league_id=league_id,
-            params={"view": "mTeam"},
-            swid_cookie=None,
-            espn_s2_cookie=None,
-        )
-
-    @patch("lambdas.step_function_lambdas.league_members.main.make_espn_api_request")
-    def test_get_league_members_and_teams_private_league(self, mock_make_request):
-        """Test fetching league members and teams for a private ESPN league."""
-        # Set up test variables
-        league_id = "12345"
-        platform = "ESPN"
-        privacy = "private"
         season = "2021"
         swid_cookie = "{SWID-COOKIE}"
         espn_s2_cookie = "{ESPN-S2-COOKIE}"
@@ -70,7 +34,6 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
         members, teams = get_league_members_and_teams(
             league_id=league_id,
             platform=platform,
-            privacy=privacy,
             season=season,
             swid_cookie=swid_cookie,
             espn_s2_cookie=espn_s2_cookie,
@@ -88,11 +51,10 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
         )
 
     def test_get_league_members_and_teams_private_league_no_cookies(self):
-        """Test fetching league members and teams for a private ESPN league without cookies."""
+        """Test fetching league members and teams without cookies raises an error."""
         # Set up test variables
         league_id = "12345"
         platform = "ESPN"
-        privacy = "private"
         season = "2021"
 
         # Act
@@ -100,19 +62,15 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
             get_league_members_and_teams(
                 league_id=league_id,
                 platform=platform,
-                privacy=privacy,
                 season=season,
             )
 
     @patch("lambdas.step_function_lambdas.league_members.main.make_espn_api_request")
-    def test_get_league_members_and_teams_private_league_before_2018(
-        self, mock_make_request
-    ):
-        """Test fetching league members and teams for a private ESPN league for season before 2018."""
+    def test_get_league_members_and_teams_before_2018(self, mock_make_request):
+        """Test fetching league members and teams for season before 2018."""
         # Set up test variables
         league_id = "12345"
         platform = "ESPN"
-        privacy = "private"
         season = "2017"
         swid_cookie = "{SWID-COOKIE}"
         espn_s2_cookie = "{ESPN-S2-COOKIE}"
@@ -128,7 +86,6 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
         members, teams = get_league_members_and_teams(
             league_id=league_id,
             platform=platform,
-            privacy=privacy,
             season=season,
             swid_cookie=swid_cookie,
             espn_s2_cookie=espn_s2_cookie,
@@ -150,7 +107,6 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
         # Set up test variables
         league_id = "12345"
         platform = "Sleeper"
-        privacy = "private"
         season = "2021"
 
         # Act
@@ -158,7 +114,6 @@ class TestGetLeagueMembersAndTeams(unittest.TestCase):
             get_league_members_and_teams(
                 league_id=league_id,
                 platform=platform,
-                privacy=privacy,
                 season=season,
             )
 
@@ -236,8 +191,8 @@ class TestLambdaHandler(unittest.TestCase):
             "leagueId": "12345",
             "platform": "ESPN",
             "privacy": "public",
-            "swidCookie": None,
-            "espnS2Cookie": None,
+            "swidCookie": "{SWID-COOKIE}",
+            "espnS2Cookie": "{ESPN-S2-COOKIE}",
             "season": "2021",
         }
 
@@ -291,10 +246,9 @@ class TestLambdaHandler(unittest.TestCase):
         mock_get_members_teams.assert_called_once_with(
             league_id="12345",
             platform="ESPN",
-            privacy="public",
             season="2021",
-            swid_cookie=None,
-            espn_s2_cookie=None,
+            swid_cookie="{SWID-COOKIE}",
+            espn_s2_cookie="{ESPN-S2-COOKIE}",
         )
         mock_join_members_teams.assert_called_once_with(
             members=[
@@ -366,8 +320,8 @@ class TestLambdaHandler(unittest.TestCase):
             "leagueId": "12345",
             "platform": "ESPN",
             "privacy": "public",
-            "swidCookie": None,
-            "espnS2Cookie": None,
+            "swidCookie": "{SWID-COOKIE}",
+            "espnS2Cookie": "{ESPN-S2-COOKIE}",
             "season": "2021",
         }
 
