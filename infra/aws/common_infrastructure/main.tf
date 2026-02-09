@@ -66,6 +66,17 @@ resource "aws_dynamodb_table" "application_table" {
     type = "S"
   }
 
+  # GSI5 is to be used for bulk league deletion
+  attribute {
+    name = "GSI5PK" # will be of format LEAGUE#{league_id}
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI5SK" # will be static value FOR_DELETION_USE_ONLY
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "GSI1"
     hash_key        = "GSI1PK"
@@ -91,6 +102,13 @@ resource "aws_dynamodb_table" "application_table" {
     name            = "GSI4"
     hash_key        = "GSI4PK"
     range_key       = "GSI4SK"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "GSI5"
+    hash_key        = "GSI5PK"
+    range_key       = "GSI5SK"
     projection_type = "ALL"
   }
 

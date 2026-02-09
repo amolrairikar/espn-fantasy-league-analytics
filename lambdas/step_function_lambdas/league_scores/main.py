@@ -706,6 +706,8 @@ def lambda_handler(event, context):
                                 "GSI3SK": {
                                     "S": f"MATCHUP#{team_a_member_id}-vs-{team_b_member_id}"
                                 },
+                                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                                 "season": {"S": str(season)},
                                 "week": {"S": str(item["matchup_week"])},
                                 "playoff_tier_type": {"S": item["playoff_tier_type"]},
@@ -888,6 +890,8 @@ def lambda_handler(event, context):
                                 "GSI4SK": {
                                     "S": f"SEASON#{season}#WEEK#{item['matchup_week']}"
                                 },
+                                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                                 "season": {"S": str(season)},
                                 "week": {"S": str(item["matchup_week"])},
                                 "playoff_tier_type": {"S": item["playoff_tier_type"]},
@@ -1069,6 +1073,8 @@ def lambda_handler(event, context):
                                 "GSI4SK": {
                                     "S": f"SEASON#{season}#WEEK#{item['matchup_week']}"
                                 },
+                                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                                 "season": {"S": str(season)},
                                 "week": {"S": str(item["matchup_week"])},
                                 "playoff_tier_type": {"S": item["playoff_tier_type"]},
@@ -1243,6 +1249,8 @@ def lambda_handler(event, context):
                                     "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                                 },
                                 "SK": {"S": f"PLAYOFF_TEAM#TEAM#{item['team_id']}"},
+                                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                                 "team_id": {"S": str(item["team_id"])},
                                 "season": {"S": str(season)},
                                 "playoff_status": {"S": str(item["playoff_status"])},
@@ -1259,6 +1267,8 @@ def lambda_handler(event, context):
                                     "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                                 },
                                 "SK": {"S": f"LEAGUE_CHAMPION#TEAM#{item['team_id']}"},
+                                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                                 "team_id": {"S": str(item["team_id"])},
                                 "season": {"S": str(season)},
                                 "championship_status": {

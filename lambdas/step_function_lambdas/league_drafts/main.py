@@ -379,6 +379,8 @@ def lambda_handler(event, context):
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {"S": f"DRAFT#{item['overall_pick_number']}"},
+                        "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                        "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                         "round": {"S": str(item["round"])},
                         "pick_number": {"S": str(item["round_pick_number"])},
                         "overall_pick_number": {"S": str(item["overall_pick_number"])},

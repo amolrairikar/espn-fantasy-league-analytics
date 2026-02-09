@@ -18,6 +18,18 @@ repos:
         args: [chore, docs, feat, fix, refactor, revert, test]
   - repo: local
     hooks:
+      - id: ruff-check
+        name: Ruff linter
+        description: "Uses Ruff to lint and fix Python code."
+        entry: pipenv run ruff check --fix .
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: Ruff formatter
+        description: "Uses Ruff to format Python code using standard conventions."
+        entry: pipenv run ruff format .
+        language: system
+        types: [python]
       - id: run-unit-tests
         name: Run unit tests
         description: "Run unit tests locally to ensure all tests pass before committing code."
@@ -39,15 +51,3 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: ruff-check
-        name: Ruff linter
-        description: "Uses Ruff to lint and fix Python code."
-        entry: pipenv run ruff check --fix .
-        language: system
-        types: [python]
-      - id: ruff-format
-        name: Ruff formatter
-        description: "Uses Ruff to format Python code using standard conventions."
-        entry: pipenv run ruff format .
-        language: system
-        types: [python]

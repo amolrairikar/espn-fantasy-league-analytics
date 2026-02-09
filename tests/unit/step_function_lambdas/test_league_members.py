@@ -323,6 +323,8 @@ class TestLambdaHandler(unittest.TestCase):
                         "Item": {
                             "PK": {"S": "LEAGUE#12345#PLATFORM#ESPN#SEASON#2021"},
                             "SK": {"S": "TEAM#10"},
+                            "GSI5PK": {"S": "LEAGUE#12345"},
+                            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                             "owner_full_name": {"S": "John Doe"},
                             "owner_first_name": {"S": "John"},
                             "owner_last_name": {"S": "Doe"},
@@ -338,6 +340,8 @@ class TestLambdaHandler(unittest.TestCase):
                         "Item": {
                             "PK": {"S": "LEAGUE#12345#PLATFORM#ESPN#SEASON#2021"},
                             "SK": {"S": "TEAM#20"},
+                            "GSI5PK": {"S": "LEAGUE#12345"},
+                            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                             "owner_full_name": {"S": "Jane Smith"},
                             "owner_first_name": {"S": "Jane"},
                             "owner_last_name": {"S": "Smith"},

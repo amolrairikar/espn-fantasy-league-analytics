@@ -286,6 +286,8 @@ class TestLambdaHandler(unittest.TestCase):
                                 "S": "LEAGUE#12345#PLATFORM#ESPN#SEASON#2023#WEEK#3"
                             },
                             "SK": {"S": "STANDINGS#WEEKLY#2"},
+                            "GSI5PK": {"S": "LEAGUE#12345"},
+                            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                             "season": {"S": "2023"},
                             "week": {"N": "3"},
                             "owner_id": {"S": "2"},

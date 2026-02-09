@@ -261,6 +261,8 @@ def lambda_handler(event, context):
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{item['season']}#WEEK#{item['week']}"
                         },
                         "SK": {"S": f"STANDINGS#WEEKLY#{item['team_owner_id']}"},
+                        "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                        "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                         "season": {"S": item["season"]},
                         "week": {"N": str(item["week"])},
                         "owner_id": {"S": item["team_owner_id"]},
