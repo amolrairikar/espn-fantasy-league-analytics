@@ -186,6 +186,8 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
             Item={
                 "PK": {"S": f"LEAGUE#{data.league_id}#PLATFORM#{data.platform}"},
                 "SK": {"S": "METADATA"},
+                "GSI5PK": {"S": f"LEAGUE#{data.league_id}"},
+                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                 "league_id": {"S": data.league_id},
                 "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},
@@ -230,6 +232,8 @@ def update_league_metadata(
             Item={
                 "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{data.platform}"},
                 "SK": {"S": "METADATA"},
+                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                 "league_id": {"S": league_id},
                 "platform": {"S": data.platform},
                 "privacy": {"S": data.privacy},

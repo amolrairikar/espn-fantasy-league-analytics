@@ -525,6 +525,8 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {"S": f"OWNERS#{item['owner_id']}"},
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "owner_id": {"S": item["owner_id"]},
         }

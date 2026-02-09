@@ -299,6 +299,8 @@ class TestFormatDynamoDBItem(unittest.TestCase):
         expected_schema = {
             "PK": {"S": "LEAGUE#12345#PLATFORM#ESPN"},
             "SK": {"S": f"OWNERS#{item['owner_id']}"},
+            "GSI5PK": {"S": "LEAGUE#12345"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "owner_id": {"S": item["owner_id"]},
         }

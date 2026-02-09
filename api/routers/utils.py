@@ -2,6 +2,7 @@
 
 import boto3
 import botocore.exceptions
+from boto3.dynamodb.conditions import Key
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.dependencies import (
@@ -20,25 +21,24 @@ table = dynamodb.Table(table_name)
 @router.delete("/delete_league")
 def delete_league_items(
     league_id: str = Query(description="The ID of the league the team is in."),
-    platform: str = Query(description="The platform the league is on (e.g., ESPN)."),
 ):
     """
     Delete all items associated with a specific league and platform from the database.
 
     Args:
         league_id (str): The ID of the league.
-        platform (str): The platform of the league.
     """
-    prefix = f"LEAGUE#{league_id}#PLATFORM#{platform}"
+    gsi_pk = f"LEAGUE#{league_id}"
+    gsi_sk = "FOR_DELETION_USE_ONLY"
     deleted_count = 0
 
     try:
-        # DynamoDB scan with pagination
-        scan_kwargs = {
+        query_kwargs = {
+            "IndexName": "GSI5",
+            "KeyConditionExpression": Key("GSI5PK").eq(gsi_pk)
+            & Key("GSI5SK").eq(gsi_sk),
             "ProjectionExpression": "#pk, #sk",
             "ExpressionAttributeNames": {"#pk": "PK", "#sk": "SK"},
-            "FilterExpression": "begins_with(PK, :prefix)",
-            "ExpressionAttributeValues": {":prefix": prefix},
         }
 
         done = False
@@ -46,12 +46,11 @@ def delete_league_items(
 
         while not done:
             if start_key:
-                scan_kwargs["ExclusiveStartKey"] = start_key
+                query_kwargs["ExclusiveStartKey"] = start_key
 
-            response = table.scan(**scan_kwargs)
+            response = table.query(**query_kwargs)
             items = response.get("Items", [])
 
-            # Batch delete
             if items:
                 with table.batch_writer() as batch:
                     for item in items:
