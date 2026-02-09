@@ -32,7 +32,6 @@ class TestValidateLeagueInfo(unittest.TestCase):
         result = validate_league_info(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2025",
             swid_cookie="swid_cookie",
             espn_s2_cookie="espn_s2_cookie",
@@ -57,7 +56,6 @@ class TestValidateLeagueInfo(unittest.TestCase):
             validate_league_info(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 season="2025",
                 swid_cookie="swid_cookie",
                 espn_s2_cookie="espn_s2_cookie",
@@ -82,7 +80,6 @@ class TestValidateLeagueInfo(unittest.TestCase):
             validate_league_info(
                 league_id="invalid",
                 platform="ESPN",
-                privacy="private",
                 season="2025",
                 swid_cookie="invalid",
                 espn_s2_cookie="invalid",
@@ -98,7 +95,6 @@ class TestValidateLeagueInfo(unittest.TestCase):
             validate_league_info(
                 league_id="12345",
                 platform="YAHOO",
-                privacy="private",
                 season="2025",
                 swid_cookie="swid_cookie",
                 espn_s2_cookie="espn_s2_cookie",
@@ -117,7 +113,6 @@ class TestGetLeagueMetadata(unittest.TestCase):
             "Item": {
                 "league_id": {"S": "12345"},
                 "platform": {"S": "ESPN"},
-                "privacy": {"S": "private"},
                 "espn_s2_cookie": {"S": "mock_espn_s2"},
                 "swid_cookie": {"S": "mock_swid"},
                 "seasons": {"SS": ["2020", "2021"]},
@@ -132,7 +127,6 @@ class TestGetLeagueMetadata(unittest.TestCase):
         # Assert
         self.assertEqual(response.data["league_id"], "12345")
         self.assertEqual(response.data["platform"], "ESPN")
-        self.assertEqual(response.data["privacy"], "private")
         self.assertEqual(response.data["espn_s2_cookie"], "mock_espn_s2")
         self.assertEqual(response.data["swid_cookie"], "mock_swid")
         self.assertEqual(response.data["seasons"], ["2020", "2021"])
@@ -181,7 +175,6 @@ class TestPostLeagueMetadata(unittest.TestCase):
             data=MagicMock(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 espn_s2="mock_espn_s2",
                 swid="mock_swid",
                 seasons=["2020", "2021"],
@@ -208,7 +201,6 @@ class TestPostLeagueMetadata(unittest.TestCase):
                 data=MagicMock(
                     league_id="12345",
                     platform="ESPN",
-                    privacy="private",
                     espn_s2="mock_espn_s2",
                     swid="mock_swid",
                     seasons=["2020", "2021"],
@@ -232,7 +224,6 @@ class TestUpdateLeagueMetadata(unittest.TestCase):
             data=LeagueMetadata(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 espn_s2="espn_s2",
                 swid="swid",
                 seasons=["2020", "2021", "2022"],
@@ -265,7 +256,6 @@ class TestUpdateLeagueMetadata(unittest.TestCase):
                 data=LeagueMetadata(
                     league_id="12345",
                     platform="ESPN",
-                    privacy="private",
                     espn_s2="espn_s2",
                     swid="swid",
                     seasons=["2020", "2021", "2022"],

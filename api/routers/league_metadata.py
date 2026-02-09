@@ -29,7 +29,6 @@ router = APIRouter(
 def validate_league_info(
     league_id: str = Query(description="Unique ID for the league."),
     platform: str = Query(description="Platform the fantasy league is on."),
-    privacy: str = Query(description="League privacy settings (public/private)."),
     season: str = Query(description="Season to validate league information for."),
     swid_cookie: Optional[str] = Query(
         default=None, description="League privacy settings (public/private)."
@@ -57,15 +56,18 @@ def validate_league_info(
         logger.info("Validating ESPN league")
         url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
         headers = {}
-        if swid_cookie and espn_s2_cookie:
-            headers = build_api_request_headers(
-                privacy=privacy,
-                cookies={
-                    "swid": swid_cookie,
-                    "espn_s2": espn_s2_cookie,
-                },
+        if not swid_cookie or not espn_s2_cookie:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing required espn_s2 and swid cookies for private league validation.",
             )
-            logger.info("API headers: %s", headers)
+        headers = build_api_request_headers(
+            cookies={
+                "swid": swid_cookie,
+                "espn_s2": espn_s2_cookie,
+            },
+        )
+        logger.info("API headers: %s", headers)
         try:
             response = requests.get(url=url, headers=headers)
             response.raise_for_status()
@@ -148,7 +150,6 @@ def get_league_metadata(
             ordered_item = OrderedDict()
             ordered_item["league_id"] = item["league_id"]
             ordered_item["platform"] = item["platform"]
-            ordered_item["privacy"] = item["privacy"]
             ordered_item["espn_s2_cookie"] = item["espn_s2_cookie"]
             ordered_item["swid_cookie"] = item["swid_cookie"]
             ordered_item["seasons"] = item["seasons"]
@@ -190,13 +191,8 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
                 "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                 "league_id": {"S": data.league_id},
                 "platform": {"S": data.platform},
-                "privacy": {"S": data.privacy},
-                "espn_s2_cookie": {"S": data.espn_s2}
-                if data.privacy.lower() == "private"
-                else {"S": ""},
-                "swid_cookie": {"S": data.swid}
-                if data.privacy.lower() == "private"
-                else {"S": ""},
+                "espn_s2_cookie": {"S": data.espn_s2},
+                "swid_cookie": {"S": data.swid},
                 "seasons": {"SS": data.seasons},
             },
         )
@@ -236,13 +232,8 @@ def update_league_metadata(
                 "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                 "league_id": {"S": league_id},
                 "platform": {"S": data.platform},
-                "privacy": {"S": data.privacy},
-                "espn_s2_cookie": {"S": data.espn_s2}
-                if data.privacy.lower() == "private"
-                else {"S": ""},
-                "swid_cookie": {"S": data.swid}
-                if data.privacy.lower() == "private"
-                else {"S": ""},
+                "espn_s2_cookie": {"S": data.espn_s2},
+                "swid_cookie": {"S": data.swid},
                 "seasons": {"SS": data.seasons},
                 "onboarded_date": {"S": data.onboarded_date},
                 "onboarded_status": {"BOOL": True},

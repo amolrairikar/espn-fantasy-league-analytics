@@ -753,7 +753,6 @@ resource "aws_sfn_state_machine" "league_onboarding" {
       "Parameters": {
         "leagueId.$": "$.league_id",
         "platform.$": "$.platform",
-        "privacy.$": "$.privacy",
         "swidCookie.$": "$.swid_cookie",
         "espnS2Cookie.$": "$.espn_s2_cookie",
         "season.$": "$$.Map.Item.Value"

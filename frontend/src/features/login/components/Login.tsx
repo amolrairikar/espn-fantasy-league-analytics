@@ -53,7 +53,6 @@ function Login({ onLoginSuccess }: LoginProps) {
     defaultValues: {
       leagueId: '',
       platform: 'ESPN',
-      privacy: '',
       oldestSeason: '',
       mostRecentSeason: '',
       swidCookie: '',
@@ -64,7 +63,6 @@ function Login({ onLoginSuccess }: LoginProps) {
   // Watch form fields to refetch metadata if they change
   const leagueId = form.watch('leagueId');
   const platform = form.watch('platform');
-  const privacy = form.watch('privacy');
   const watchedOldest = form.watch('oldestSeason');
   const watchedRecent = form.watch('mostRecentSeason');
   const swidCookie = form.watch('swidCookie');
@@ -73,10 +71,7 @@ function Login({ onLoginSuccess }: LoginProps) {
   const seasons = useMemo(() => {
     const start = Number(watchedOldest);
     const end = Number(watchedRecent);
-    // Validations for season range:
-    // - Both start and end must be valid numbers
-    // - Range cannot exceed 50 seasons
-    // - Start cannot be after end
+    // Currently we allow a max of 50 seasons, this can be adjusted later
     if (!start || !end || isNaN(start) || isNaN(end) || end - start > 50 || start > end) return [];
     return Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
   }, [watchedOldest, watchedRecent]);
@@ -85,18 +80,13 @@ function Login({ onLoginSuccess }: LoginProps) {
   // Checks if the league has already been registered
   const checkLeagueExists = async () => {
     // Only trigger validation for the fields visible on the main card
-    const isValid = await form.trigger(['leagueId', 'platform', 'privacy']);
+    const isValid = await form.trigger(['leagueId', 'platform']);
     if (!isValid) return;
 
     setLoading(true);
     try {
       const metadata = await getLeagueMetadata(leagueId, platform);
       console.log(metadata);
-      console.log(privacy);
-      if (privacy.toLowerCase() != metadata.data.privacy) {
-        toast.error('Incorrect league privacy setting selected.')
-        return;
-      }
       // If the league exists, store the league ID and platform in local storage and navigate to home page
       onLoginSuccess({ 
         leagueId: leagueId, 
@@ -130,10 +120,9 @@ function Login({ onLoginSuccess }: LoginProps) {
       await validateLeagueMetadata(
         leagueId, 
         platform,
-        privacy.toLowerCase(),
         watchedRecent!,
-        espnS2Cookie!,
-        swidCookie!,
+        espnS2Cookie,
+        swidCookie,
       );
 
       // If successful, proceed to register the league
@@ -141,9 +130,8 @@ function Login({ onLoginSuccess }: LoginProps) {
       await postLeagueMetadata({
         league_id: values.leagueId,
         platform: values.platform,
-        privacy: values.privacy.toLowerCase(),
-        swid: values.swidCookie ?? "",
-        espn_s2: values.espnS2Cookie ?? "",
+        swid: values.swidCookie,
+        espn_s2: values.espnS2Cookie,
         seasons: seasons,
       });
 
@@ -211,27 +199,6 @@ function Login({ onLoginSuccess }: LoginProps) {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="privacy"
-              render={({ field }) => (
-                <FormItem className="w-full">
-                  <FormLabel>League Privacy</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select privacy" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Public">Public</SelectItem>
-                      <SelectItem value="Private">Private</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </CardContent>
           <CardFooter>
             <LoadingButton 
@@ -280,10 +247,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                     </FormItem>
                   )}
                 />
-              </div>
 
-              {privacy.toLowerCase() === 'private' ? (
-                <>
                 <FormField
                   control={form.control}
                   name="swidCookie"
@@ -311,11 +275,8 @@ function Login({ onLoginSuccess }: LoginProps) {
                     </FormItem>
                   )}
                 />
-                </>
-              ) : (
-                <></>
-              )}
-          </div>
+              </div>
+            </div>
 
             <div className="pt-4 border-t">
               <LoadingButton

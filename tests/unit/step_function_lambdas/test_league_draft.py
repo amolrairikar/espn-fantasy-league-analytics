@@ -108,7 +108,6 @@ class TestGetDraftResults(unittest.TestCase):
         picks = get_draft_results(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2023",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -155,7 +154,6 @@ class TestGetDraftResults(unittest.TestCase):
         picks = get_draft_results(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2017",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -181,7 +179,6 @@ class TestGetDraftResults(unittest.TestCase):
             get_draft_results(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -194,7 +191,6 @@ class TestGetDraftResults(unittest.TestCase):
             get_draft_results(
                 league_id="12345",
                 platform="Sleeper",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -231,7 +227,6 @@ class TestGetPlayerSeasonTotals(unittest.TestCase):
         players = get_player_season_totals(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2023",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -290,7 +285,6 @@ class TestGetPlayerSeasonTotals(unittest.TestCase):
         players = get_player_season_totals(
             league_id="12345",
             platform="ESPN",
-            privacy="private",
             season="2017",
             swid_cookie="{ABC-123}",
             espn_s2_cookie="S2-COOKIE",
@@ -330,7 +324,6 @@ class TestGetPlayerSeasonTotals(unittest.TestCase):
             get_player_season_totals(
                 league_id="12345",
                 platform="ESPN",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -343,7 +336,6 @@ class TestGetPlayerSeasonTotals(unittest.TestCase):
             get_player_season_totals(
                 league_id="12345",
                 platform="Sleeper",
-                privacy="private",
                 season="2017",
                 swid_cookie=None,
                 espn_s2_cookie=None,
@@ -563,7 +555,6 @@ class TestLambdaHandler(unittest.TestCase):
             event={
                 "leagueId": "12345",
                 "platform": "ESPN",
-                "privacy": "private",
                 "swidCookie": None,
                 "espnS2Cookie": None,
                 "season": "2023",

@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import botocore.exceptions
+import pytest
 from fastapi import HTTPException
 
 from api.dependencies import (
@@ -86,13 +87,8 @@ class TestJsonFormatter(unittest.TestCase):
 class TestBuildApiRequestHeaders(unittest.TestCase):
     """Tests for build_api_request_headers function."""
 
-    def test_build_headers_public_league(self):
-        """Test headers for public league."""
-        headers = build_api_request_headers(privacy="public", cookies={})
-        self.assertEqual(headers, {})
-
-    def test_build_headers_private_league(self):
-        """Test headers for private league with cookies."""
+    def test_build_headers(self):
+        """Test build_headers method."""
         cookies: dict[str, str | None] = {
             "swid": "some-swid-value",
             "espn_s2": "some-espn-s2-value",
@@ -100,8 +96,21 @@ class TestBuildApiRequestHeaders(unittest.TestCase):
         expected_headers = {
             "Cookie": "espn_s2=some-espn-s2-value; SWID=some-swid-value;",
         }
-        headers = build_api_request_headers(privacy="private", cookies=cookies)
+        headers = build_api_request_headers(cookies=cookies)
         self.assertEqual(headers, expected_headers)
+
+    def test_build_headers_with_missing_cookies(self):
+        """Test build_headers method with missing cookies."""
+        cookies: dict[str, str | None] = {
+            "swid": None,
+            "espn_s2": "some-espn-s2-value",
+        }
+        with pytest.raises(HTTPException) as exc_info:
+            build_api_request_headers(cookies=cookies)
+        self.assertEqual(exc_info.value.status_code, 400)
+        self.assertIn(
+            "Missing required espn_s2 and swid cookies", str(exc_info.value.detail)
+        )
 
 
 class TestFilterDynamodbResponse(unittest.TestCase):

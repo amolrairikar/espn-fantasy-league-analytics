@@ -45,7 +45,6 @@ def onboard_league(
         execution_input = {
             "league_id": data.league_id,
             "platform": data.platform,
-            "privacy": data.privacy,
             "swid_cookie": data.swid,
             "espn_s2_cookie": data.espn_s2,
             "seasons": data.seasons,
