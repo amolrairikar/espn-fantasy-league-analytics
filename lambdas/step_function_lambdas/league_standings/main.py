@@ -538,6 +538,8 @@ def format_dynamodb_item(
                 "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#STANDINGS#SEASON#TEAM#{item['team_owner_id']}"
             },
             "GSI2SK": {"S": f"SEASON#{item['season']}"},
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "wins": {"N": str(item["wins"])},
@@ -556,6 +558,8 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_owner_id']}"},
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -569,6 +573,8 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {"S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_owner_id']}"},
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -584,6 +590,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"STANDINGS#H2H#{item['team_owner_id']}-vs-{item['opponent_owner_id']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "opponent_full_name": {"S": item["opponent_full_name"]},
             "games_played": {"N": str(item["games_played"])},

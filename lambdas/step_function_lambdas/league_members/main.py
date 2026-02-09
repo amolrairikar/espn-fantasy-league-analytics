@@ -150,6 +150,8 @@ def lambda_handler(event, context):
                             "S": f"LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}"
                         },
                         "SK": {"S": f"TEAM#{item['teamId']}"},
+                        "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+                        "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
                         "owner_full_name": {
                             "S": f"{item['firstName']} {item['lastName']}"
                         },

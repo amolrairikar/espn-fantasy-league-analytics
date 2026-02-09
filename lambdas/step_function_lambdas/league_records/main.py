@@ -206,6 +206,8 @@ def format_dynamodb_item(
         return {
             "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{platform}"},
             "SK": {"S": f"HALL_OF_FAME#CHAMPIONSHIPS#{item['owner_id']}"},
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "championships_won": {"N": str(item["championships_won"])},
@@ -216,6 +218,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10TEAMSCORES#{item['owner_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_name"]},
             "season": {"S": item["season"]},
@@ -228,6 +232,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#BOTTOM10TEAMSCORES#{item['owner_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": item["owner_id"]},
             "owner_full_name": {"S": item["owner_name"]},
             "season": {"S": item["season"]},
@@ -240,6 +246,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#QB#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -254,6 +262,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#RB#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -268,6 +278,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#WR#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -282,6 +294,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#TE#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -296,6 +310,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#DST#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -310,6 +326,8 @@ def format_dynamodb_item(
             "SK": {
                 "S": f"HALL_OF_FAME#TOP10PERFORMANCES#K#{item['player_id']}#{item['season']}#{item['week']}"
             },
+            "GSI5PK": {"S": f"LEAGUE#{league_id}"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},

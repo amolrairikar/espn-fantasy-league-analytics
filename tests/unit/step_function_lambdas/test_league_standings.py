@@ -340,6 +340,8 @@ class TestFormatDynamoDBItem(unittest.TestCase):
                 "S": f"LEAGUE#12345#PLATFORM#ESPN#STANDINGS#SEASON#TEAM#{item['team_owner_id']}"
             },
             "GSI2SK": {"S": f"SEASON#{item['season']}"},
+            "GSI5PK": {"S": "LEAGUE#12345"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "owner_full_name": {"S": item["owner_full_name"]},
             "wins": {"N": str(item["wins"])},
@@ -382,6 +384,8 @@ class TestFormatDynamoDBItem(unittest.TestCase):
         expected_schema = {
             "PK": {"S": "LEAGUE#12345#PLATFORM#ESPN"},
             "SK": {"S": f"STANDINGS#ALL-TIME#{item['team_owner_id']}"},
+            "GSI5PK": {"S": "LEAGUE#12345"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -420,6 +424,8 @@ class TestFormatDynamoDBItem(unittest.TestCase):
         expected_schema = {
             "PK": {"S": "LEAGUE#12345#PLATFORM#ESPN"},
             "SK": {"S": f"STANDINGS#ALL-TIME-PLAYOFFS#{item['team_owner_id']}"},
+            "GSI5PK": {"S": "LEAGUE#12345"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "games_played": {"N": str(item["games_played"])},
             "wins": {"N": str(item["wins"])},
@@ -462,6 +468,8 @@ class TestFormatDynamoDBItem(unittest.TestCase):
             "SK": {
                 "S": f"STANDINGS#H2H#{item['team_owner_id']}-vs-{item['opponent_owner_id']}"
             },
+            "GSI5PK": {"S": "LEAGUE#12345"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_full_name": {"S": item["owner_full_name"]},
             "opponent_full_name": {"S": item["opponent_full_name"]},
             "games_played": {"N": str(item["games_played"])},

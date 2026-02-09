@@ -261,6 +261,8 @@ class TestFormatDynamodbItem(unittest.TestCase):
         expected = {
             "PK": {"S": "LEAGUE#league123#PLATFORM#ESPN"},
             "SK": {"S": "HALL_OF_FAME#CHAMPIONSHIPS#owner1"},
+            "GSI5PK": {"S": "LEAGUE#league123"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": "owner1"},
             "owner_full_name": {"S": "Owner One"},
             "championships_won": {"N": "2"},
@@ -280,6 +282,8 @@ class TestFormatDynamodbItem(unittest.TestCase):
         expected_top = {
             "PK": {"S": "LEAGUE#league123#PLATFORM#ESPN"},
             "SK": {"S": "HALL_OF_FAME#TOP10TEAMSCORES#owner1#2025#1"},
+            "GSI5PK": {"S": "LEAGUE#league123"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": "owner1"},
             "owner_full_name": {"S": "Owner One"},
             "season": {"S": "2025"},
@@ -309,6 +313,8 @@ class TestFormatDynamodbItem(unittest.TestCase):
         expected_bottom = {
             "PK": {"S": "LEAGUE#league123#PLATFORM#ESPN"},
             "SK": {"S": "HALL_OF_FAME#BOTTOM10TEAMSCORES#owner2#2025#2"},
+            "GSI5PK": {"S": "LEAGUE#league123"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "owner_id": {"S": "owner2"},
             "owner_full_name": {"S": "Owner Two"},
             "season": {"S": "2025"},
@@ -333,6 +339,8 @@ class TestFormatDynamodbItem(unittest.TestCase):
         expected = {
             "PK": {"S": "LEAGUE#LID#PLATFORM#ESPN"},
             "SK": {"S": expected_sk_suffix},
+            "GSI5PK": {"S": "LEAGUE#LID"},
+            "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
             "season": {"S": item["season"]},
             "week": {"N": str(item["week"])},
             "owner_id": {"S": item["owner_id"]},
@@ -366,49 +374,49 @@ class TestFormatDynamodbItem(unittest.TestCase):
 
         # QB
         self._assert_player_record(
-            "top_10_qb_scores",
-            base_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#QB#p1#2025#3",
+            record_type="top_10_qb_scores",
+            item=base_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#QB#p1#2025#3",
         )
 
         # RB
         rb_item = dict(base_item, position="RB", player_id="p2")
         self._assert_player_record(
-            "top_10_rb_scores",
-            rb_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#RB#p2#2025#3",
+            record_type="top_10_rb_scores",
+            item=rb_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#RB#p2#2025#3",
         )
 
         # WR
         wr_item = dict(base_item, position="WR", player_id="p3")
         self._assert_player_record(
-            "top_10_wr_scores",
-            wr_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#WR#p3#2025#3",
+            record_type="top_10_wr_scores",
+            item=wr_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#WR#p3#2025#3",
         )
 
         # TE
         te_item = dict(base_item, position="TE", player_id="p4")
         self._assert_player_record(
-            "top_10_te_scores",
-            te_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#TE#p4#2025#3",
+            record_type="top_10_te_scores",
+            item=te_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#TE#p4#2025#3",
         )
 
         # DST
         dst_item = dict(base_item, position="D/ST", player_id="p5")
         self._assert_player_record(
-            "top_10_dst_scores",
-            dst_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#DST#p5#2025#3",
+            record_type="top_10_dst_scores",
+            item=dst_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#DST#p5#2025#3",
         )
 
         # K
         k_item = dict(base_item, position="K", player_id="p6")
         self._assert_player_record(
-            "top_10_k_scores",
-            k_item,
-            "HALL_OF_FAME#TOP10PERFORMANCES#K#p6#2025#3",
+            record_type="top_10_k_scores",
+            item=k_item,
+            expected_sk_suffix="HALL_OF_FAME#TOP10PERFORMANCES#K#p6#2025#3",
         )
 
     def test_format_dynamodb_item_unsupported_record_type_raises(self):
