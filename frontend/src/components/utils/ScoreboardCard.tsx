@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchWeeklyStandings } from '@/api/standings/api_calls';
 import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import { useGetResource } from '@/components/hooks/genericGetRequest';
 import type { LeagueData } from '@/features/login/types';
 import type { GetMatchups } from '@/api/matchups/types';
 import type { GetWeeklyStandings } from '@/features/standings/types';
@@ -10,52 +11,62 @@ interface ScoreboardCardProps {
   onClick?: () => void;
 }
 
+function useFetchWeeklyStandings(
+  league_id: string,
+  platform: string,
+  standings_type: string,
+  season: string,
+  team: string,
+  week: string,
+) {
+  return useQuery({
+    queryKey: ['weekly', league_id, platform, standings_type, season, team, week],
+    queryFn: () => fetchWeeklyStandings(
+      league_id,
+      platform,
+      standings_type,
+      season,
+      team,
+      week,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!league_id && !!platform && !!standings_type, // only run if input args are available
+  });
+};
+
 export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
   const isTeamAWinner = matchup.winner === matchup.team_a_owner_id;
   const isTeamBWinner = matchup.winner === matchup.team_b_owner_id;
   const isPlayoff = matchup.playoff_tier_type === 'WINNERS_BRACKET';
   const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  const [teamAStandings, setTeamAStandings] = useState<GetWeeklyStandings['data'] | null>(null);
-  const [teamBStandings, setTeamBStandings] = useState<GetWeeklyStandings['data'] | null>(null);
 
-  const { refetch: refetchWeeklyStandingsTeamA } = useGetResource<GetWeeklyStandings['data']>(`/standings`, {
-    league_id: leagueData?.leagueId,
-    platform: leagueData?.platform,
-    standings_type: 'weekly',
-    season: matchup.season,
-    team: matchup.team_a_owner_id,
-    week: matchup.week,
-  });
+  const { data: rawWeeklyStandingsTeamA } = useFetchWeeklyStandings(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    'weekly',
+    matchup.season,
+    matchup.team_a_owner_id,
+    matchup.week,
+  );
 
-  const { refetch: refetchWeeklyStandingsTeamB } = useGetResource<GetWeeklyStandings['data']>(`/standings`, {
-    league_id: leagueData?.leagueId,
-    platform: leagueData?.platform,
-    standings_type: 'weekly',
-    season: matchup.season,
-    team: matchup.team_b_owner_id,
-    week: matchup.week,
-  });
+  const { data: rawWeeklyStandingsTeamB } = useFetchWeeklyStandings(
+    leagueData!.leagueId,
+    leagueData!.platform,
+    'weekly',
+    matchup.season,
+    matchup.team_b_owner_id,
+    matchup.week,
+  );
 
-  // Fetch standings when matchup data changes ---
-  useEffect(() => {
-    const fetchStandings = async () => {
-      if (!leagueData || !matchup) return;
-      try {
-        const [teamAResponse, teamBResponse] = await Promise.all([
-          refetchWeeklyStandingsTeamA(),
-          refetchWeeklyStandingsTeamB(),
-        ]);
-        console.log(teamAResponse);
-        console.log(teamBResponse);
-        setTeamAStandings(teamAResponse?.data?.data ?? null);
-        setTeamBStandings(teamBResponse?.data?.data ?? null);
-      } catch (err) {
-        console.error('Error fetching standings:', err);
-      }
-    };
+  const teamAStandings = useMemo<GetWeeklyStandings['data'] | null>(() => {
+    if (!leagueData || !matchup) return null;
+    return rawWeeklyStandingsTeamA?.data ?? null;
+  }, [rawWeeklyStandingsTeamA, leagueData, matchup]);
 
-    void fetchStandings();
-  }, [refetchWeeklyStandingsTeamA, refetchWeeklyStandingsTeamB, leagueData, matchup]);
+  const teamBStandings = useMemo<GetWeeklyStandings['data'] | null>(() => {
+    if (!leagueData || !matchup) return null;
+    return rawWeeklyStandingsTeamB?.data ?? null;
+  }, [rawWeeklyStandingsTeamB, leagueData, matchup]);
 
   const teamARecord =
     teamAStandings && teamAStandings.length > 0

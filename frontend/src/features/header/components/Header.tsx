@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Info, Link, LogOut, Menu, Trash } from 'lucide-react';
-import { useDeleteResource } from '@/components/hooks/genericDeleteRequest';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +22,21 @@ import MobileSidebar from '@/features/sidebar/components/mobileSidebar';
 import { LoadingButton } from '@/components/utils/loadingButton';
 import { queryClient } from '@/components/utils/query_client';
 import type { HeaderProps } from '@/features/header/types';
+import { fetchDeleteStatus } from '@/api/utils/api_calls';
+
+function useDeleteLeague(
+  league_id?: string,
+) {
+  return useQuery({
+    queryKey: ['delete_league', league_id],
+    queryFn: () => fetchDeleteStatus(
+      // league_id will be provided when refetch is called from handler
+      league_id!,
+    ),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: false, // do not run automatically; trigger with refetch()
+  });
+};
 
 const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const [open, setOpen] = useState(false);
@@ -30,30 +45,19 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const navigate = useNavigate();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
+  const deleteLeagueQuery = useDeleteLeague(leagueData?.leagueId);
+
   const handleLogout = () => {
     onLogout();
     queryClient.clear(); // clears all cached queries
     setOpen(false);
   };
 
-  const deleteLeague = useDeleteResource('/delete_league', {
-    onSuccess: (data) => {
-      console.log('League deleted successfully:', data);
-      queryClient.clear(); // clears all cached queries
-      setIsAlertOpen(false);
-      void navigate('/login');
-    },
-    onError: (err) => {
-      console.error('Error deleting league:', err);
-    },
-  });
-
   const handleDelete = () => {
     console.log('Delete clicked');
     if (!leagueData) return;
-    deleteLeague.mutate({
-      league_id: leagueData.leagueId,
-      platform: leagueData.platform,
+    void deleteLeagueQuery.refetch().then(() => {
+      void navigate('/login');
     });
   };
 
@@ -142,7 +146,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction asChild>
-                  <LoadingButton onClick={handleDelete} loading={deleteLeague.isPending}>
+                  <LoadingButton onClick={handleDelete} loading={deleteLeagueQuery.isFetching}>
                     Continue
                   </LoadingButton>
                 </AlertDialogAction>
@@ -221,7 +225,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction asChild>
-                            <LoadingButton onClick={handleDelete} loading={deleteLeague.isPending}>
+                            <LoadingButton onClick={handleDelete} loading={deleteLeagueQuery.isFetching}>
                               Continue
                             </LoadingButton>
                           </AlertDialogAction>

@@ -49,10 +49,17 @@ export async function fetchH2HStandings(
 
 // Fetch weekly standings
 export async function fetchWeeklyStandings(
-  leagueId: string, platform: string, standingsType: string
+  leagueId: string, platform: string, standingsType: string, season: string, team: string, week: string
 ): Promise<GetWeeklyStandings> {
   const response = await apiClient.get<GetWeeklyStandings>(`standings`, {
-    params: { league_id: leagueId, platform: platform, standings_type: standingsType },
+    params: { 
+      league_id: leagueId,
+      platform: platform,
+      standings_type: standingsType,
+      season: season,
+      team: team,
+      week: week,
+    },
   });
   return response.data;
 }

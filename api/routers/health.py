@@ -1,9 +1,9 @@
 """FastAPI router for health check endpoints."""
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
 
 from api.dependencies import get_api_key
+from api.models import APIResponse
 
 router = APIRouter(
     prefix="/health",
@@ -11,10 +11,7 @@ router = APIRouter(
 )
 
 
-@router.get("")
-def health_check() -> JSONResponse:
+@router.get("", status_code=status.HTTP_200_OK)
+def health_check() -> APIResponse:
     """Simple health check endpoint."""
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content={"status": "healthy"},
-    )
+    return APIResponse(detail="healthy")
