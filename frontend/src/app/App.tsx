@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Toaster } from 'sonner';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useMediaQuery } from '@custom-react-hooks/use-media-query';
+import ApiErrorBanner from '@/components/utils/apiErrorBanner';
 import type { LeagueData } from '@/components/types/league_data';
 import { ThemeProvider } from '@/components/themes/theme_provider';
 import { Separator } from '@/components/ui/separator';
@@ -27,8 +28,10 @@ const ProtectedRoute = ({ isAllowed, redirectTo }: ProtectedRouteProps) => {
 function App() {
   return (
     <Router>
-      <Toaster position="top-center" />
-      <AppContent />
+      <ApiErrorBanner>
+        <Toaster position="top-center" />
+        <AppContent />
+      </ApiErrorBanner>
     </Router>
   );
 }
