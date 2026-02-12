@@ -29,16 +29,6 @@ function Home() {
     leagueData!.platform,
   );
 
-  // Early return if saving league data to local storage fails
-  if (!leagueData) {
-    return (
-      <p>
-        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
-        create a support ticket.
-      </p>
-    );
-  }
-
   if (isLoading) {
     return <p className="text-center">Loading...</p>;
   }
