@@ -118,16 +118,6 @@ function SeasonStandings() {
     selectedSeason!,
   )
 
-  // Early return if saving league data to local storage fails
-  if (!leagueData) {
-    return (
-      <p>
-        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
-        create a support ticket.
-      </p>
-    );
-  };
-
   const columns: ColumnDef<StandingsSeason>[] = [
     {
       accessorKey: 'owner_full_name',
@@ -320,7 +310,7 @@ function SeasonStandings() {
   return (
     <div className="space-y-4 my-4 px-2">
       <SeasonSelect
-        leagueData={leagueData}
+        leagueData={leagueData!}
         selectedSeason={selectedSeason ? String(selectedSeason) : undefined}
         onSeasonChange={(season) => {
           setSelectedOwnerName(null);

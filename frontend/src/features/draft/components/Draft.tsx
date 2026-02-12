@@ -36,16 +36,6 @@ function Draft() {
     selectedSeason!,
   );
 
-  // Early return if saving league data to local storage fails
-  if (!leagueData) {
-    return (
-      <p>
-        League credentials not found in local browser storage. Please try logging in again and if the issue persists,
-        create a support ticket.
-      </p>
-    );
-  };
-
   const draftResults = useMemo(() => {
     if (!rawDraftData?.data) return [];
     return rawDraftData.data;
@@ -57,7 +47,7 @@ function Draft() {
       {/* Season Selector */}
       <div className="flex flex-col items-center space-y-4 md:flex-row md:justify-center md:space-x-6 md:space-y-0">
         <SeasonSelect
-          leagueData={leagueData}
+          leagueData={leagueData!}
           selectedSeason={selectedSeason}
           onSeasonChange={setSelectedSeason}
           className="w-full max-w-xs md:w-auto"
