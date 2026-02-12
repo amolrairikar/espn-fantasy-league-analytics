@@ -2,6 +2,8 @@ default_install_hook_types:
   - pre-commit
   - commit-msg
 
+fail_fast: true
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -48,6 +50,13 @@ repos:
         name: Run lambda layer integration tests
         description: "Run lambda layer integration tests locally to ensure all tests pass before committing code."
         entry: pipenv run behave -v tests/integration/lambda_layer
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: run-api-integration-tests
+        name: Run API integration tests
+        description: "Run API integration tests locally to ensure all tests pass before committing code."
+        entry: pipenv run behave -v tests/integration/api
         language: system
         types: [python]
         pass_filenames: false

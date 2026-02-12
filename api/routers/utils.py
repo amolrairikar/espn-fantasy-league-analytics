@@ -3,12 +3,13 @@
 import boto3
 import botocore.exceptions
 from boto3.dynamodb.conditions import Key
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.dependencies import (
     get_api_key,
     table_name,
 )
+from api.models import APIResponse
 
 router = APIRouter(
     dependencies=[Depends(get_api_key)],
@@ -18,7 +19,7 @@ dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 table = dynamodb.Table(table_name)
 
 
-@router.delete("/delete_league")
+@router.delete("/delete_league", status_code=status.HTTP_200_OK)
 def delete_league_items(
     league_id: str = Query(description="The ID of the league the team is in."),
 ):
@@ -60,7 +61,9 @@ def delete_league_items(
             start_key = response.get("LastEvaluatedKey")
             done = start_key is None
 
-        return {"status": "success", "deleted_items": deleted_count}
+        return APIResponse(
+            detail=f"Deleted {deleted_count} items for league_id {league_id}.",
+        )
 
     except botocore.exceptions.ClientError as e:
         raise HTTPException(status_code=500, detail=str(e))
