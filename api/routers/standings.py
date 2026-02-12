@@ -225,7 +225,7 @@ def get_weekly_standings_single_team(
 
 
 QUERY_HANDLERS: dict[tuple[str, bool, bool, bool], Callable[..., Any]] = {
-    # (standings_type, season, team)
+    # (standings_type, season, team, week)
     ("season", False, True, False): get_season_standings_one_team,
     ("season", True, False, False): get_standings_for_season,
     ("h2h", False, False, False): get_head_to_head_standings,
@@ -264,13 +264,14 @@ def get_standings(
         standings_type (str): The type of standings to pull (season, H2H, etc.).
         season (Optional[str]): The fantasy football season to get standings for. Only used for season standings_type.
         team (Optional[str]): The team to get standings across all seasons for. Only used for season standings_type.
+        week (Optional[int]): The week number to get weekly standings for. Only used for weekly standings_type.
     """
     key = (standings_type, bool(season), bool(team), bool(week))
     handler = QUERY_HANDLERS.get(key)
     if not handler:
         log_message = (
             f"Invalid combination of query parameters: "
-            f"standings_type={standings_type}, season={season}, team={team}"
+            f"standings_type={standings_type}, season={season}, team={team}, week={week}"
         )
         logger.error(log_message)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=log_message)

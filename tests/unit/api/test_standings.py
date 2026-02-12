@@ -349,5 +349,5 @@ class TestGetStandings(unittest.TestCase):
         self.assertEqual(exc_info.value.status_code, 400)
         self.assertEqual(
             exc_info.value.detail,
-            "Invalid combination of query parameters: standings_type=playoffs, season=test, team=test",
+            "Invalid combination of query parameters: standings_type=playoffs, season=test, team=test, week=1",
         )

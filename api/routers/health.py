@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 
-@router.get("/")
+@router.get("")
 def health_check() -> JSONResponse:
     """Simple health check endpoint."""
     return JSONResponse(
