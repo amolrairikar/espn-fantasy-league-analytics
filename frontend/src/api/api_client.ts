@@ -2,7 +2,7 @@ import axios, { type AxiosInstance, AxiosError } from 'axios';
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 10000, // 10 seconds
+  timeout: 20000, // 20 seconds
   headers: {
     'x-api-key': import.meta.env.VITE_API_KEY,
   },
