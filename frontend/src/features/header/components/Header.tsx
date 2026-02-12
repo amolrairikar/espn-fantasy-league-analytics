@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Info, Link, LogOut, Menu, Trash } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,17 +24,13 @@ import { queryClient } from '@/components/utils/query_client';
 import type { HeaderProps } from '@/features/header/types';
 import { fetchDeleteStatus } from '@/api/utils/api_calls';
 
-function useDeleteLeague(
-  league_id?: string,
-) {
-  return useQuery({
-    queryKey: ['delete_league', league_id],
-    queryFn: () => fetchDeleteStatus(
-      // league_id will be provided when refetch is called from handler
-      league_id!,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: false, // do not run automatically; trigger with refetch()
+function useDeleteLeague() {
+  return useMutation({
+    mutationFn: (league_id: string) => fetchDeleteStatus(league_id),
+    onSuccess: () => {
+      // Clear cache when delete succeeds
+      queryClient.clear();
+    },
   });
 };
 
@@ -44,8 +40,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
   const isLoginPage = location.pathname === '/login';
   const navigate = useNavigate();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-
-  const deleteLeagueQuery = useDeleteLeague(leagueData?.leagueId);
+  const deleteMutation = useDeleteLeague();
 
   const handleLogout = () => {
     onLogout();
@@ -54,10 +49,13 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
   };
 
   const handleDelete = () => {
-    console.log('Delete clicked');
-    if (!leagueData) return;
-    void deleteLeagueQuery.refetch().then(() => {
-      void navigate('/login');
+    if (!leagueData?.leagueId) return;
+    deleteMutation.mutate(leagueData.leagueId, {
+      onSuccess: () => {
+        onLogout(); // Clear local state/storage
+        setIsAlertOpen(false);
+        navigate('/login');
+      },
     });
   };
 
@@ -146,7 +144,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction asChild>
-                  <LoadingButton onClick={handleDelete} loading={deleteLeagueQuery.isFetching}>
+                  <LoadingButton onClick={handleDelete} loading={deleteMutation.isPending}>
                     Continue
                   </LoadingButton>
                 </AlertDialogAction>
@@ -225,7 +223,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction asChild>
-                            <LoadingButton onClick={handleDelete} loading={deleteLeagueQuery.isFetching}>
+                            <LoadingButton onClick={handleDelete} loading={deleteMutation.isPending}>
                               Continue
                             </LoadingButton>
                           </AlertDialogAction>
