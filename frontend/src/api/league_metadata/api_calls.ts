@@ -41,7 +41,7 @@ export async function postLeagueMetadata(payload: PostLeagueMetadataPayload): Pr
 }
 
 // Update league metadata entry
-export async function putLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
-  const response = await apiClient.put<PostLeagueMetadataResponse>(`/leagues/${payload.league_id}`, payload);
+export async function patchLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
+  const response = await apiClient.patch<PostLeagueMetadataResponse>(`/leagues/${payload.league_id}`, payload);
   return response.data;
 }

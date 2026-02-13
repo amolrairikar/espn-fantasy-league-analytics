@@ -20,18 +20,6 @@ Feature: Test API league metadata endpoint
         When we make a GET request to the leagues/validate endpoint
         Then the request will return a 400 status code
 
-    Scenario: Successfully get league metadata
-        Given a valid API configuration
-        and query parameter platform with value ESPN
-        When we make a GET request to the leagues/1770206 endpoint
-        Then the request will return a 200 status code
-
-    Scenario: Get league metadata for league that does not exist
-        Given a valid API configuration
-        and query parameter platform with value ESPN
-        When we make a GET request to the leagues/12345 endpoint
-        Then the request will return a 404 status code
-
     Scenario: Successfully create league metadata
         Given a valid API configuration
         and request body field league_id with value "12345"
@@ -51,5 +39,17 @@ Feature: Test API league metadata endpoint
         and request body field seasons with value ["2025", "2024"]
         and request body field onboarded_status with value "true"
         and request body field onboarded_date with value "2026-02-09T22:50:34.572Z"
-        When we make a PUT request to the leagues/1770206 endpoint
+        When we make a PATCH request to the leagues/1770206 endpoint
         Then the request will return a 200 status code
+
+    Scenario: Successfully get league metadata
+        Given a valid API configuration
+        and query parameter platform with value ESPN
+        When we make a GET request to the leagues/12345 endpoint
+        Then the request will return a 200 status code
+
+    Scenario: Get league metadata for league that does not exist
+        Given a valid API configuration
+        and query parameter platform with value ESPN
+        When we make a GET request to the leagues/123456789 endpoint
+        Then the request will return a 404 status code

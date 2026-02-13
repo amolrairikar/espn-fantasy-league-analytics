@@ -224,7 +224,7 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
         )
 
 
-@router.put("/{league_id}", status_code=status.HTTP_200_OK)
+@router.patch("/{league_id}", status_code=status.HTTP_200_OK)
 def update_league_metadata(
     data: LeagueMetadata,
     league_id: str = Path(description="The ID of the league to retrieve metadata for."),

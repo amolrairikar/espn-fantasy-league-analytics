@@ -76,11 +76,11 @@ def make_api_request(context: Context, request_type: str, endpoint: str):
             params=context.params if hasattr(context, "params") else None,
             json=context.body_fields if hasattr(context, "body_fields") else None,
         )
-    elif request_type.upper() == "PUT":
+    elif request_type.upper() == "PATCH":
         print(
             f"Request body: {json.dumps(context.body_fields) if hasattr(context, 'body_fields') else None}"
         )
-        context.response = requests.put(
+        context.response = requests.patch(
             url,
             headers=headers,
             params=context.params if hasattr(context, "params") else None,
