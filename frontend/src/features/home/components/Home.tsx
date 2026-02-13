@@ -7,7 +7,7 @@ import type { LeagueData } from '@/features/login/types';
 import AllTimeRecords from '@/features/home/components/AllTimeRecords';
 import { poll } from '@/features/home/utils/poll';
 import { getLeagueOnboardingStatus, postLeagueOnboarding } from '@/api/onboarding/api_calls';
-import { getLeagueMetadata, putLeagueMetadata } from '@/api/league_metadata/api_calls';
+import { getLeagueMetadata, patchLeagueMetadata } from '@/api/league_metadata/api_calls';
 
 function useLeagueMetadata(leagueId: string, platform: string) {
   return useQuery({
@@ -70,7 +70,7 @@ function Home() {
 
       // Update metadata to set onboarded_status to true
       try {
-        await putLeagueMetadata({
+        await patchLeagueMetadata({
           league_id,
           platform,
           espn_s2: espn_s2_cookie,
