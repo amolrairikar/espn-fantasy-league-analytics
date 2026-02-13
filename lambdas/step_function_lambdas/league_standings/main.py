@@ -452,18 +452,20 @@ def compile_aggregate_standings_data(
     )
     h2h_group["points_against_per_game"] = (
         h2h_group.apply(
-            lambda r: (r["points_against_total"] / r["games"])
-            if r["games"] > 0
-            else 0.0,
+            lambda r: (
+                (r["points_against_total"] / r["games"]) if r["games"] > 0 else 0.0
+            ),
             axis=1,
         )
         .astype(float)
         .round(1)
     )
     h2h_group["win_pct"] = h2h_group.apply(
-        lambda r: (r["wins"] / (r["wins"] + r["losses"] + r["ties"]))
-        if (r["wins"] + r["losses"]) > 0
-        else 0.0,
+        lambda r: (
+            (r["wins"] / (r["wins"] + r["losses"] + r["ties"]))
+            if (r["wins"] + r["losses"]) > 0
+            else 0.0
+        ),
         axis=1,
     ).round(3)
     h2h_group["games_played"] = h2h_group["wins"] + h2h_group["losses"]
