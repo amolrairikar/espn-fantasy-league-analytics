@@ -34,7 +34,7 @@ Feature: Test API league metadata endpoint
 
     Scenario: Successfully create league metadata
         Given a valid API configuration
-        and request body field league_id with value "1770206"
+        and request body field league_id with value "12345"
         and request body field platform with value ESPN
         and secure request body field espn_s2
         and secure request body field swid
@@ -52,4 +52,4 @@ Feature: Test API league metadata endpoint
         and request body field onboarded_status with value "true"
         and request body field onboarded_date with value "2026-02-09T22:50:34.572Z"
         When we make a PUT request to the leagues/1770206 endpoint
-        Then the request will return a 201 status code
+        Then the request will return a 200 status code

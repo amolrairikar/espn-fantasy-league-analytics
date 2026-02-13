@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 import time
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 import botocore.exceptions
@@ -72,7 +72,7 @@ def get_api_key(api_key_header: str = Security(api_key_header)):
     return api_key_header
 
 
-def build_api_request_headers(cookies: dict[str, Optional[str]]) -> Optional[dict]:
+def build_api_request_headers(cookies: dict[str, str]) -> dict[str, str]:
     """
     Builds headers for API requests sent to fantasy platform APIs.
 

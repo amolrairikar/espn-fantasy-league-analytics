@@ -1,7 +1,6 @@
 """FastAPI router for league metadata endpoints."""
 
 from collections import OrderedDict
-from typing import Optional
 
 import botocore.exceptions
 import requests
@@ -23,6 +22,34 @@ router = APIRouter(
 )
 
 
+def validate_espn_credentials(
+    league_id: str,
+    season: str,
+    swid_cookie: str,
+    espn_s2_cookie: str,
+) -> None:
+    """
+    Validates ESPN credentials by executing a simple Fantasy Football API request.
+
+    Args:
+        league_id (str): Unique ID for the league.
+        season (str): Season to validate league information for.
+        swid_cookie (str): SWID cookie from browser cookies.
+        espn_s2_cookie (str): ESPN S2 cookie from browser cookies.
+    """
+    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+    headers = {}
+    headers = build_api_request_headers(
+        cookies={
+            "swid": swid_cookie,
+            "espn_s2": espn_s2_cookie,
+        },
+    )
+    logger.info("API headers: %s", headers)
+    response = requests.get(url=url, headers=headers)
+    response.raise_for_status()
+
+
 @router.get(
     "/validate", status_code=status.HTTP_200_OK, response_model_exclude_none=True
 )
@@ -30,11 +57,11 @@ def validate_league_info(
     league_id: str = Query(description="Unique ID for the league."),
     platform: str = Query(description="Platform the fantasy league is on."),
     season: str = Query(description="Season to validate league information for."),
-    swid_cookie: Optional[str] = Query(
-        default=None, description="League privacy settings (public/private)."
+    swid_cookie: str = Query(
+        default=None, description="SWID cookie from browser cookies."
     ),
-    espn_s2_cookie: Optional[str] = Query(
-        default=None, description="League privacy settings (public/private)."
+    espn_s2_cookie: str = Query(
+        default=None, description="ESPN S2 cookie from browser cookies."
     ),
 ) -> APIResponse:
     """
@@ -53,42 +80,20 @@ def validate_league_info(
         HTTPException: 400, 401, 404, or 500 errors if an exception occurs.
     """
     if platform == "ESPN":
-        logger.info("Validating ESPN league")
-        url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
-        headers = {}
-        if not swid_cookie or not espn_s2_cookie:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Missing required espn_s2 and swid cookies for private league validation.",
-            )
-        headers = build_api_request_headers(
-            cookies={
-                "swid": swid_cookie,
-                "espn_s2": espn_s2_cookie,
-            },
-        )
-        logger.info("API headers: %s", headers)
         try:
-            response = requests.get(url=url, headers=headers)
-            response.raise_for_status()
+            logger.info("Validating ESPN league")
+            validate_espn_credentials(
+                league_id=league_id,
+                season=season,
+                swid_cookie=swid_cookie,
+                espn_s2_cookie=espn_s2_cookie,
+            )
             log_message = "League information validated successfully."
             logger.info(log_message)
             return APIResponse(detail=log_message)
         except requests.RequestException as e:
             status_code = getattr(e.response, "status_code", None)
-            errors = {
-                400: "Bad request",
-                401: "Unauthorized",
-                404: "League ID not found",
-            }
-            if status_code in errors:
-                error_message = errors[status_code]
-                logger.exception(error_message)
-                raise HTTPException(
-                    status_code=status_code,
-                    detail=str(e),
-                )
-            else:
+            if not status_code:
                 logger.exception(
                     "Unexpected error while validating league information."
                 )
@@ -96,6 +101,11 @@ def validate_league_info(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Internal server error: {str(e)}",
                 )
+            logger.exception("Error validating league: %s", str(e))
+            raise HTTPException(
+                status_code=status_code,
+                detail=str(e),
+            )
     else:
         log_message = "Platforms besides ESPN not currently supported."
         logger.warning(log_message)
@@ -195,18 +205,26 @@ def post_league_metadata(data: LeagueMetadata) -> APIResponse:
                 "swid_cookie": {"S": data.swid},
                 "seasons": {"SS": data.seasons},
             },
+            ConditionExpression="attribute_not_exists(PK)",
         )
         log_message = f"League with ID {data.league_id} added to database."
         logger.info(log_message)
         return APIResponse(detail=log_message)
     except botocore.exceptions.ClientError as e:
+        error_response = e.response.get("Error", {})
+        error_code = error_response.get("Code")
+        if error_code == "ConditionalCheckFailedException":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"League with ID {data.league_id} already exists.",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",
         )
 
 
-@router.put("/{league_id}", status_code=status.HTTP_201_CREATED)
+@router.put("/{league_id}", status_code=status.HTTP_200_OK)
 def update_league_metadata(
     data: LeagueMetadata,
     league_id: str = Path(description="The ID of the league to retrieve metadata for."),
@@ -223,21 +241,18 @@ def update_league_metadata(
             and an optional data field to capture additional details.
     """
     try:
-        dynamodb_client.put_item(
+        dynamodb_client.update_item(
             TableName=table_name,
-            Item={
+            Key={
                 "PK": {"S": f"LEAGUE#{league_id}#PLATFORM#{data.platform}"},
                 "SK": {"S": "METADATA"},
-                "GSI5PK": {"S": f"LEAGUE#{league_id}"},
-                "GSI5SK": {"S": "FOR_DELETION_USE_ONLY"},
-                "league_id": {"S": league_id},
-                "platform": {"S": data.platform},
-                "espn_s2_cookie": {"S": data.espn_s2},
-                "swid_cookie": {"S": data.swid},
-                "seasons": {"SS": data.seasons},
-                "onboarded_date": {"S": data.onboarded_date},
-                "onboarded_status": {"BOOL": True},
             },
+            UpdateExpression="SET onboarded_date = :date, onboarded_status = :status",
+            ExpressionAttributeValues={
+                ":date": {"S": data.onboarded_date},
+                ":status": {"BOOL": True},
+            },
+            ReturnValues="UPDATED_NEW",
         )
         log_message = f"League with ID {data.league_id} updated in database."
         logger.info(log_message)

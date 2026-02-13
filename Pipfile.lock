@@ -904,11 +904,11 @@
         },
         "filelock": {
             "hashes": [
-                "sha256:f3aa1887cdf3514b13a379b5835ff35327d7aa24a96db4453b97531c00476760",
-                "sha256:fd13d64b92f79605f30ffaa0a2accb793f178b8aebcf56be8f1cad922fd278ad"
+                "sha256:cfd218cfccf8b947fce7837da312ec3359d10ef2a47c8602edd59e0bacffb708",
+                "sha256:d6cd4dbef3e1bb63bc16500fc5aa100f16e405bbff3fb4231711851be50c1560"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==3.21.1"
+            "version": "==3.21.2"
         },
         "greenlet": {
             "hashes": [
@@ -1138,11 +1138,11 @@
         },
         "platformdirs": {
             "hashes": [
-                "sha256:1ed8db354e344c5bb6039cd727f096af975194b508e37177719d562b2b540ee6",
-                "sha256:fd1a5f8599c85d49b9ac7d6e450bc2f1aaf4a23f1fe86d09952fe20ad365cf36"
+                "sha256:06ac79ae0c5025949f62711e3f7cd178736515a29bcc669f42a216016cd1dc7a",
+                "sha256:6f4ff8472e482af4b7e67a183fbe63da846a9b34f57d5019c4d112a181003d82"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==4.7.0"
+            "version": "==4.7.1"
         },
         "playwright": {
             "hashes": [
