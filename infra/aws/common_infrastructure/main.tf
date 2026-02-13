@@ -327,7 +327,7 @@ resource "aws_api_gateway_integration_response" "proxy_options_integration_respo
 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers"     = "'x-api-key,Content-Type'"
-    "method.response.header.Access-Control-Allow-Methods"     = "'OPTIONS,GET,POST,PUT,DELETE'"
+    "method.response.header.Access-Control-Allow-Methods"     = "'OPTIONS,GET,POST,PUT,PATCH,DELETE'"
     "method.response.header.Access-Control-Allow-Origin"      = "'${var.environment == "prod" ? "https://fantasy-recap.com" : "https://fantasy-recap-dev.com"}'"
     "method.response.header.Access-Control-Allow-Credentials" = "'true'"
   }
