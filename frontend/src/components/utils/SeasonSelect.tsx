@@ -63,7 +63,7 @@ export function SeasonSelect({
         Season:
       </label>
       <Select onValueChange={handleSeasonChange} value={selectedSeason ?? ''} disabled={loadingMetadata}>
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-50">
           <SelectValue placeholder={loadingMetadata ? 'Loading seasons...' : 'Select a season'} />
         </SelectTrigger>
         <SelectContent>

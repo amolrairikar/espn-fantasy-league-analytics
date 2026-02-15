@@ -44,7 +44,7 @@ export function WeekSelect({ season, defaultWeek, onWeekChange, className }: Wee
         Week:
       </label>
       <Select onValueChange={handleWeekChange} value={selectedWeek} disabled={!weeks.length}>
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-50">
           <SelectValue placeholder="Select a week" />
         </SelectTrigger>
         <SelectContent>
