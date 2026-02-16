@@ -127,7 +127,7 @@ function H2HStandings() {
     {
       accessorKey: 'games_played',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[90px]">
+        <div className="w-full text-center min-w-22.5">
           <SortableHeader column={column} label="GP" />
         </div>
       ),
@@ -142,7 +142,7 @@ function H2HStandings() {
     {
       accessorKey: 'win_pct',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[100px]">
+        <div className="w-full text-center min-w-25">
           <SortableHeader column={column} label="Win %" />
         </div>
       ),
@@ -152,7 +152,7 @@ function H2HStandings() {
     {
       accessorKey: 'points_for_per_game',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="PF / Game" />
         </div>
       ),
@@ -162,7 +162,7 @@ function H2HStandings() {
     {
       accessorKey: 'points_against_per_game',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="PA / Game" />
         </div>
       ),
@@ -271,7 +271,7 @@ function H2HStandings() {
           League Member Name:
         </label>
         <Select onValueChange={setSelectedOwnerId} value={selectedOwnerId}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-50">
             <SelectValue placeholder="Select a league member" />
           </SelectTrigger>
           <SelectContent>

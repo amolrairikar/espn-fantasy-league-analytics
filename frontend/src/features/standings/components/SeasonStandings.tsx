@@ -155,7 +155,7 @@ function SeasonStandings() {
     {
       accessorKey: 'win_pct',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[100px]">
+        <div className="w-full text-center min-w-25">
           <SortableHeader column={column} label="Win %" />
         </div>
       ),
@@ -165,7 +165,7 @@ function SeasonStandings() {
     {
       accessorKey: 'points_for',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="Points For" />
         </div>
       ),
@@ -175,7 +175,7 @@ function SeasonStandings() {
     {
       accessorKey: 'points_against',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="Points Against" />
         </div>
       ),
@@ -185,7 +185,7 @@ function SeasonStandings() {
     {
       accessorKey: 'points_differential',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="Differential" />
         </div>
       ),

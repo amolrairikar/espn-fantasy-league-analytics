@@ -7,7 +7,7 @@ export function StandingsTableSkeleton() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[150px]"><Skeleton className="h-4 w-24" /></TableHead>
+            <TableHead className="w-37.5"><Skeleton className="h-4 w-24" /></TableHead>
             <TableHead><Skeleton className="h-4 w-12 mx-auto" /></TableHead>
             <TableHead><Skeleton className="h-4 w-16 mx-auto" /></TableHead>
             <TableHead><Skeleton className="h-4 w-16 mx-auto" /></TableHead>
