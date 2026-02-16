@@ -114,7 +114,7 @@ function AllTimeStandings() {
     {
       accessorKey: 'win_pct',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[100px]">
+        <div className="w-full text-center min-w-25">
           <SortableHeader column={column} label="Win %" />
         </div>
       ),
@@ -124,7 +124,7 @@ function AllTimeStandings() {
     {
       accessorKey: 'points_for_per_game',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="PF / Game" />
         </div>
       ),
@@ -134,7 +134,7 @@ function AllTimeStandings() {
     {
       accessorKey: 'points_against_per_game',
       header: ({ column }) => (
-        <div className="w-full text-center min-w-[130px]">
+        <div className="w-full text-center min-w-32.5">
           <SortableHeader column={column} label="PA / Game" />
         </div>
       ),
@@ -170,7 +170,7 @@ function AllTimeStandings() {
           ) : (
             <>
               <h1 className="font-semibold text-center">Wins Per Season for {selectedOwnerName}</h1>
-              <ChartContainer config={chartConfig} className="h-[200px] w-full">
+              <ChartContainer config={chartConfig} className="h-50 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart accessibilityLayer data={standingsDataAllSeasons}>
                     <CartesianGrid vertical={false} />
