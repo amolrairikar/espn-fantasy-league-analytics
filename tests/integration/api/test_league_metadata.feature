@@ -32,7 +32,7 @@ Feature: Test API league metadata endpoint
 
     Scenario: Successfully update league metadata
         Given a valid API configuration
-        and request body field league_id with value "1770206"
+        and request body field league_id with value "12345"
         and request body field platform with value ESPN
         and secure request body field espn_s2
         and secure request body field swid
