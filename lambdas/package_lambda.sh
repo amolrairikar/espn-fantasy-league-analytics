@@ -1,31 +1,26 @@
 #!/bin/bash
 set -e
 
-# Run this script from the root of the lambdas directory
-DIRECTORY=$1
-cd "$DIRECTORY"
-
-ENVIRONMENT=$2
+IMAGE_NAME="step-fn-lambda-packager"
+CONTAINER_NAME="temp-lambda-build"
 
 # Clean up old deployment package
 if [ -f "deployment_package.zip" ]; then
     rm deployment_package.zip
 fi
 
-# Copy the Dockerfile from the root of the lambdas directory
-cp ../../Dockerfile .
+# Remove existing container if it exists. 
+# Redirect stderr to /dev/null so it doesn't complain if the container isn't there.
+docker rm -f $CONTAINER_NAME 2>/dev/null || true
 
-# Remove any stale containers/images
-docker rm -f temp-step-fn-lambda-packager 2>/dev/null || true
-docker rmi -f step-fn-lambda-packager:latest 2>/dev/null || true
+# Build for the correct architecture (Lambda x86_64)
+docker build --platform linux/amd64 -t $IMAGE_NAME .
 
-# Build the Docker image for x86_64 Lambda
-docker buildx build --platform linux/amd64 -t step-fn-lambda-packager .
+# Extract the file
+# We use 'create' because we don't need the container to actually run
+docker create --name $CONTAINER_NAME $IMAGE_NAME
+docker cp $CONTAINER_NAME:/app/deployment_package.zip ./deployment_package.zip
 
-# Create a container and copy the deployment package without running the Lambda entrypoint
-docker create --name temp-step-fn-lambda-packager step-fn-lambda-packager
-docker cp temp-step-fn-lambda-packager:/app/deployment_package.zip ./deployment_package.zip
-docker rm temp-step-fn-lambda-packager
-
-# Remove the copied Dockerfile
-rm Dockerfile
+# Cleanup
+docker rm -f $CONTAINER_NAME
+echo "Successfully created deployment_package.zip"
