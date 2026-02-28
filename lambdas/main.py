@@ -38,29 +38,3 @@ def handler(event, context) -> dict[str, str]:
     except Exception as e:
         logger.error(f"Onboarding failed: {str(e)}")
         return {"status": "error", "message": str(e)}
-
-
-handler(
-    event={
-        "name": "test-event",
-        "body": {
-            "leagueId": "1770206",
-            "platform": "ESPN",
-            "swidCookie": "{5C607AAE-F39B-4BF7-8306-BEE68C48A53B}",
-            "espnS2Cookie": "AECS%2Fm2P8g7pbnggkucc8qDrpgHgQ22PkiTn8ia8%2FNpb5AaWTjiYw1fc%2FjMtPaCDzWqLEPpD1yz%2BlCZ7rbZSrCcyV5LmaeM9qYwdOz30AcZnC8ZRolRGvP2%2BfMgME0L26v41DrytOJdvXM9rwGA8Mau1DJmuHjedA55tdQlzzTm5WqPkGeZbLB35C96v8UUBEDiq6WuzDvjMaOVnZVExD1U9HjhgGZp4jsUi58BTTPIkjMYIt3nfIeiItIs4hQjyRWYfhZW9jrpEPzX%2BCtuLpqdWNhjfU4l6tP%2BYfE0S1Ih84YDtmXhFTkzKj7oXwKSAuPQ%3D",
-            "seasons": [
-                "2016",
-                "2017",
-                "2018",
-                "2019",
-                "2020",
-                "2021",
-                "2022",
-                "2023",
-                "2024",
-                "2025",
-            ],
-        },
-    },
-    context={},
-)
