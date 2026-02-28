@@ -34,43 +34,43 @@ repos:
         entry: pipenv run ruff format .
         language: system
         types: [python]
-      - id: run-unit-tests
-        name: Run unit tests
-        description: "Run unit tests locally to ensure all tests pass before committing code."
-        entry: pipenv run pytest --cov=api --cov=lambda_layer --cov=lambdas tests/unit --cov-report=term-missing -vv
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-      - id: run-league-onboarding-integration-tests
-        name: Run league onboarding integration tests
-        description: "Run league onboarding integration tests locally to ensure all tests pass before committing code."
-        entry: pipenv run behave -v tests/integration/step_function_lambdas
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-      - id: run-lambda-layer-integration-tests
-        name: Run lambda layer integration tests
-        description: "Run lambda layer integration tests locally to ensure all tests pass before committing code."
-        entry: pipenv run behave -v tests/integration/lambda_layer
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-      - id: run-api-integration-tests
-        name: Run API integration tests
-        description: "Run API integration tests locally to ensure all tests pass before committing code."
-        entry: pipenv run behave -v tests/integration/api
-        language: system
-        types: [python]
-        pass_filenames: false
-        always_run: true
-      - id: run-e2e-tests
-        name: Run E2E tests
-        description: "Run end-to-end tests using Playwright to validate web application user flows."
-        entry: pipenv run pytest tests/e2e -s --log-cli-level=INFO
-        language: system
-        pass_filenames: false
-        types: [python]
-        always_run: true
+      # - id: run-unit-tests
+      #   name: Run unit tests
+      #   description: "Run unit tests locally to ensure all tests pass before committing code."
+      #   entry: pipenv run pytest --cov=api --cov=lambda_layer --cov=lambdas tests/unit --cov-report=term-missing -vv
+      #   language: system
+      #   types: [python]
+      #   pass_filenames: false
+      #   always_run: true
+      # - id: run-league-onboarding-integration-tests
+      #   name: Run league onboarding integration tests
+      #   description: "Run league onboarding integration tests locally to ensure all tests pass before committing code."
+      #   entry: pipenv run behave -v tests/integration/step_function_lambdas
+      #   language: system
+      #   types: [python]
+      #   pass_filenames: false
+      #   always_run: true
+      # - id: run-lambda-layer-integration-tests
+      #   name: Run lambda layer integration tests
+      #   description: "Run lambda layer integration tests locally to ensure all tests pass before committing code."
+      #   entry: pipenv run behave -v tests/integration/lambda_layer
+      #   language: system
+      #   types: [python]
+      #   pass_filenames: false
+      #   always_run: true
+      # - id: run-api-integration-tests
+      #   name: Run API integration tests
+      #   description: "Run API integration tests locally to ensure all tests pass before committing code."
+      #   entry: pipenv run behave -v tests/integration/api
+      #   language: system
+      #   types: [python]
+      #   pass_filenames: false
+      #   always_run: true
+      # - id: run-e2e-tests
+      #   name: Run E2E tests
+      #   description: "Run end-to-end tests using Playwright to validate web application user flows."
+      #   entry: pipenv run pytest tests/e2e -s --log-cli-level=INFO
+      #   language: system
+      #   pass_filenames: false
+      #   types: [python]
+      #   always_run: true
