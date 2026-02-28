@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple
 
 import requests
 
-from common_utils.logging_config import logger
-from common_utils.retryable_request_session import create_retry_session
+from utils.logging_config import logger
+from utils.retryable_request_session import create_retry_session
 
 session = create_retry_session()
 

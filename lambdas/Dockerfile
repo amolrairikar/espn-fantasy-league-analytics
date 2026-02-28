@@ -5,11 +5,19 @@ WORKDIR /app
 # Install zip using dnf since the container is Amazon Linux 2023 based
 RUN dnf install -y zip
 
-COPY requirements.txt .
-COPY main.py .
-
 # Install dependencies directly into /app (same as deployment package root)
+COPY requirements.txt .
 RUN pip install -r requirements.txt -t .
 
-# Exclude pycache files from deployment package to reduce bloat
-RUN zip -r deployment_package.zip . -x "*__pycache__*" "*.pyc"
+# Copy code and subdirectories. This ensures /app/utils, /app/main.py, etc. exist
+COPY . .
+
+# Create the zip file
+RUN zip -r deployment_package.zip . \
+    -x "Dockerfile" \
+    "*.sh" \
+    "*.git*" \
+    "*.dist-info*" \
+    "*.egg-info*" \
+    "*__pycache__*" \
+    "*.pyc"
