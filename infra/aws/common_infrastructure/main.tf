@@ -1,124 +1,4 @@
 ###############################################################################
-############################### Database ######################################
-###############################################################################
-
-resource "aws_dynamodb_table" "application_table" {
-  name         = var.environment == "prod" ? "fantasy-recap-app-db" : "fantasy-recap-app-db-dev"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "PK"
-  range_key    = "SK"
-
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  attribute {
-    name = "PK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season} OR LEAGUE#{league_id}#PLATFORM#{platform}
-    type = "S"
-  }
-
-  attribute {
-    name = "SK" # format will vary based on the type of item being stored
-    type = "S"
-  }
-
-  # GSI1 is for league matchups
-  attribute {
-    name = "GSI1PK" # will be of format MATCHUP#{team_a}-vs-{team_b}
-    type = "S"
-  }
-
-  attribute {
-    name = "GSI1SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}#WEEK#{week}
-    type = "S"
-  }
-
-  # GSI2 is for season standings
-  attribute {
-    name = "GSI2PK" # will be of format STANDINGS#TEAM#{team_member_id}#SEASON#{season}
-    type = "S"
-  }
-
-  attribute {
-    name = "GSI2SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}
-    type = "S"
-  }
-
-  # GSI3 is to get all matchups in a league for a season/week combination (is the inverse of GSI1)
-  attribute {
-    name = "GSI3PK" # will be of format LEAGUE#{league_id}#PLATFORM{platform}#SEASON#{season}#WEEK#{week}
-    type = "S"
-  }
-
-  attribute {
-    name = "GSI3SK" # will be of format MATCHUP#{team_a}-vs-{team_b}
-    type = "S"
-  }
-
-  # GSI4 is to get all matchups in a league for a team
-  attribute {
-    name = "GSI4PK" # will be of format MATCHUP#TEAM#{team_id}
-    type = "S"
-  }
-
-  attribute {
-    name = "GSI4SK" # will be of format LEAGUE#{league_id}#PLATFORM#{platform}#SEASON#{season}#WEEK#{week}
-    type = "S"
-  }
-
-  # GSI5 is to be used for bulk league deletion
-  attribute {
-    name = "GSI5PK" # will be of format LEAGUE#{league_id}
-    type = "S"
-  }
-
-  attribute {
-    name = "GSI5SK" # will be static value FOR_DELETION_USE_ONLY
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "GSI1"
-    hash_key        = "GSI1PK"
-    range_key       = "GSI1SK"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "GSI2"
-    hash_key        = "GSI2PK"
-    range_key       = "GSI2SK"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "GSI3"
-    hash_key        = "GSI3PK"
-    range_key       = "GSI3SK"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "GSI4"
-    hash_key        = "GSI4PK"
-    range_key       = "GSI4SK"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "GSI5"
-    hash_key        = "GSI5PK"
-    range_key       = "GSI5SK"
-    projection_type = "ALL"
-  }
-
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-###############################################################################
 ################################# API #########################################
 ###############################################################################
 
@@ -146,57 +26,24 @@ resource "aws_iam_role" "lambda_role" {
   }
 }
 
-data "aws_iam_policy_document" "lambda_policy" {
+data "aws_iam_policy_document" "api_lambda_policy" {
   statement {
     effect = "Allow"
 
     actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:BatchWriteItem",
-      "dynamodb:UpdateItem",
-      "dynamodb:DeleteItem",
-      "dynamodb:Query",
-      "dynamodb:Scan"
+      "lambda:InvokeFunction"
     ]
 
     resources = [
-      aws_dynamodb_table.application_table.arn,
-      "${aws_dynamodb_table.application_table.arn}/index/*"
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "states:StartExecution"
-    ]
-
-    resources = [
-        aws_sfn_state_machine.league_onboarding.arn
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "states:DescribeExecution"
-    ]
-
-    resources = [
-        var.environment == "prod"
-            ? "arn:aws:states:us-east-1:${data.aws_caller_identity.current.account_id}:execution:league-onboarding:*"
-            : "arn:aws:states:us-east-1:${data.aws_caller_identity.current.account_id}:execution:league-onboarding-dev:*"
+        aws_lambda_function.league_onboarding_lambda.arn
     ]
   }
 }
 
-resource "aws_iam_role_policy" "lambda_role_policy" {
+resource "aws_iam_role_policy" "api_lambda_role_policy" {
   name   = var.environment == "prod" ? "fantasy_recap_app_lambda_access_policy" : "fantasy_recap_app_lambda_access_policy_dev"
   role   = aws_iam_role.lambda_role.id
-  policy = data.aws_iam_policy_document.lambda_policy.json
+  policy = data.aws_iam_policy_document.api_lambda_policy.json
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_cloudwatch_logs" {
@@ -219,8 +66,6 @@ resource "aws_lambda_function" "api_lambda" {
     variables = {
       API_KEY             = var.api_key
       ACCOUNT_NUMBER      = data.aws_caller_identity.current.account_id
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-      ONBOARDING_SFN_ARN  = aws_sfn_state_machine.league_onboarding.arn
       ENVIRONMENT         = upper(var.environment)
     }
   }
@@ -682,358 +527,119 @@ resource "aws_acm_certificate_validation" "cert_validation" {
 }
 
 # ###############################################################################
-# ####################### Onboarding Step Functions #############################
+# ############################ DuckDB S3 Bucket #################################
 # ###############################################################################
+resource "aws_s3_bucket" "application_bucket" {
+  bucket = var.environment == "prod" ? "${data.aws_caller_identity.current.account_id}-fantasy-recap-app-duckdb-storage" : "${data.aws_caller_identity.current.account_id}-fantasy-recap-app-duckdb-storage-dev"
 
-resource "aws_iam_role" "step_functions_role" {
-  name = var.environment == "prod" ? "league-onboarding-sfn-role" : "league-onboarding-sfn-role-dev"
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = upper(var.environment)
+  }
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "states.amazonaws.com"
-        }
-      }
+resource "aws_s3_bucket_versioning" "application_bucket_versioning" {
+  bucket = aws_s3_bucket.application_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "s3_public_access_block" {
+  bucket = aws_s3_bucket.application_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Set versioning to remove noncurrent files in this bucket
+resource "aws_s3_bucket_lifecycle_configuration" "s3_expire_old_versions" {
+  depends_on = [aws_s3_bucket_versioning.application_bucket_versioning]
+
+  bucket = aws_s3_bucket.application_bucket.id
+
+  rule {
+    id     = "expire_noncurrent_versions"
+    status = "Enabled"
+
+    # Terraform requires specifying a prefix so leaving empty string
+    filter {
+      prefix = ""
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 14
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    # Terraform requires specifying a prefix so leaving empty string
+    filter {
+      prefix = ""
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+# ###############################################################################
+# ########################### Onboarding Lambda #################################
+# ###############################################################################
+resource "aws_iam_role" "onboarding_lambda_role" {
+  name               = var.environment == "prod" ? "fantasy_recap_app_onboarding_lambda_role" : "fantasy_recap_app_onboarding_lambda_role_dev"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+  tags = {
+    Project     = "fantasy-analytics-app"
+    Environment = upper(var.environment)
+  }
+}
+
+data "aws_iam_policy_document" "onboarding_lambda_policy" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:PutObject"
     ]
-  })
-}
 
-# Policy for invoking Lambda and writing logs
-resource "aws_iam_role_policy" "step_functions_policy" {
-  name = var.environment == "prod" ? "league-onboarding-sfn-policy" : "league-onboarding-sfn-policy-dev"
-  role = aws_iam_role.step_functions_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Resource = [
-          aws_lambda_function.league_members_lambda.arn,
-          aws_lambda_function.league_scores_lambda.arn,
-          aws_lambda_function.league_draft_picks_lambda.arn,
-          aws_lambda_function.league_standings_lambda.arn,
-          aws_lambda_function.league_weekly_standings_lambda.arn,
-          aws_lambda_function.league_records_lambda.arn
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "*"
-      }
+    resources = [
+        "${aws_s3_bucket.application_bucket.arn}/*"
     ]
-  })
-}
-
-resource "aws_sfn_state_machine" "league_onboarding" {
-  name     = var.environment == "prod" ? "league-onboarding" : "league-onboarding-dev"
-  role_arn = aws_iam_role.step_functions_role.arn
-
-  definition = <<EOF
-{
-  "Comment": "Fantasy League Onboarding Workflow",
-  "StartAt": "MapSeasons",
-  "States": {
-    "MapSeasons": {
-      "Type": "Map",
-      "ItemsPath": "$.seasons",
-      "MaxConcurrency": 15,
-      "Parameters": {
-        "leagueId.$": "$.league_id",
-        "platform.$": "$.platform",
-        "swidCookie.$": "$.swid_cookie",
-        "espnS2Cookie.$": "$.espn_s2_cookie",
-        "season.$": "$$.Map.Item.Value"
-      },
-      "Iterator": {
-        "StartAt": "FetchMembers",
-        "States": {
-          "FetchMembers": {
-            "Type": "Task",
-            "Resource": "${aws_lambda_function.league_members_lambda.arn}",
-            "Retry": [
-              {
-                "ErrorEquals": ["States.ALL"],
-                "IntervalSeconds": 2,
-                "MaxAttempts": 3,
-                "BackoffRate": 2.0
-              }
-            ],
-            "ResultPath": null,
-            "Next": "ParallelProcessing"
-          },
-
-          "ParallelProcessing": {
-            "Type": "Parallel",
-            "Branches": [
-              {
-                "StartAt": "FetchScores",
-                "States": {
-                  "FetchScores": {
-                    "Type": "Task",
-                    "Resource": "${aws_lambda_function.league_scores_lambda.arn}",
-                    "Retry": [
-                      {
-                        "ErrorEquals": ["States.ALL"],
-                        "IntervalSeconds": 2,
-                        "MaxAttempts": 3,
-                        "BackoffRate": 2.0
-                      }
-                    ],
-                    "ResultPath": null,
-                    "End": true
-                  }
-                }
-              },
-              {
-                "StartAt": "FetchDraftPicks",
-                "States": {
-                  "FetchDraftPicks": {
-                    "Type": "Task",
-                    "Resource": "${aws_lambda_function.league_draft_picks_lambda.arn}",
-                    "Retry": [
-                      {
-                        "ErrorEquals": ["States.ALL"],
-                        "IntervalSeconds": 2,
-                        "MaxAttempts": 3,
-                        "BackoffRate": 2.0
-                      }
-                    ],
-                    "ResultPath": null,
-                    "End": true
-                  }
-                }
-              }
-            ],
-            "Next": "ReturnInput"
-          },
-          "ReturnInput": {
-            "Type": "Pass",
-            "ResultPath": "$",
-            "End": true
-          }
-        }
-      },
-      "Next": "FetchStandingsParallel"
-    },
-    "FetchStandingsParallel": {
-      "Type": "Parallel",
-      "Branches": [
-        {
-          "StartAt": "FetchStandings",
-          "States": {
-            "FetchStandings": {
-              "Type": "Task",
-              "Resource": "${aws_lambda_function.league_standings_lambda.arn}",
-              "Retry": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "IntervalSeconds": 2,
-                  "MaxAttempts": 3,
-                  "BackoffRate": 2.0
-                }
-              ],
-              "ResultPath": null,
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "FetchWeeklyStandings",
-          "States": {
-            "FetchWeeklyStandings": {
-              "Type": "Task",
-              "Resource": "${aws_lambda_function.league_weekly_standings_lambda.arn}",
-              "Retry": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "IntervalSeconds": 2,
-                  "MaxAttempts": 3,
-                  "BackoffRate": 2.0
-                }
-              ],
-              "ResultPath": null,
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "FetchRecords",
-          "States": {
-            "FetchRecords": {
-              "Type": "Task",
-              "Resource": "${aws_lambda_function.league_records_lambda.arn}",
-              "Retry": [
-                {
-                  "ErrorEquals": ["States.ALL"],
-                  "IntervalSeconds": 2,
-                  "MaxAttempts": 3,
-                  "BackoffRate": 2.0
-                }
-              ],
-              "ResultPath": null,
-              "End": true
-            }
-          }
-        }
-      ],
-      "ResultPath": null,
-      "End": true
-    }
-  }
-}
-EOF
-
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
   }
 }
 
-resource "aws_lambda_layer_version" "shared_dependencies_layer" {
-  layer_name          = var.environment == "prod" ? "league_onboarding_shared_dependencies" : "league_onboarding_shared_dependencies_dev"
-  description         = "Shared utility functions used by Lambda functions running in league onboarding process."
-  compatible_runtimes = ["python3.13"]
-  filename            = "../../../lambda_layer/deployment_package.zip"
-  source_code_hash    = filebase64sha256("../../../lambda_layer/deployment_package.zip")
+resource "aws_iam_role_policy" "onboarding_lambda_role_policy" {
+  name   = var.environment == "prod" ? "fantasy_recap_app_onboarding_lambda_access_policy" : "fantasy_recap_app_onboarding_lambda_access_policy_dev"
+  role   = aws_iam_role.onboarding_lambda_role.id
+  policy = data.aws_iam_policy_document.onboarding_lambda_policy.json
 }
 
-resource "aws_lambda_function" "league_members_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-members-lambda" : "fantasy-recap-league-members-lambda-dev"
-  description      = "Lambda function to get league member and teams information for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
+resource "aws_iam_role_policy_attachment" "onboarding_lambda_cloudwatch_logs" {
+  role       = aws_iam_role.onboarding_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_lambda_function" "league_onboarding_lambda" {
+  function_name    = var.environment == "prod" ? "fantasy-recap-league-onboarding-lambda" : "fantasy-recap-league-onboarding-lambda-dev"
+  description      = "Lambda function to onboard league to fantasy recap app"
+  role             = aws_iam_role.onboarding_lambda_role.arn
+  handler          = "main.handler"
   runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_members/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_members/deployment_package.zip")
-  timeout          = 10
-  memory_size      = 256
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-    }
-  }
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_lambda_function" "league_scores_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-scores-lambda" : "fantasy-recap-league-scores-lambda-dev"
-  description      = "Lambda function to get league matchup score information for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_scores/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_scores/deployment_package.zip")
-  timeout          = 20
+  filename         = "../../../lambdas/deployment_package.zip"
+  source_code_hash = filebase64sha256("../../../lambdas/deployment_package.zip")
+  timeout          = 30
   memory_size      = 2048
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
   environment {
     variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-    }
-  }
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_lambda_function" "league_standings_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-standings-lambda" : "fantasy-recap-league-standings-lambda-dev"
-  description      = "Lambda function to calculate league standings for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_standings/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_standings/deployment_package.zip")
-  timeout          = 60
-  memory_size      = 2048
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-    }
-  }
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_lambda_function" "league_weekly_standings_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-weekly-standings-lambda" : "fantasy-recap-league-weekly-standings-lambda-dev"
-  description      = "Lambda function to calculate league weekly standings snapshot for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_weekly_standings/deployment_package.zip")
-  timeout          = 60
-  memory_size      = 2048
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-    }
-  }
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_lambda_function" "league_records_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-records-lambda" : "fantasy-recap-league-records-lambda-dev"
-  description      = "Lambda function to calculate league records for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_records/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_records/deployment_package.zip")
-  timeout          = 60
-  memory_size      = 2048
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
-    }
-  }
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_lambda_function" "league_draft_picks_lambda" {
-  function_name    = var.environment == "prod" ? "fantasy-recap-league-draft-picks-lambda" : "fantasy-recap-league-draft-picks-lambda-dev"
-  description      = "Lambda function to get league draft picks for fantasy recap app"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.13"
-  filename         = "../../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip"
-  source_code_hash = filebase64sha256("../../../lambdas/step_function_lambdas/league_drafts/deployment_package.zip")
-  timeout          = 20
-  memory_size      = 2048
-  layers           = [aws_lambda_layer_version.shared_dependencies_layer.arn]
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.application_table.name
+      ACCOUNT_NUMBER = data.aws_caller_identity.current.account_id
+      ENVIRONMENT    = upper(var.environment)
     }
   }
   tags = {

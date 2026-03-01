@@ -2,13 +2,18 @@
 Module containing class definition for all onboarding logic.
 """
 
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
+from dotenv import load_dotenv
+
 from onboarding.api_requests import get_league_members_and_teams
 from onboarding.data_processing import join_league_members_to_teams
 from onboarding.write_data import write_to_duckdb_table, write_duckdb_file_to_s3
 from utils.logging_config import logger
+
+load_dotenv()
 
 
 class LeagueOnboarder:
@@ -29,7 +34,6 @@ class LeagueOnboarder:
         logger.info(f"Starting onboarding for league {self.league_id}")
 
         df_members_and_teams = self._fetch_league_members_and_teams()
-        print(df_members_and_teams.head(5))
         logger.info("Successfully fetched league members and teams.")
 
         # Step 2: [Future Step - e.g., Fetch Schedules]
@@ -39,8 +43,12 @@ class LeagueOnboarder:
         output_data = [
             ("league_members", df_members_and_teams),
         ]
+        bucket_name_add_on = "-dev" if os.environ["ENVIRONMENT"] == "DEV" else ""
+        bucket_name = f"{os.environ['ACCOUNT_NUMBER']}-fantasy-recap-app-duckdb-storage{bucket_name_add_on}"
         write_to_duckdb_table(data_to_write=output_data)
-        write_duckdb_file_to_s3(bucket_name="", bucket_key="")
+        write_duckdb_file_to_s3(
+            bucket_name=bucket_name, bucket_key=f"{self.league_id}.duckdb"
+        )
 
         return {
             "status": "success",

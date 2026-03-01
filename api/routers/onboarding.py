@@ -1,13 +1,13 @@
 """FastAPI router for league onboarding (via Step Functions) endpoints."""
 
 import json
-import os
 
 import boto3
 import botocore.exceptions
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from api.dependencies import (
+    ENVIRONMENT,
     get_api_key,
     logger,
 )
@@ -26,7 +26,7 @@ def onboard_league(
     ),
 ) -> APIResponse:
     """
-    Onboards a league by triggering a Step Function execution that retrieves league
+    Onboards a league by triggering a Lambda execution that retrieves league
     data such as matchups, scores, etc.
 
     Args:
@@ -38,76 +38,43 @@ def onboard_league(
             and an optional data field to capture additional details.
 
     Raises:
-        HTTPException: 400, 404, or 500 errors if an exception occurs.
+        HTTPException: 500 error if the onboarding lambda fails.
     """
-    sfn = boto3.client("stepfunctions")
+    lambda_client = boto3.client("lambda")
     try:
-        execution_input = {
-            "league_id": data.league_id,
-            "platform": data.platform,
-            "swid_cookie": data.swid,
-            "espn_s2_cookie": data.espn_s2,
-            "seasons": data.seasons,
+        event_input = {
+            "event-id": "",
+            "body": {
+                "leagueId": data.league_id,
+                "platform": data.platform,
+                "swidCookie": data.swid,
+                "espnS2Cookie": data.espn_s2,
+                "seasons": data.seasons,
+            },
         }
-        logger.info("Starting onboarding process for league %s", data.league_id)
-        # TODO: Remove region hardcoding in env variable if in future the Step Function is multi-region
-        response = sfn.start_execution(
-            stateMachineArn=os.environ["ONBOARDING_SFN_ARN"],
-            input=json.dumps(execution_input),
+        env_add_on = "-dev" if ENVIRONMENT == "DEV" else ""
+        response = lambda_client.invoke(
+            FunctionName=f"fantasy-recap-league-onboarding-lambda{env_add_on}",
+            InvocationType="RequestResponse",
+            LogType="Tail",
+            Payload=json.dumps(event_input),
         )
-        logger.info("Step Function response: %s", response)
-        return APIResponse(
-            detail="Successfully triggered onboarding",
-            data={"execution_id": response["executionArn"].rsplit(":", 1)[-1]},
-        )
+        response_payload = json.loads(response["Payload"].read().decode("utf-8"))
+        if (
+            "FunctionError" not in response_payload
+            and response_payload["status"] == "success"
+        ):
+            return APIResponse(detail="Successfully onboarded league")
+        else:
+            error_detail = response_payload["FunctionError"]
+            error_message = f"Error occurred while onboarding league: {error_detail}"
+            logger.exception(error_message)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_message,
+            )
     except botocore.exceptions.ClientError as e:
         logger.exception("Unexpected error while triggering Step Function")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
-        )
-
-
-@router.get("/{onboarding_execution_id}", status_code=status.HTTP_200_OK)
-def check_onboarding_status(
-    onboarding_execution_id: str = Path(
-        description="Execution ID for the Step Function run."
-    ),
-) -> APIResponse:
-    """
-    Onboards a league by triggering a Step Function execution that retrieves league
-    data such as matchups, scores, etc.
-
-    Args:
-        onboarding_execution_id (str): Execution ID for the Step Function run.
-
-    Returns:
-        APIResponse: A JSON response with a message field indicating success/failure
-            and an optional data field to capture additional details.
-
-    Raises:
-        HTTPException: 400, 404, or 500 errors if an exception occurs.
-    """
-    sfn = boto3.client("stepfunctions")
-    try:
-        logger.info(
-            "Checking status for onboarding execution: %s", onboarding_execution_id
-        )
-        if os.environ["ENVIRONMENT"] == "PROD":
-            execution_arn = f"arn:aws:states:{os.environ['AWS_REGION']}:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding:{onboarding_execution_id}"
-        else:
-            execution_arn = f"arn:aws:states:{os.environ['AWS_REGION']}:{os.environ['ACCOUNT_NUMBER']}:execution:league-onboarding-dev:{onboarding_execution_id}"
-        response = sfn.describe_execution(
-            executionArn=execution_arn,
-        )
-        logger.info("Execution status: %s", response)
-        api_response = {"execution_status": response["status"]}
-        return APIResponse(
-            detail="Successfully retrieved onboarding status",
-            data=api_response,
-        )
-    except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error while retrieving onboarding status")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",
