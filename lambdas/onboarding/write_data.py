@@ -9,8 +9,8 @@ import pandas as pd
 
 from utils.logging_config import logger
 
-# LOCAL_DB_PATH = "/tmp/client_assets.duckdb"
-LOCAL_DB_PATH = "database.duckdb"
+LOCAL_DB_PATH = "/tmp/client_assets.duckdb"
+# LOCAL_DB_PATH = "database.duckdb"
 
 
 def write_to_duckdb_table(data_to_write: list[tuple[str, pd.DataFrame]]) -> None:
@@ -25,7 +25,9 @@ def write_to_duckdb_table(data_to_write: list[tuple[str, pd.DataFrame]]) -> None
     try:
         for view_name, dataframe in data_to_write:
             try:
-                con.execute(f"CREATE TABLE {view_name} AS SELECT * FROM dataframe")
+                con.execute(
+                    f"CREATE OR REPLACE TABLE {view_name} AS SELECT * FROM dataframe"
+                )
                 logger.info("Successfully created %s table", view_name)
             except Exception as e:
                 logger.error("Failed to write %s table to database: %s", view_name, e)
@@ -44,7 +46,8 @@ def write_duckdb_file_to_s3(bucket_name: str, bucket_key: str):
     """
     s3_client = boto3.client("s3")
     try:
-        s3_client.put_object(
+        s3_client.upload_file(
+            Filename=LOCAL_DB_PATH,
             Bucket=bucket_name,
             Key=bucket_key,
         )

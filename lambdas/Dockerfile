@@ -17,7 +17,5 @@ RUN zip -r deployment_package.zip . \
     -x "Dockerfile" \
     "*.sh" \
     "*.git*" \
-    "*.dist-info*" \
-    "*.egg-info*" \
     "*__pycache__*" \
     "*.pyc"
