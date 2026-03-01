@@ -10,6 +10,7 @@ import pandas as pd
 from utils.logging_config import logger
 
 LOCAL_DB_PATH = "/tmp/client_assets.duckdb"
+# # Uncomment for local testing
 # LOCAL_DB_PATH = "database.duckdb"
 
 

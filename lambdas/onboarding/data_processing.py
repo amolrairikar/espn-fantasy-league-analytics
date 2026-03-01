@@ -63,18 +63,29 @@ def join_league_members_to_teams(
         conn.register("df_teams", df_teams)
 
         query = f"""
-        SELECT 
+        WITH owner_mapping AS (
+            SELECT 
+                firstName, 
+                lastName, 
+                id AS original_owner_id,
+                ROW_NUMBER() OVER (PARTITION BY firstName, lastName ORDER BY id ASC) as rank
+            FROM df_members
+        )
+        SELECT DISTINCT
             '{season}' AS season,
             m.firstName AS owner_first_name,
             m.lastName AS owner_last_name,
-            CONCAT(m.firstName, m.lastName) AS owner_full_name,
+            CONCAT(m.firstName, ' ', m.lastName) AS owner_full_name,
             t.abbrev AS abbreviation,
             CAST(t.id AS STRING) AS team_id,
             t.name AS team_name,
-            m.id AS owner_id
+            om.original_owner_id AS owner_id
         FROM df_teams t
-        CROSS JOIN UNNEST(t.owners) AS _unzipped(owner_id)
-        INNER JOIN df_members m ON m.id = owner_id
+        CROSS JOIN UNNEST(t.owners) AS _unzipped(o_id)
+        INNER JOIN df_members m ON m.id = o_id
+        INNER JOIN owner_mapping om ON m.firstName = om.firstName 
+            AND m.lastName = om.lastName
+        WHERE om.rank = 1
         """
 
         return conn.execute(query).df()
@@ -303,23 +314,34 @@ def process_league_scores(
         conn.register("df_members", df_members)
         query = """
         SELECT 
-            CAST(m.home_team AS STRING),
+            CAST(m.home_team AS STRING) AS home_team_id,
             m.home_team_score,
             CAST(m.home_team_starting_players AS JSON) AS home_team_starting_players,
             CAST(m.home_team_bench_players AS JSON) AS home_team_bench_players,
             m.home_team_efficiency,
-            CAST(m.away_team AS STRING),
+            CAST(m.away_team AS STRING) AS away_team_id,
             m.away_team_score,
             CAST(m.away_team_starting_players AS JSON) AS away_team_starting_players,
             CAST(m.away_team_bench_players AS JSON) AS away_team_bench_players,
             m.away_team_efficiency,
             mh.owner_full_name AS home_team_full_name,
             mh.team_name AS home_team_team_name,
+            mh.owner_id AS home_team_owner_id,
             ma.owner_full_name AS away_team_full_name,
-            ma.team_name AS away_team_team_name
+            ma.team_name AS away_team_team_name,
+            ma.owner_id AS away_team_owner_id,
+            m.playoff_tier_type AS playoff_tier_type,
+            m.winner AS winner,
+            m.loser AS loser,
+            m.matchup_week AS week,
+            m.season AS season
         FROM df_matchup_results m
-        INNER JOIN df_members mh ON m.home_team = mh.team_id
-        INNER JOIN df_members ma ON m.away_team = ma.team_id
+        INNER JOIN df_members mh 
+            ON CAST(m.home_team AS STRING) = CAST(mh.team_id AS STRING) 
+            AND CAST(m.season AS STRING) = CAST(mh.season AS STRING)
+        INNER JOIN df_members ma 
+            ON CAST(m.away_team AS STRING) = CAST(ma.team_id AS STRING) 
+            AND CAST(m.season AS STRING) = CAST(ma.season AS STRING)
         """
 
         return conn.execute(query).df()
@@ -350,6 +372,7 @@ def process_player_scoring_totals(
             player_scoring_info["position"] = POSITION_ID_MAPPING[
                 total["player"]["defaultPositionId"]
             ]
+            player_scoring_info["season"] = season
             if int(season) >= 2018:
                 if total.get("ratings", {}):
                     player_scoring_info["total_points"] = round(
@@ -393,16 +416,13 @@ def enrich_draft_data(
         conn.register("draft_results", df_draft_results)
         conn.register("player_totals", df_player_totals)
         conn.register("df_teams", df_teams)
-        query = """
+        query = f"""
         WITH processed_teams AS (
             SELECT 
                 team_id,
                 owner_full_name,
-                CASE 
-                    WHEN CAST(typeof(df_teams.owner_id) AS VARCHAR) LIKE 'LIST%'
-                    THEN df_teams.owner_id[1]
-                    ELSE df_teams.owner_id 
-                END AS cleaned_owner_id
+                season,
+                df_teams.owner_id AS owner_id,
             FROM df_teams
         ),
         ranked_players AS (
@@ -422,14 +442,18 @@ def enrich_draft_data(
                 d.roundPickNumber AS round_pick_number,
                 d.tradeLocked AS trade_locked,
                 t.owner_full_name,
-                t.cleaned_owner_id AS owner_id,
+                t.owner_id,
                 CASE 
                     WHEN d.autoDraftTypeId IS NOT NULL 
                     THEN ROW_NUMBER() OVER(PARTITION BY p.position ORDER BY d.overallPickNumber) 
                 END AS position_draft_rank
             FROM ranked_players p
-            LEFT JOIN draft_results d ON p.player_id = d.playerId
-            LEFT JOIN processed_teams t ON CAST(d.teamId AS VARCHAR) = CAST(t.team_id AS VARCHAR)
+            LEFT JOIN draft_results d
+                ON p.player_id = d.playerId
+            LEFT JOIN processed_teams t
+                ON d.memberId = t.owner_id
+            WHERE CAST(p.season AS STRING) = '{season}'
+            AND CAST(t.season AS STRING) = '{season}'
         )
         SELECT 
             *,
@@ -437,6 +461,536 @@ def enrich_draft_data(
         FROM joined_data
         WHERE auto_draft_type_id IS NOT NULL 
         AND overall_pick_number IS NOT NULL
+        """
+
+        return conn.execute(query).df()
+
+
+def get_playoff_and_champion_teams(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get the playoff teams (first round and clinched bye) and league champion over all seasons.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing draft results and player finishes for season.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH base_matchups AS (
+            SELECT 
+                season,
+                week,
+                playoff_tier_type,
+                home_team_id,
+                away_team_id,
+                home_team_score,
+                away_team_score,
+                CASE 
+                    WHEN (CAST(season AS INTEGER) < 2021 AND CAST(week AS INTEGER) = 14) OR (CAST(season AS INTEGER) >= 2021 AND CAST(week AS INTEGER) = 15) THEN 'RD1'
+                    WHEN (CAST(season AS INTEGER) < 2021 AND CAST(week AS INTEGER) = 15) OR (CAST(season AS INTEGER) >= 2021 AND CAST(week AS INTEGER) = 16) THEN 'RD2'
+                    WHEN (CAST(season AS INTEGER) < 2021 AND CAST(week AS INTEGER) = 16) OR (CAST(season AS INTEGER) >= 2021 AND CAST(week AS INTEGER) = 17) THEN 'FINALS'
+                    ELSE 'OTHER'
+                END AS round_type
+            FROM df_matchups
+            WHERE playoff_tier_type = 'WINNERS_BRACKET'
+        ),
+        playoff_status AS (
+            SELECT season, home_team_id AS team_id, 'MADE_PLAYOFFS' AS status
+            FROM base_matchups WHERE round_type = 'RD1' AND home_team_id IS NOT NULL AND away_team_id IS NOT NULL
+            UNION ALL
+            SELECT season, away_team_id AS team_id, 'MADE_PLAYOFFS' AS status
+            FROM base_matchups WHERE round_type = 'RD1' AND home_team_id IS NOT NULL AND away_team_id IS NOT NULL
+            UNION ALL
+            SELECT season, home_team_id AS team_id, 'CLINCHED_FIRST_ROUND_BYE' AS status
+            FROM base_matchups WHERE round_type = 'RD2'
+            UNION ALL
+            SELECT 
+                season, 
+                CASE WHEN CAST(home_team_score AS DOUBLE) > CAST(away_team_score AS DOUBLE) THEN home_team_id ELSE away_team_id END AS team_id,
+                'LEAGUE_CHAMPION' AS status
+            FROM base_matchups WHERE round_type = 'FINALS'
+        )
+        SELECT * FROM playoff_status;
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_regular_season_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate regular season standings across all seasons.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing regular season standings per season.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH weekly_stats AS (
+            SELECT 
+                season, week, playoff_tier_type,
+                home_team_owner_id AS owner_id, 
+                home_team_full_name AS team_name, 
+                home_team_score AS points_for,
+                CAST(away_team_score AS DOUBLE) AS points_against
+            FROM df_matchups
+            UNION ALL
+            SELECT 
+                season, week, playoff_tier_type,
+                away_team_owner_id AS owner_id, 
+                away_team_full_name AS team_name, 
+                CAST(away_team_score AS DOUBLE) AS points_for,
+                home_team_score AS points_against
+            FROM df_matchups
+        ),
+        league_rankings AS (
+            SELECT 
+                *,
+                RANK() OVER (PARTITION BY season, week ORDER BY points_for DESC) as weekly_rank,
+                COUNT(*) OVER (PARTITION BY season, week) as total_teams_that_week
+            FROM weekly_stats
+            WHERE playoff_tier_type = 'NONE'
+        ),
+        processed_performance AS (
+            SELECT 
+                season,
+                owner_id,
+                team_name,
+                points_for,
+                points_against,
+                CASE WHEN points_for > points_against THEN 1 ELSE 0 END AS win,
+                CASE WHEN points_for < points_against THEN 1 ELSE 0 END AS loss,
+                CASE WHEN points_for = points_against THEN 1 ELSE 0 END AS tie,
+                (total_teams_that_week - weekly_rank) AS vs_league_wins,
+                (weekly_rank - 1) AS vs_league_losses
+            FROM league_rankings
+        )
+        SELECT 
+            season,
+            owner_id,
+            team_name,
+            COUNT(*) AS games_played,
+            SUM(win) AS wins,
+            SUM(loss) AS losses,
+            SUM(tie) AS ties,
+            ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
+            SUM(vs_league_wins) AS total_vs_league_wins,
+            SUM(vs_league_losses) AS total_vs_league_losses,
+            ROUND(SUM(vs_league_wins) / (SUM(vs_league_wins) + SUM(vs_league_losses))::DOUBLE, 3) AS all_play_win_pct,
+            SUM(points_for) AS total_pf,
+            SUM(points_against) AS total_pa,
+            ROUND(AVG(points_for), 2) AS avg_pf
+        FROM processed_performance
+        GROUP BY season, owner_id, team_name
+        ORDER BY season DESC, wins DESC, total_pf DESC;
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_all_time_regular_season_standings(
+    df_matchups: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate all-time regular season standings.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing all-time regular season standings.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH team_performances AS (
+            SELECT 
+                season,
+                home_team_owner_id AS owner_id,
+                home_team_full_name AS team_name,
+                home_team_score AS points_for,
+                CAST(away_team_score AS DOUBLE) AS points_against,
+                CASE WHEN home_team_score > CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS win,
+                CASE WHEN home_team_score < CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS loss,
+                CASE WHEN home_team_score = CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS tie
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+            UNION ALL
+            SELECT 
+                season,
+                away_team_owner_id AS owner_id,
+                away_team_full_name AS team_name,
+                CAST(away_team_score AS DOUBLE) AS points_for,
+                home_team_score AS points_against,
+                CASE WHEN CAST(away_team_score AS DOUBLE) > home_team_score THEN 1 ELSE 0 END AS win,
+                CASE WHEN CAST(away_team_score AS DOUBLE) < home_team_score THEN 1 ELSE 0 END AS loss,
+                CASE WHEN CAST(away_team_score AS DOUBLE) = home_team_score THEN 1 ELSE 0 END AS tie
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+        )
+        SELECT 
+            owner_id,
+            COUNT(*) AS games_played,
+            SUM(win) AS wins,
+            SUM(loss) AS losses,
+            SUM(tie) AS ties,
+            ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
+            SUM(points_for) AS total_pf,
+            SUM(points_against) AS total_pa,
+            ROUND(AVG(points_for), 2) AS avg_pf,
+            ROUND(AVG(points_against), 2) AS avg_pa
+        FROM team_performances
+        GROUP BY owner_id
+        ORDER BY wins DESC, total_pf DESC;
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_all_time_h2h_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate all-time H2H standings for a team vs. other teams in the league.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing head-to-head standings.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH matchups_flat AS (
+            SELECT 
+                home_team_owner_id AS owner_id,
+                away_team_owner_id AS opponent_id,
+                home_team_full_name AS owner_name,
+                away_team_full_name AS opponent_name,
+                CASE 
+                    WHEN CAST(home_team_score AS DOUBLE) > CAST(away_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS win,
+                CASE 
+                    WHEN CAST(home_team_score AS DOUBLE) < CAST(away_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS loss,
+                CASE 
+                    WHEN CAST(home_team_score AS DOUBLE) = CAST(away_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS tie,
+                CAST(home_team_score AS DOUBLE) AS pf,
+                CAST(away_team_score AS DOUBLE) AS pa
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+            UNION ALL
+            SELECT 
+                away_team_owner_id AS owner_id,
+                home_team_owner_id AS opponent_id,
+                away_team_full_name AS owner_name,
+                home_team_full_name AS opponent_name,
+                CASE 
+                    WHEN CAST(away_team_score AS DOUBLE) > CAST(home_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS win,
+                CASE 
+                    WHEN CAST(away_team_score AS DOUBLE) < CAST(home_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS loss,
+                CASE 
+                    WHEN CAST(away_team_score AS DOUBLE) = CAST(home_team_score AS DOUBLE) THEN 1 
+                    ELSE 0 
+                END AS tie,
+                CAST(away_team_score AS DOUBLE) AS pf,
+                CAST(home_team_score AS DOUBLE) AS pa
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+        )
+        SELECT 
+            owner_id,
+            opponent_id,
+            COUNT(*) AS matchups,
+            SUM(win) AS wins,
+            SUM(loss) AS losses,
+            SUM(tie) AS ties,
+            ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
+            SUM(pf) AS total_pf,
+            SUM(pa) AS total_pa,
+        FROM matchups_flat
+        GROUP BY owner_id, opponent_id
+        ORDER BY owner_id DESC
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_playoff_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate playoff standings across all seasons.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing all-time playoff standings.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH team_performances AS (
+            SELECT 
+                season,
+                home_team_owner_id AS owner_id,
+                home_team_full_name AS team_name,
+                home_team_score AS points_for,
+                CAST(away_team_score AS DOUBLE) AS points_against,
+                CASE WHEN home_team_score > CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS win,
+                CASE WHEN home_team_score < CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS loss,
+                CASE WHEN home_team_score = CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS tie
+            FROM df_matchups
+            WHERE playoff_tier_type != 'NONE' AND playoff_tier_type == 'WINNERS_BRACKET'
+            UNION ALL
+            SELECT 
+                season,
+                away_team_owner_id AS owner_id,
+                away_team_full_name AS team_name,
+                CAST(away_team_score AS DOUBLE) AS points_for,
+                home_team_score AS points_against,
+                CASE WHEN CAST(away_team_score AS DOUBLE) > home_team_score THEN 1 ELSE 0 END AS win,
+                CASE WHEN CAST(away_team_score AS DOUBLE) < home_team_score THEN 1 ELSE 0 END AS loss,
+                CASE WHEN CAST(away_team_score AS DOUBLE) = home_team_score THEN 1 ELSE 0 END AS tie
+            FROM df_matchups
+            WHERE playoff_tier_type != 'NONE' AND playoff_tier_type == 'WINNERS_BRACKET'
+        )
+        SELECT 
+            owner_id,
+            COUNT(*) AS games_played,
+            SUM(win) AS wins,
+            SUM(loss) AS losses,
+            SUM(tie) AS ties,
+            ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
+            SUM(points_for) AS total_pf,
+            SUM(points_against) AS total_pa,
+            ROUND(AVG(points_for), 2) AS avg_pf,
+            ROUND(AVG(points_against), 2) AS avg_pa
+        FROM team_performances
+        GROUP BY owner_id
+        ORDER BY wins DESC, total_pf DESC;
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_weekly_standings_snapshots(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates a team's record as a snapshot at every week.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing weekly record snapshots.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH weekly_stats AS (
+            SELECT 
+                season, 
+                week,
+                home_team_owner_id AS owner_id, 
+                home_team_full_name AS team_name, 
+                home_team_score AS points_for,
+                CAST(away_team_score AS DOUBLE) AS points_against
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+            UNION ALL
+            SELECT 
+                season, 
+                week,
+                away_team_owner_id AS owner_id, 
+                away_team_full_name AS team_name, 
+                CAST(away_team_score AS DOUBLE) AS points_for,
+                home_team_score AS points_against
+            FROM df_matchups
+            WHERE playoff_tier_type = 'NONE'
+        ),
+        weekly_outcomes AS (
+            SELECT 
+                *,
+                CASE WHEN points_for > points_against THEN 1 ELSE 0 END AS win,
+                CASE WHEN points_for < points_against THEN 1 ELSE 0 END AS loss,
+                CASE WHEN points_for = points_against THEN 1 ELSE 0 END AS tie
+            FROM weekly_stats
+        )
+        SELECT 
+            season,
+            week,
+            owner_id,
+            team_name,
+            SUM(win) OVER (PARTITION BY season, owner_id ORDER BY week) AS wins,
+            SUM(loss) OVER (PARTITION BY season, owner_id ORDER BY week) AS losses,
+            SUM(tie) OVER (PARTITION BY season, owner_id ORDER BY week) AS ties,
+            ROUND(SUM(points_for) OVER (PARTITION BY season, owner_id ORDER BY week), 2) AS cumulative_pf,
+            ROUND(SUM(points_against) OVER (PARTITION BY season, owner_id ORDER BY week), 2) AS cumulative_pa
+        FROM weekly_outcomes
+        ORDER BY season DESC, week ASC, wins DESC, cumulative_pf DESC;
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_top_and_bottom_team_scores(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates top and bottom 10 team scoring performances.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing top and bottom 10 team scoring performances.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH all_scores AS (
+            SELECT 
+                season,
+                week,
+                home_team_full_name AS owner_name,
+                home_team_owner_id AS owner_id,
+                CAST(home_team_score AS DOUBLE) AS score,
+                away_team_full_name AS opponent_name,
+                away_team_owner_id AS opponent_owner_id
+            FROM df_matchups
+            UNION ALL
+            SELECT 
+                season,
+                week,
+                away_team_full_name AS owner_name,
+                away_team_owner_id AS owner_id,
+                CAST(away_team_score AS DOUBLE) AS score,
+                home_team_full_name AS opponent_name,
+                home_team_owner_id AS opponent_owner_id
+            FROM df_matchups
+        ),
+        ranked_scores AS (
+            SELECT 
+                *,
+                ROW_NUMBER() OVER(ORDER BY score DESC) as top_rank,
+                ROW_NUMBER() OVER(ORDER BY score ASC) as bottom_rank
+            FROM all_scores
+        )
+        SELECT
+            'TOP 10' AS category,
+            top_rank AS rank,
+            season,
+            week,
+            owner_name,
+            owner_id,
+            score,
+            opponent_name,
+            opponent_owner_id,
+        FROM ranked_scores WHERE top_rank <= 10
+        UNION ALL
+        SELECT
+            'BOTTOM 10' AS category,
+            bottom_rank AS rank,
+            season,
+            week,
+            owner_name,
+            owner_id,
+            score,
+            opponent_name,
+            opponent_owner_id
+        FROM ranked_scores WHERE bottom_rank <= 10
+        ORDER BY category DESC, rank ASC;        
+        """
+
+        return conn.execute(query).df()
+
+
+def calculate_top_player_performances(df_matchups: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates top 10 and player scoring performances by position.
+
+    Args:
+        df_matchups: A dataframe of all matchups in the league history
+
+    Returns:
+        pd.DataFrame: Dataframe containing top 10 player scoring performances by position.
+    """
+    with duckdb.connect(":memory:") as conn:
+        conn.register("df_matchups", df_matchups)
+        query = """
+        WITH flattened_players AS (
+            SELECT 
+                season,
+                week,
+                home_team_full_name AS owner_name,
+                home_team_owner_id AS owner_id,
+                CAST(p->>'player_id' AS INTEGER) AS player_id,
+                p->>'full_name' AS full_name,
+                p->>'position' AS position,
+                CAST(p->>'points_scored' AS DOUBLE) AS points
+            FROM (
+                SELECT 
+                    season,
+                    week,
+                    home_team_full_name,
+                    home_team_owner_id,
+                    UNNEST(CAST(home_team_starting_players AS JSON[])) AS p 
+                FROM df_matchups
+            )
+            UNION ALL
+            SELECT 
+                season,
+                week,
+                away_team_full_name AS owner_name,
+                away_team_owner_id AS owner_id,
+                CAST(p->>'player_id' AS INTEGER) AS player_id,
+                p->>'full_name' AS full_name,
+                p->>'position' AS position,
+                CAST(p->>'points_scored' AS DOUBLE) AS points
+            FROM (
+                SELECT 
+                    season,
+                    week,
+                    away_team_full_name,
+                    away_team_owner_id,
+                    UNNEST(CAST(away_team_starting_players AS JSON[])) AS p 
+                FROM df_matchups
+            )
+        ),
+        position_rankings AS (
+            SELECT 
+                *,
+                DENSE_RANK() OVER(PARTITION BY position ORDER BY points DESC) as pos_rank
+            FROM flattened_players
+            WHERE position IN ('QB', 'RB', 'WR', 'TE', 'D/ST', 'K')
+        )
+        SELECT 
+            pos_rank AS rank,
+            position,
+            full_name,
+            points,
+            owner_name,
+            owner_id,
+            season,
+            week
+        FROM position_rankings
+        WHERE pos_rank <= 10
+        ORDER BY 
+            CASE position 
+                WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 
+                WHEN 'TE' THEN 4 WHEN 'D/ST' THEN 5 WHEN 'K' THEN 6 
+            END, 
+            pos_rank ASC;
         """
 
         return conn.execute(query).df()

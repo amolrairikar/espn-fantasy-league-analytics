@@ -20,6 +20,14 @@ from onboarding.data_processing import (
     process_league_scores,
     process_player_scoring_totals,
     enrich_draft_data,
+    get_playoff_and_champion_teams,
+    calculate_regular_season_standings,
+    calculate_all_time_regular_season_standings,
+    calculate_all_time_h2h_standings,
+    calculate_playoff_standings,
+    calculate_weekly_standings_snapshots,
+    calculate_top_and_bottom_team_scores,
+    calculate_top_player_performances,
 )
 from onboarding.write_data import write_to_duckdb_table, write_duckdb_file_to_s3
 from utils.logging_config import logger
@@ -52,12 +60,33 @@ class LeagueOnboarder:
                 df_members=df_members_and_teams
             )
         )
+        logger.info("Successfully fetched matchup and draft results.")
+
+        (
+            df_playoff_and_champion_teams,
+            df_regular_season_standings,
+            df_all_time_standings,
+            df_h2h_standings,
+            df_playoff_standings,
+            df_weekly_standings,
+            df_top_and_bottom_scores,
+            df_top_player_performances,
+        ) = self._fetch_aggregate_calculations(df_matchups=df_league_matchups)
+        logger.info("Successfully calculated aggregate metrics.")
 
         # Write all data to DuckDB
         output_data = [
             ("league_members", df_members_and_teams),
             ("league_matchups", df_league_matchups),
             ("league_draft_results", df_league_draft_results),
+            ("league_postseason_teams", df_playoff_and_champion_teams),
+            ("league_regular_season_standings", df_regular_season_standings),
+            ("league_all_time_standings", df_all_time_standings),
+            ("league_h2h_standings", df_h2h_standings),
+            ("league_playoff_standings", df_playoff_standings),
+            ("league_weekly_standings", df_weekly_standings),
+            ("league_top_and_bottom_scores", df_top_and_bottom_scores),
+            ("league_top_player_performances", df_top_player_performances),
         ]
         bucket_name_add_on = "-dev" if os.environ["ENVIRONMENT"] == "DEV" else ""
         bucket_name = f"{os.environ['ACCOUNT_NUMBER']}-fantasy-recap-app-duckdb-storage{bucket_name_add_on}"
@@ -137,6 +166,64 @@ class LeagueOnboarder:
             df_league_draft_results = pd.concat(draft_dfs, ignore_index=True)
 
         return df_league_matchups, df_league_draft_results
+
+    def _fetch_aggregate_calculations(self, df_matchups: pd.DataFrame) -> tuple:
+        """
+        Computes aggregations such as standings, playoff teams/champion, etc.
+
+        Args:
+            df_matchups: Dataframe containing all league matchup history.
+
+        Returns:
+            tuple: Tuple of dataframes containing aggregated standings data.
+        """
+        with ThreadPoolExecutor() as executor:
+            playoff_future = executor.submit(
+                get_playoff_and_champion_teams, df_matchups
+            )
+            regular_season_standings_future = executor.submit(
+                calculate_regular_season_standings, df_matchups
+            )
+            all_time_standings_future = executor.submit(
+                calculate_all_time_regular_season_standings, df_matchups
+            )
+            h2h_standings_future = executor.submit(
+                calculate_all_time_h2h_standings, df_matchups
+            )
+            playoff_standings_future = executor.submit(
+                calculate_playoff_standings, df_matchups
+            )
+            weekly_standings_future = executor.submit(
+                calculate_weekly_standings_snapshots, df_matchups
+            )
+            top_and_bottom_scores_future = executor.submit(
+                calculate_top_and_bottom_team_scores, df_matchups
+            )
+            top_player_performances_future = executor.submit(
+                calculate_top_player_performances, df_matchups
+            )
+            try:
+                df_playoff_and_champion_teams = playoff_future.result()
+                df_regular_season_standings = regular_season_standings_future.result()
+                df_all_time_standings = all_time_standings_future.result()
+                df_h2h_standings = h2h_standings_future.result()
+                df_playoff_standings = playoff_standings_future.result()
+                df_weekly_standings = weekly_standings_future.result()
+                df_top_and_bottom_scores = top_and_bottom_scores_future.result()
+                df_top_player_performances = top_player_performances_future.result()
+                return (
+                    df_playoff_and_champion_teams,
+                    df_regular_season_standings,
+                    df_all_time_standings,
+                    df_h2h_standings,
+                    df_playoff_standings,
+                    df_weekly_standings,
+                    df_top_and_bottom_scores,
+                    df_top_player_performances,
+                )
+            except Exception as e:
+                logger.error("Error occurred while computing aggregations: %s", e)
+                raise
 
     def _get_teams_and_members_for_season(self, season: str) -> pd.DataFrame:
         """

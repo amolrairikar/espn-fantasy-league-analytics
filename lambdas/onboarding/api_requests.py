@@ -229,7 +229,10 @@ def get_draft_results(
             espn_s2_cookie=espn_s2_cookie,
         )
         logger.info("Successfully got league draft info")
+        season_id = response["draftDetail"].get("seasonId")
         all_picks = response["draftDetail"].get("picks", [])
+        for pick in all_picks:
+            pick["season"] = season_id
         return all_picks
     else:
         raise ValueError("Unsupported platform. Only ESPN is currently supported.")
