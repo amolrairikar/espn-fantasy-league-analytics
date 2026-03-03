@@ -89,7 +89,7 @@ export default function Login() {
       setProgressText("Fetching data from ESPN...");
 
       // Fetch league database
-      const { data: { url: dbUrl, version: dbVersion, size: dbSize } } = await getLeagueDatabase(data.leagueId);
+      const { data: { url: dbUrl, version: dbVersion } } = await getLeagueDatabase(data.leagueId);
       setProgressText("Retrieving league database...");
       localStorage.setItem('league_id', data.leagueId);
       localStorage.setItem('db_url', dbUrl);

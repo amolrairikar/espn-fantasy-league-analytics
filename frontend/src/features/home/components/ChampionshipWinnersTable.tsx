@@ -1,33 +1,42 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { GetChampionshipWinners } from '@/features/home/types';
 
-type ChampionshipWinnersProps = {
-  data: GetChampionshipWinners['data'];
+export interface ChampionshipRow {
+  owner_full_name: string;
+  championships_won: number;
+}
+
+export type ChampionshipWinnersProps = {
+  data: ChampionshipRow[] | null;
 };
 
 export function ChampionshipWinners({ data }: ChampionshipWinnersProps) {
-  const sortedData = [...data].sort((a, b) => {
-    const diff = Number(b.championships_won) - Number(a.championships_won);
-    if (diff !== 0) return diff; // sort by championships first
-    return a.owner_full_name.localeCompare(b.owner_full_name); // then sort by name
-  });
+  if (!data || data.length === 0) {
+    return <div className="p-4 text-center text-muted-foreground">No championship data found.</div>;
+  }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Championships</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sortedData.map((winner) => (
-          <TableRow key={winner.owner_id}>
-            <TableCell>{winner.owner_full_name}</TableCell>
-            <TableCell>{winner.championships_won}</TableCell>
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-50 text-center">Owner</TableHead>
+            <TableHead className="text-center">Championships</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {data.map((winner) => (
+            <TableRow key={winner.owner_full_name}>
+              <TableCell className="text-center">
+                {winner.owner_full_name}
+              </TableCell>
+              <TableCell className="text-center">
+                {/* 2. Defensive rendering: Convert to String to avoid BigInt render errors */}
+                {winner.championships_won.toString()}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

@@ -31,26 +31,25 @@ export const useDuckDB = (): DuckDBState => {
 
     useEffect(() => {
         let isMounted = true;
+        let worker: Worker | null = null;
+        let dbInstance: duckdb.AsyncDuckDB | null = null;
 
         const init = async () => {
             try {
                 // Select the best bundle from our local assets
                 const BUNDLE = await duckdb.selectBundle(MANUAL_BUNDLES);
-                
+
                 // Initialize the worker using the local URL
-                const worker = new Worker(BUNDLE.mainWorker!);
+                worker = new Worker(BUNDLE.mainWorker!);
                 const logger = new duckdb.ConsoleLogger();
-                const dbInstance = new duckdb.AsyncDuckDB(logger, worker);
-                
+                dbInstance = new duckdb.AsyncDuckDB(logger, worker);
+
                 // Instantiate the WASM module
                 await dbInstance.instantiate(BUNDLE.mainModule, BUNDLE.pthreadWorker);
-                
-                // Open DuckDB using the Origin Private File System (OPFS) path
-                await dbInstance.open({ 
-                    path: 'opfs/main.db', 
-                    accessMode: duckdb.DuckDBAccessMode.READ_WRITE // Explicitly allow writing/creation
-                });
-                
+
+                // Do not call db.open() here — ensureLatestDatabase will register
+                // the database buffer and open it after downloading from S3, so
+                // the engine never holds a file lock before the sync writes.
                 if (isMounted) {
                     setDb(dbInstance);
                     setLoading(false);
@@ -68,6 +67,13 @@ export const useDuckDB = (): DuckDBState => {
 
         return () => {
             isMounted = false;
+            // Terminate the engine on cleanup so StrictMode's double-invocation
+            // doesn't leave an orphaned worker running in the background
+            if (dbInstance) {
+                dbInstance.terminate();
+            } else if (worker) {
+                worker.terminate();
+            }
         };
     }, []);
 

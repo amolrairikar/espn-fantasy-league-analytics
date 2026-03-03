@@ -71,7 +71,9 @@ class LeagueOnboarder:
             df_weekly_standings,
             df_top_and_bottom_scores,
             df_top_player_performances,
-        ) = self._fetch_aggregate_calculations(df_matchups=df_league_matchups)
+        ) = self._fetch_aggregate_calculations(
+            df_members=df_members_and_teams, df_matchups=df_league_matchups
+        )
         logger.info("Successfully calculated aggregate metrics.")
 
         # Write all data to DuckDB
@@ -167,11 +169,14 @@ class LeagueOnboarder:
 
         return df_league_matchups, df_league_draft_results
 
-    def _fetch_aggregate_calculations(self, df_matchups: pd.DataFrame) -> tuple:
+    def _fetch_aggregate_calculations(
+        self, df_members, df_matchups: pd.DataFrame
+    ) -> tuple:
         """
         Computes aggregations such as standings, playoff teams/champion, etc.
 
         Args:
+            df_members: Dataframe containing all league member information.
             df_matchups: Dataframe containing all league matchup history.
 
         Returns:
@@ -179,7 +184,7 @@ class LeagueOnboarder:
         """
         with ThreadPoolExecutor() as executor:
             playoff_future = executor.submit(
-                get_playoff_and_champion_teams, df_matchups
+                get_playoff_and_champion_teams, df_members, df_matchups
             )
             regular_season_standings_future = executor.submit(
                 calculate_regular_season_standings, df_matchups

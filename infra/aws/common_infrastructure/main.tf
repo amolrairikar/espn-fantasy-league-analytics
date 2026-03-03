@@ -538,6 +538,18 @@ resource "aws_s3_bucket" "application_bucket" {
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "duckdb_cors" {
+  bucket = aws_s3_bucket.application_bucket.id
+
+  cors_rule {
+    allowed_origins = ["http://localhost:5173", "https://fantasy-recap-dev.com", "https://fantasy-recap.com"] 
+    allowed_methods = ["GET", "HEAD"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag", "Content-Type", "Accept-Ranges", "Content-Range"]
+    max_age_seconds = 3000
+  }
+}
+
 resource "aws_s3_bucket_versioning" "application_bucket_versioning" {
   bucket = aws_s3_bucket.application_bucket.id
   versioning_configuration {

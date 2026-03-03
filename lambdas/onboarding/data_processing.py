@@ -466,17 +466,21 @@ def enrich_draft_data(
         return conn.execute(query).df()
 
 
-def get_playoff_and_champion_teams(df_matchups: pd.DataFrame) -> pd.DataFrame:
+def get_playoff_and_champion_teams(
+    df_members: pd.DataFrame, df_matchups: pd.DataFrame
+) -> pd.DataFrame:
     """
     Get the playoff teams (first round and clinched bye) and league champion over all seasons.
 
     Args:
-        df_matchups: A dataframe of all matchups in the league history
+        df_members: A dataframe of all league member information.
+        df_matchups: A dataframe of all matchups in the league history.
 
     Returns:
         pd.DataFrame: Dataframe containing draft results and player finishes for season.
     """
     with duckdb.connect(":memory:") as conn:
+        conn.register("df_members", df_members)
         conn.register("df_matchups", df_matchups)
         query = """
         WITH base_matchups AS (
@@ -498,13 +502,28 @@ def get_playoff_and_champion_teams(df_matchups: pd.DataFrame) -> pd.DataFrame:
             WHERE playoff_tier_type = 'WINNERS_BRACKET'
         ),
         playoff_status AS (
-            SELECT season, home_team_id AS team_id, 'MADE_PLAYOFFS' AS status
-            FROM base_matchups WHERE round_type = 'RD1' AND home_team_id IS NOT NULL AND away_team_id IS NOT NULL
+            SELECT
+                season,
+                home_team_id AS team_id,
+                'MADE_PLAYOFFS' AS status
+            FROM base_matchups
+            WHERE round_type = 'RD1'
+            AND home_team_id IS NOT NULL
+            AND away_team_id IS NOT NULL
             UNION ALL
-            SELECT season, away_team_id AS team_id, 'MADE_PLAYOFFS' AS status
-            FROM base_matchups WHERE round_type = 'RD1' AND home_team_id IS NOT NULL AND away_team_id IS NOT NULL
+            SELECT
+                season,
+                away_team_id AS team_id,
+                'MADE_PLAYOFFS' AS status
+            FROM base_matchups
+            WHERE round_type = 'RD1'
+            AND home_team_id IS NOT NULL
+            AND away_team_id IS NOT NULL
             UNION ALL
-            SELECT season, home_team_id AS team_id, 'CLINCHED_FIRST_ROUND_BYE' AS status
+            SELECT
+                season,
+                home_team_id AS team_id,
+                'CLINCHED_FIRST_ROUND_BYE' AS status
             FROM base_matchups WHERE round_type = 'RD2'
             UNION ALL
             SELECT 
@@ -513,7 +532,12 @@ def get_playoff_and_champion_teams(df_matchups: pd.DataFrame) -> pd.DataFrame:
                 'LEAGUE_CHAMPION' AS status
             FROM base_matchups WHERE round_type = 'FINALS'
         )
-        SELECT * FROM playoff_status;
+        SELECT 
+            ps.*,
+            m.owner_full_name
+        FROM playoff_status ps
+        INNER JOIN df_members m ON ps.season = m.season
+        AND ps.team_id = m.team_id;
         """
 
         return conn.execute(query).df()

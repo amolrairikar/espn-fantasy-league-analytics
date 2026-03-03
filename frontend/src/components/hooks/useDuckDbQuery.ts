@@ -12,11 +12,14 @@ export function useDuckDbQuery<T>(db: duckdb.AsyncDuckDB | null, sql: string) {
     let isMounted = true;
 
     async function run() {
-      if (!db) return;
+      if (!db || !sql) return;
       try {
         setLoading(true);
-        const result = await executeQuery<T>(db, sql);
-        if (isMounted) setData(result);
+        const rows = await executeQuery(db, sql);
+        if (isMounted) {
+          setData(rows);
+          setError(null);
+        }
       } catch (err: any) {
         if (isMounted) setError(err);
       } finally {
