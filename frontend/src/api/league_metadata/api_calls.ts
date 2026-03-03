@@ -1,18 +1,5 @@
 import apiClient from "@/api/api_client";
-import type { 
-  GetLeagueMetadata,
-  ValidateLeagueReponse,
-  PostLeagueMetadataPayload,
-  PostLeagueMetadataResponse,
-} from "@/api/league_metadata/types";
-
-// Fetch league metadata
-export async function getLeagueMetadata(leagueId: string, platform: string): Promise<GetLeagueMetadata> {
-  const response = await apiClient.get<GetLeagueMetadata>(`/leagues/${leagueId}`, {
-    params: { platform: platform },
-  });
-  return response.data;
-}
+import type { ValidateLeagueReponse } from "@/api/league_metadata/types";
 
 // Validate league metadata
 export async function validateLeagueMetadata(
@@ -22,7 +9,7 @@ export async function validateLeagueMetadata(
   espn_s2_cookie: string,
   swid_cookie: string
 ): Promise<ValidateLeagueReponse> {
-  const response = await apiClient.get<ValidateLeagueReponse>('/leagues/validate', {
+  const response = await apiClient.get<ValidateLeagueReponse>('/validate-league', {
     params: {
       league_id: leagueId,
       platform: platform,
@@ -31,17 +18,5 @@ export async function validateLeagueMetadata(
       swid_cookie: swid_cookie,
     },
   });
-  return response.data;
-}
-
-// Create league metadata entry
-export async function postLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
-  const response = await apiClient.post('/leagues', payload);
-  return response.data;
-}
-
-// Update league metadata entry
-export async function patchLeagueMetadata(payload: PostLeagueMetadataPayload): Promise<PostLeagueMetadataResponse> {
-  const response = await apiClient.patch<PostLeagueMetadataResponse>(`/leagues/${payload.league_id}`, payload);
   return response.data;
 }

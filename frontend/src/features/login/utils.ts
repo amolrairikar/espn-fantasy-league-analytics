@@ -15,13 +15,8 @@ export const calculateSeasonRange = (
   const start = parseInt(oldest, 10);
   const end = parseInt(recent, 10);
 
-  // Validation: Must be numbers, start must be before end, and within maxRange
-  if (
-    isNaN(start) || 
-    isNaN(end) || 
-    start > end || 
-    (end - start) >= maxRange
-  ) {
+  // Validation: Must be within maxRange
+  if ((end - start) >= maxRange) {
     return [];
   }
 
