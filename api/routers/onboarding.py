@@ -74,7 +74,7 @@ def onboard_league(
                 detail=error_message,
             )
     except botocore.exceptions.ClientError as e:
-        logger.exception("Unexpected error while triggering Step Function")
+        logger.exception("Unexpected error while onboarding league")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",

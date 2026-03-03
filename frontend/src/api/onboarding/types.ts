@@ -1,10 +1,3 @@
-type GetLeagueOnboardingStatus = {
-  detail: string;
-  data: {
-    execution_status: string;
-  }
-}
-
 type PostLeagueOnboardingPayload = {
   league_id: string;
   platform: string;
@@ -21,7 +14,6 @@ type PostLeagueOnboardingResponse = {
 };
 
 export type {
-  GetLeagueOnboardingStatus,
   PostLeagueOnboardingPayload,
   PostLeagueOnboardingResponse,
 };

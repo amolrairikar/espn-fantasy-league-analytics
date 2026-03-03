@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Info, Link, LogOut, Menu, Trash } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,44 +18,21 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ModeToggle } from '@/components/themes/mode_toggle';
 import MobileSidebar from '@/features/sidebar/components/mobileSidebar';
-import { LoadingButton } from '@/components/utils/loadingButton';
-import { queryClient } from '@/components/utils/query_client';
-import type { HeaderProps } from '@/features/header/types';
-import { fetchDeleteStatus } from '@/api/utils/api_calls';
 
-function useDeleteLeague() {
-  return useMutation({
-    mutationFn: (league_id: string) => fetchDeleteStatus(league_id),
-    onSuccess: () => {
-      // Clear cache when delete succeeds
-      queryClient.clear();
-    },
-  });
-};
-
-const Header = ({ leagueData, onLogout }: HeaderProps) => {
+const Header = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
   const navigate = useNavigate();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const deleteMutation = useDeleteLeague();
 
   const handleLogout = () => {
-    onLogout();
-    queryClient.clear(); // clears all cached queries
+    navigate('/login');
     setOpen(false);
   };
 
   const handleDelete = () => {
-    if (!leagueData?.leagueId) return;
-    deleteMutation.mutate(leagueData.leagueId, {
-      onSuccess: () => {
-        onLogout(); // Clear local state/storage
-        setIsAlertOpen(false);
-        navigate('/login');
-      },
-    });
+    console.log('Clicked deletion request! Implement later')
   };
 
   return (
@@ -144,9 +120,9 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction asChild>
-                  <LoadingButton onClick={handleDelete} loading={deleteMutation.isPending}>
+                  {/* <LoadingButton onClick={handleDelete} loading={false}>
                     Continue
-                  </LoadingButton>
+                  </LoadingButton> */}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -204,7 +180,7 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
                       Logout
                     </Button>
                   )}
-                  {!isLoginPage && leagueData && (
+                  {!isLoginPage && (
                     <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
                       <AlertDialogTrigger asChild>
                         <Button variant="ghost" className="justify-start gap-2 w-full">
@@ -223,9 +199,9 @@ const Header = ({ leagueData, onLogout }: HeaderProps) => {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction asChild>
-                            <LoadingButton onClick={handleDelete} loading={deleteMutation.isPending}>
+                            {/* <LoadingButton onClick={handleDelete} loading={false}>
                               Continue
-                            </LoadingButton>
+                            </LoadingButton> */}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
