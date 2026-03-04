@@ -263,7 +263,7 @@ def process_league_scores(
         if float(home_score) > float(away_score):
             winner = home_team
             loser = away_team
-        elif float(home_score) > float(away_score):
+        elif float(away_score) > float(home_score):
             winner = away_team
             loser = home_team
         else:
@@ -300,8 +300,8 @@ def process_league_scores(
             "away_team_bench_players": bench_players_away_stats,
             "away_team_efficiency": away_team_lineup_efficiency,
             "playoff_tier_type": matchup.get("playoffTierType", ""),
-            "winner": winner,
-            "loser": loser,
+            "winner": str(winner),
+            "loser": str(loser),
             "matchup_week": week,
             "season": season,
         }
