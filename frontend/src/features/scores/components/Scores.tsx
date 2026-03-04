@@ -48,7 +48,6 @@ function Scores() {
     selectedSeason && selectedWeek ? db : null,
     `SELECT * FROM league_matchups WHERE season = '${selectedSeason}' AND week = ${selectedWeek}`
   );
-  console.log(matchups);
 
   const { data: weeklyRecords, error: weeklyRecordsQueryError, loading: loadingWeeklyRecords } = useDuckDbQuery<any>(
     selectedSeason && selectedWeek ? db : null,

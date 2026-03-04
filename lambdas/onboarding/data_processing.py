@@ -67,9 +67,18 @@ def join_league_members_to_teams(
             SELECT 
                 firstName, 
                 lastName, 
-                id AS original_owner_id,
+                id,
                 ROW_NUMBER() OVER (PARTITION BY firstName, lastName ORDER BY id ASC) as rank
             FROM df_members
+        ),
+        pivoted_owners AS (
+            SELECT 
+                firstName, 
+                lastName,
+                MAX(CASE WHEN rank = 1 THEN id END) AS primary_id,
+                MAX(CASE WHEN rank = 2 THEN id END) AS alternate_id
+            FROM owner_mapping
+            GROUP BY firstName, lastName
         )
         SELECT DISTINCT
             '{season}' AS season,
@@ -79,13 +88,13 @@ def join_league_members_to_teams(
             t.abbrev AS abbreviation,
             CAST(t.id AS STRING) AS team_id,
             t.name AS team_name,
-            om.original_owner_id AS owner_id
+            po.primary_id AS owner_id,
+            po.alternate_id AS alternate_owner_id
         FROM df_teams t
         CROSS JOIN UNNEST(t.owners) AS _unzipped(o_id)
         INNER JOIN df_members m ON m.id = o_id
-        INNER JOIN owner_mapping om ON m.firstName = om.firstName 
-            AND m.lastName = om.lastName
-        WHERE om.rank = 1
+        INNER JOIN pivoted_owners po ON m.firstName = po.firstName 
+            AND m.lastName = po.lastName
         """
 
         return conn.execute(query).df()
@@ -423,6 +432,7 @@ def enrich_draft_data(
                 owner_full_name,
                 season,
                 df_teams.owner_id AS owner_id,
+                df_teams.alternate_owner_id
             FROM df_teams
         ),
         ranked_players AS (
@@ -432,35 +442,37 @@ def enrich_draft_data(
             FROM player_totals
         ),
         joined_data AS (
-            SELECT 
-                p.*,
-                d.autoDraftTypeId AS auto_draft_type_id,
-                d.bidAmount AS bid_amount,
+            SELECT
+                d.roundId as round,
+                d.roundPickNumber AS round_pick_number,
                 d.overallPickNumber AS overall_pick_number,
                 d.reservedForKeeper AS reserved_for_keeper,
-                d.roundId AS round,
-                d.roundPickNumber AS round_pick_number,
-                d.tradeLocked AS trade_locked,
-                t.owner_full_name,
-                t.owner_id,
+                d.bidAmount AS bid_amount,
+                p.player_id,
+                p.player_name AS player_full_name,
+                p.position,
+                p.total_points AS points_scored,
+                p.position_rank,
                 CASE 
                     WHEN d.autoDraftTypeId IS NOT NULL 
                     THEN ROW_NUMBER() OVER(PARTITION BY p.position ORDER BY d.overallPickNumber) 
-                END AS position_draft_rank
+                END AS position_draft_rank,
+                t.owner_id,
+                t.owner_full_name,
+                CAST('{season}' AS STRING) AS season
             FROM ranked_players p
             LEFT JOIN draft_results d
                 ON p.player_id = d.playerId
             LEFT JOIN processed_teams t
-                ON d.memberId = t.owner_id
+                ON (d.memberId = t.owner_id OR d.memberId = t.alternate_owner_id)
             WHERE CAST(p.season AS STRING) = '{season}'
             AND CAST(t.season AS STRING) = '{season}'
         )
         SELECT 
             *,
-            (CAST(position_draft_rank AS INTEGER) - CAST(position_rank AS INTEGER)) AS draft_position_rank_delta
+            (CAST(position_draft_rank AS INTEGER) - CAST(position_rank AS INTEGER)) AS draft_delta
         FROM joined_data
-        WHERE auto_draft_type_id IS NOT NULL 
-        AND overall_pick_number IS NOT NULL
+        WHERE overall_pick_number IS NOT NULL
         """
 
         return conn.execute(query).df()
