@@ -10,7 +10,7 @@ import Header from '@/features/header/components/Header';
 import DesktopSidebar from '@/features/sidebar/components/desktopSidebar';
 const Login = lazy(() => import('@/features/login/components/Login'));
 const Home = lazy(() => import('@/features/home/components/Home'));
-// const Scores = lazy(() => import('@/features/scores/components/Scores'));
+const Scores = lazy(() => import('@/features/scores/components/Scores'));
 // const Standings = lazy(() => import('@/features/standings/components/Standings'));
 // const Draft = lazy(() => import('@/features/draft/components/Draft'));
 
@@ -75,8 +75,8 @@ function AppContent() {
                   {/* Protected routes wrapper */}
                   <Route element={<ProtectedRoute isAllowed={true} redirectTo="/login" />}>
                     <Route path="/home" element={<Home />} />
-                    {/* <Route path="/scores" element={<Scores />} />
-                    <Route path="/standings" element={<Standings />} />
+                    <Route path="/scores" element={<Scores />} />
+                    {/* <Route path="/standings" element={<Standings />} />
                     <Route path="/draft" element={<Draft />} /> */}
                   </Route>
                 </Routes>
