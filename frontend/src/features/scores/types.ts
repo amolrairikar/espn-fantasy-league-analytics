@@ -18,7 +18,7 @@ export type Matchup = {
   playoff_tier_type: string;
   winner: string;
   loser: string;
-  matchup_week: string;
+  week: string;
   season: string;
 };
 

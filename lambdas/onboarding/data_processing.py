@@ -517,7 +517,7 @@ def get_playoff_and_champion_teams(
             SELECT
                 season,
                 home_team_id AS team_id,
-                'MADE_PLAYOFFS' AS status
+                'MADE_PLAYOFFS' AS status,
             FROM base_matchups
             WHERE round_type = 'RD1'
             AND home_team_id IS NOT NULL
@@ -546,7 +546,8 @@ def get_playoff_and_champion_teams(
         )
         SELECT 
             ps.*,
-            m.owner_full_name
+            m.owner_full_name,
+            m.owner_id
         FROM playoff_status ps
         INNER JOIN df_members m ON ps.season = m.season
         AND ps.team_id = m.team_id;
@@ -570,17 +571,23 @@ def calculate_regular_season_standings(df_matchups: pd.DataFrame) -> pd.DataFram
         query = """
         WITH weekly_stats AS (
             SELECT 
-                season, week, playoff_tier_type,
+                season,
+                week,
+                playoff_tier_type,
+                home_team_id AS team_id,
                 home_team_owner_id AS owner_id, 
-                home_team_full_name AS team_name, 
+                home_team_full_name AS owner_name, 
                 home_team_score AS points_for,
                 CAST(away_team_score AS DOUBLE) AS points_against
             FROM df_matchups
             UNION ALL
             SELECT 
-                season, week, playoff_tier_type,
+                season,
+                week,
+                playoff_tier_type,
+                away_team_id AS team_id,
                 away_team_owner_id AS owner_id, 
-                away_team_full_name AS team_name, 
+                away_team_full_name AS owner_name, 
                 CAST(away_team_score AS DOUBLE) AS points_for,
                 home_team_score AS points_against
             FROM df_matchups
@@ -596,8 +603,9 @@ def calculate_regular_season_standings(df_matchups: pd.DataFrame) -> pd.DataFram
         processed_performance AS (
             SELECT 
                 season,
+                team_id,
                 owner_id,
-                team_name,
+                owner_name,
                 points_for,
                 points_against,
                 CASE WHEN points_for > points_against THEN 1 ELSE 0 END AS win,
@@ -609,12 +617,18 @@ def calculate_regular_season_standings(df_matchups: pd.DataFrame) -> pd.DataFram
         )
         SELECT 
             season,
+            team_id,
             owner_id,
-            team_name,
+            owner_name,
             COUNT(*) AS games_played,
             SUM(win) AS wins,
             SUM(loss) AS losses,
             SUM(tie) AS ties,
+            CONCAT(
+                CAST(SUM(win) AS STRING), '-', 
+                CAST(SUM(loss) AS STRING), '-', 
+                CAST(SUM(tie) AS STRING)
+            ) AS record,
             ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
             SUM(vs_league_wins) AS total_vs_league_wins,
             SUM(vs_league_losses) AS total_vs_league_losses,
@@ -623,7 +637,7 @@ def calculate_regular_season_standings(df_matchups: pd.DataFrame) -> pd.DataFram
             SUM(points_against) AS total_pa,
             ROUND(AVG(points_for), 2) AS avg_pf
         FROM processed_performance
-        GROUP BY season, owner_id, team_name
+        GROUP BY season, team_id, owner_id, owner_name
         ORDER BY season DESC, wins DESC, total_pf DESC;
         """
 
@@ -649,7 +663,7 @@ def calculate_all_time_regular_season_standings(
             SELECT 
                 season,
                 home_team_owner_id AS owner_id,
-                home_team_full_name AS team_name,
+                home_team_full_name AS owner_name,
                 home_team_score AS points_for,
                 CAST(away_team_score AS DOUBLE) AS points_against,
                 CASE WHEN home_team_score > CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS win,
@@ -661,7 +675,7 @@ def calculate_all_time_regular_season_standings(
             SELECT 
                 season,
                 away_team_owner_id AS owner_id,
-                away_team_full_name AS team_name,
+                away_team_full_name AS owner_name,
                 CAST(away_team_score AS DOUBLE) AS points_for,
                 home_team_score AS points_against,
                 CASE WHEN CAST(away_team_score AS DOUBLE) > home_team_score THEN 1 ELSE 0 END AS win,
@@ -672,10 +686,16 @@ def calculate_all_time_regular_season_standings(
         )
         SELECT 
             owner_id,
+            MAX(owner_name) AS owner_name,
             COUNT(*) AS games_played,
             SUM(win) AS wins,
             SUM(loss) AS losses,
             SUM(tie) AS ties,
+            CONCAT(
+                CAST(SUM(win) AS STRING), '-', 
+                CAST(SUM(loss) AS STRING), '-', 
+                CAST(SUM(tie) AS STRING)
+            ) AS record,
             ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
             SUM(points_for) AS total_pf,
             SUM(points_against) AS total_pa,
@@ -749,14 +769,23 @@ def calculate_all_time_h2h_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
         )
         SELECT 
             owner_id,
+            MAX(owner_name) AS owner_name,
             opponent_id,
+            MAX(opponent_name) AS opponent_name,
             COUNT(*) AS matchups,
             SUM(win) AS wins,
             SUM(loss) AS losses,
             SUM(tie) AS ties,
+            CONCAT(
+                CAST(SUM(win) AS STRING), '-', 
+                CAST(SUM(loss) AS STRING), '-', 
+                CAST(SUM(tie) AS STRING)
+            ) AS record,
             ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
             SUM(pf) AS total_pf,
             SUM(pa) AS total_pa,
+            ROUND(AVG(pf), 2) AS avg_pf,
+            ROUND(AVG(pa), 2) AS avg_pa
         FROM matchups_flat
         GROUP BY owner_id, opponent_id
         ORDER BY owner_id DESC
@@ -782,7 +811,7 @@ def calculate_playoff_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
             SELECT 
                 season,
                 home_team_owner_id AS owner_id,
-                home_team_full_name AS team_name,
+                home_team_full_name AS owner_name,
                 home_team_score AS points_for,
                 CAST(away_team_score AS DOUBLE) AS points_against,
                 CASE WHEN home_team_score > CAST(away_team_score AS DOUBLE) THEN 1 ELSE 0 END AS win,
@@ -794,7 +823,7 @@ def calculate_playoff_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
             SELECT 
                 season,
                 away_team_owner_id AS owner_id,
-                away_team_full_name AS team_name,
+                away_team_full_name AS owner_name,
                 CAST(away_team_score AS DOUBLE) AS points_for,
                 home_team_score AS points_against,
                 CASE WHEN CAST(away_team_score AS DOUBLE) > home_team_score THEN 1 ELSE 0 END AS win,
@@ -805,10 +834,16 @@ def calculate_playoff_standings(df_matchups: pd.DataFrame) -> pd.DataFrame:
         )
         SELECT 
             owner_id,
+            MAX(owner_name) AS owner_name,
             COUNT(*) AS games_played,
             SUM(win) AS wins,
             SUM(loss) AS losses,
             SUM(tie) AS ties,
+            CONCAT(
+                CAST(SUM(win) AS STRING), '-', 
+                CAST(SUM(loss) AS STRING), '-', 
+                CAST(SUM(tie) AS STRING)
+            ) AS record,
             ROUND(SUM(win) / COUNT(*)::DOUBLE, 3) AS win_pct,
             SUM(points_for) AS total_pf,
             SUM(points_against) AS total_pa,
@@ -840,7 +875,7 @@ def calculate_weekly_standings_snapshots(df_matchups: pd.DataFrame) -> pd.DataFr
                 season, 
                 week,
                 home_team_owner_id AS owner_id, 
-                home_team_full_name AS team_name, 
+                home_team_full_name AS owner_name, 
                 home_team_score AS points_for,
                 CAST(away_team_score AS DOUBLE) AS points_against
             FROM df_matchups
@@ -850,7 +885,7 @@ def calculate_weekly_standings_snapshots(df_matchups: pd.DataFrame) -> pd.DataFr
                 season, 
                 week,
                 away_team_owner_id AS owner_id, 
-                away_team_full_name AS team_name, 
+                away_team_full_name AS owner_name, 
                 CAST(away_team_score AS DOUBLE) AS points_for,
                 home_team_score AS points_against
             FROM df_matchups
@@ -868,7 +903,7 @@ def calculate_weekly_standings_snapshots(df_matchups: pd.DataFrame) -> pd.DataFr
             season,
             week,
             owner_id,
-            team_name,
+            owner_name,
             SUM(win) OVER (PARTITION BY season, owner_id ORDER BY week) AS wins,
             SUM(loss) OVER (PARTITION BY season, owner_id ORDER BY week) AS losses,
             SUM(tie) OVER (PARTITION BY season, owner_id ORDER BY week) AS ties,
