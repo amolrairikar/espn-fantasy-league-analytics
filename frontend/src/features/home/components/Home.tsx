@@ -1,115 +1,176 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import { LoadingButton } from '@/components/utils/loadingButton';
-import type { LeagueData } from '@/features/login/types';
+import { useDuckDbQuery } from '@/components/hooks/useDuckDbQuery';
+import { useDatabase } from '@/components/utils/DatabaseContext';
 import AllTimeRecords from '@/features/home/components/AllTimeRecords';
-import { poll } from '@/features/home/utils/poll';
-import { getLeagueOnboardingStatus, postLeagueOnboarding } from '@/api/onboarding/api_calls';
-import { getLeagueMetadata, patchLeagueMetadata } from '@/api/league_metadata/api_calls';
-
-function useLeagueMetadata(leagueId: string, platform: string) {
-  return useQuery({
-    queryKey: ['leagueMetadata', leagueId, platform],
-    queryFn: () => getLeagueMetadata(leagueId, platform),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!leagueId && !!platform, // only run if leagueId and platform are available
-  });
-};
 
 function Home() {
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-  const [currentlyOnboarding, setCurrentlyOnboarding] = useState<boolean>(false);
-  const queryClient = useQueryClient();
+  const { db } = useDatabase();
 
-  // Hook must be called before any returns
-  const { data: leagueMetadata, isLoading, isError, error } = useLeagueMetadata(
-    leagueData!.leagueId,
-    leagueData!.platform,
+  const { data: championsData, error: championsQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_full_name, 
+      COUNT(owner_full_name) AS championships_won
+    FROM league_postseason_teams
+    WHERE status = 'LEAGUE_CHAMPION'
+    GROUP BY owner_full_name
+    ORDER BY championships_won DESC, owner_full_name ASC;
+    `
   );
 
-  if (isLoading) {
-    return <p className="text-center">Loading...</p>;
+  const { data: topTeamScores, error: topTeamScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_name AS owner_full_name,
+      score AS points_scored,
+      season,
+      week,
+      owner_id
+    FROM league_top_and_bottom_scores
+    WHERE category = 'TOP 10'
+    ORDER BY score DESC;
+    `
+  );
+
+  const { data: bottomTeamScores, error: bottomTeamScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_name AS owner_full_name,
+      score AS points_scored,
+      season,
+      week,
+      owner_id
+    FROM league_top_and_bottom_scores
+    WHERE category = 'BOTTOM 10'
+    ORDER BY score ASC;
+    `
+  );
+
+  const { data: topQbScores, error: topQbScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'QB'
+    ORDER BY points DESC;
+    `
+  );
+
+  const { data: topRbScores, error: topRbScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'RB'
+    ORDER BY points DESC;
+    `
+  );
+
+  const { data: topWrScores, error: topWrScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'WR'
+    ORDER BY points DESC;
+    `
+  );
+
+  const { data: topTeScores, error: topTeScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'TE'
+    ORDER BY points DESC;
+    `
+  );
+
+  const { data: topDstScores, error: topDstScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'D/ST'
+    ORDER BY points DESC
+    LIMIT 10;
+    `
+  );
+
+  const { data: topKScores, error: topKScoresQueryError } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      points AS points_scored,
+      season,
+      week,
+      full_name AS player_name
+    FROM league_top_player_performances
+    WHERE position = 'K'
+    ORDER BY points DESC;
+    `
+  );
+
+  const activeError = ( 
+    championsQueryError || 
+    topTeamScoresQueryError ||
+    bottomTeamScoresQueryError ||
+    topQbScoresQueryError ||
+    topRbScoresQueryError ||
+    topWrScoresQueryError ||
+    topTeScoresQueryError ||
+    topDstScoresQueryError ||
+    topKScoresQueryError
+  );
+  if (activeError) {
+    return (
+      <div className="p-8 text-center text-red-500">
+        <h2>Error loading league data</h2>
+        <p>{activeError instanceof Error ? activeError.message : activeError}</p>
+      </div>
+    );
   }
-
-  if (isError || !leagueMetadata || !leagueMetadata.data) {
-    console.error('Error getting league metadata', { isError, error, leagueMetadata });
-    return <p>Error getting league metadata. Please try reloading and if the issue persists raise a support ticket.</p>;
-  }
-
-  const { league_id, platform, espn_s2_cookie, swid_cookie, seasons, onboarded_date, onboarded_status } =
-    leagueMetadata.data;
-
-  const onboarded = Boolean(onboarded_status && onboarded_date);
-
-  const onboardLeagueData = async () => {
-    setCurrentlyOnboarding(true);
-    try {
-      const payload = {
-        league_id,
-        platform,
-        espn_s2: espn_s2_cookie,
-        swid: swid_cookie,
-        seasons,
-      };
-      const result = await postLeagueOnboarding(payload);
-      if (!result.data.execution_id) {
-        console.error('Onboarding response missing execution_id');
-        toast.error('Error occurred while onboarding league. Please try again.');
-        return;
-      }
-      const execution_id = result.data.execution_id;
-      console.log('Onboarding execution id: ', execution_id);
-
-      await poll(() => getLeagueOnboardingStatus(execution_id), {
-        interval: 2000,
-        timeout: 60000,
-        validate: (status) => status.data?.execution_status === 'SUCCEEDED',
-      });
-
-      // Update metadata to set onboarded_status to true
-      try {
-        await patchLeagueMetadata({
-          league_id,
-          platform,
-          espn_s2: espn_s2_cookie,
-          swid: swid_cookie,
-          seasons,
-          onboarded_date: new Date().toISOString(),
-          onboarded_status: true,
-        });
-        console.log('Onboarding completed!');
-        toast.success('Onboarding completed successfully!');
-        // Refetch league metadata after onboarding completed
-        queryClient.invalidateQueries({
-          queryKey: ['leagueMetadata', league_id, platform]
-        });
-      } catch (error) {
-        console.error('Error updating league metadata:', error);
-      }
-    } catch (error) {
-      console.error('Error onboarding league:', error);
-      toast.error('Error occurred while onboarding')
-      setCurrentlyOnboarding(false);
-    } finally {
-      setCurrentlyOnboarding(false);
-    }
-  };
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {onboarded ? (
-        <AllTimeRecords />
-      ) : (
-        <>
-          <h1 className="text-center">Nothing to see here. Click the button below to onboard your league data.</h1>
-          <LoadingButton onClick={() => void onboardLeagueData()} loading={currentlyOnboarding}>
-            Onboard
-          </LoadingButton>
-        </>
-      )}
-    </div>
+    <AllTimeRecords 
+      champions={championsData} 
+      topScores={topTeamScores} 
+      bottomScores={bottomTeamScores}
+      qbScores={topQbScores}
+      rbScores={topRbScores}
+      wrScores={topWrScores}
+      teScores={topTeScores}
+      dstScores={topDstScores}
+      kScores={topKScores}
+    />
   );
 }
 

@@ -1,65 +1,62 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import type { LeagueData } from '@/components/types/league_data';
+import { useEffect, useState } from 'react';
+import { useDatabase } from '@/components/utils/DatabaseContext';
+import { CustomSelect } from '@/components/utils/CustomSelectbox';
+import { useDuckDbQuery } from '@/components/hooks/useDuckDbQuery';
 import DraftBoard from '@/features/draft/components/DraftBoard';
-import { SeasonSelect } from '@/components/utils/SeasonSelect';
-import { fetchDraftResults } from '@/api/draft_results/api_calls';
 import { DraftBoardSkeleton } from '@/features/draft/components/DraftPickBoardSkeleton';
 
-function useFetchDraftResults(
-  league_id: string,
-  platform: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['draft_results', league_id, platform, season],
-    queryFn: () => fetchDraftResults(
-      league_id,
-      platform,
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!season, // only run if input args are available
-  });
-};
-
 function Draft() {
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
+  const { db } = useDatabase();
 
   const [selectedSeason, setSelectedSeason] = useState<string>();
-  // const [draftResults, setDraftResults] = useState<GetDraftResults['data']>([]);
 
-  const { data: rawDraftData, isLoading: loadingDraftResults } = useFetchDraftResults(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    selectedSeason!,
+  const { data: seasons, error: seasonsQueryError, loading: loadingSeasons } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT DISTINCT season FROM league_members ORDER BY SEASON DESC;
+    `
   );
 
-  const draftResults = useMemo(() => {
-    if (!rawDraftData?.data) return [];
-    return rawDraftData.data;
-  }, [rawDraftData]);
+  const seasonOptions = seasons?.map(s => s.season) || [];
+  const defaultSeason = seasonOptions.length > 0 ? seasonOptions.at(0) : "Loading...";
+
+  const { data: draftResults, error: draftResultsQueryError, loading: loadingDraftResults } = useDuckDbQuery<any>(
+    selectedSeason ? db : null,
+    `SELECT * FROM league_draft_results  WHERE season = '${selectedSeason}'`
+  );
+
+  // Sync defaults when data first arrives
+  useEffect(() => {
+    if (seasons && !selectedSeason) {
+      setSelectedSeason(defaultSeason);
+    }
+  }, [seasons]);
+
+  const isLoading = (loadingSeasons || loadingDraftResults);
+  const activeError = (seasonsQueryError || draftResultsQueryError);
 
   return (
       <div className="space-y-6 my-6 px-4 md:px-0">
 
       {/* Season Selector */}
       <div className="flex flex-col items-center space-y-4 md:flex-row md:justify-center md:space-x-6 md:space-y-0">
-        <SeasonSelect
-          leagueData={leagueData!}
-          selectedSeason={selectedSeason}
-          onSeasonChange={setSelectedSeason}
-          className="w-full max-w-xs md:w-auto"
+        <CustomSelect
+          title="Season"
+          placeholder={selectedSeason || defaultSeason!}
+          items={seasonOptions}
+          onValueChange={(val) => setSelectedSeason(val)}
         />
       </div>
 
-      {/* Draft Board Cards */}
-      {loadingDraftResults ? (
-        <DraftBoardSkeleton />
-      ) : (
-        <DraftBoard draftResults={draftResults} />
+      {activeError && (
+        <div className="p-8 text-center text-red-500">
+          <h2>Error loading league data</h2>
+          <p>{activeError instanceof Error ? activeError.message : activeError}</p>
+        </div>
       )}
+
+      {/* Draft Board Cards */}
+      {isLoading ? (<DraftBoardSkeleton />) : (<DraftBoard draftResults={draftResults!} />)}
 
     </div>
     );

@@ -1,137 +1,127 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
-import type { MatchupTableView, StandingsH2H } from '@/features/standings/types';
-import type { LeagueData } from '@/features/login/types';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
+import { useDatabase } from '@/components/utils/DatabaseContext';
+import { useDuckDbQuery } from '@/components/hooks/useDuckDbQuery';
 import { DataTable } from '@/components/utils/dataTable';
 import { MatchupSheet } from '@/components/utils/MatchupSheet';
-import { SortableHeader } from '@/components/utils/sortableColumnHeader';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { fetchH2HStandings } from '@/api/standings/api_calls';
-import { fetchMatchups } from '@/api/matchups/api_calls';
-import { useFetchLeagueOwners } from '@/components/hooks/fetchOwners';
+import { CustomSelect } from '@/components/utils/CustomSelectbox';
+import type { MatchupTableView, H2HStandingsData } from '@/features/standings/types';
+import type { Matchup } from '@/features/scores/types';
 import { StandingsTableSkeleton } from '@/features/standings/components/SkeletonStandingsTable';
-
-function useFetchH2HStandings(
-  league_id: string,
-  platform: string,
-  standings_type: string,
-) {
-  return useQuery({
-    queryKey: ['h2h_standings', league_id, platform, standings_type],
-    queryFn: () => fetchH2HStandings(
-      league_id,
-      platform,
-      standings_type,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!standings_type, // only run if input args are available
-  });
-};
-
-function useFetchMatchupsBetweenTeams(
-  league_id: string,
-  platform: string,
-  playoff_filter: string,
-  team1_id: string,
-  team2_id: string,
-) {
-  return useQuery({
-    queryKey: ['matchups_between_teams', league_id, platform, playoff_filter, team1_id, team2_id],
-    queryFn: () => fetchMatchups(
-      league_id,
-      platform,
-      playoff_filter,
-      team1_id,
-      team2_id,
-      undefined, // week_number
-      undefined, // season
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id && !!team2_id, // only run if input args are available
-  });
-};
-
-function useFetchSpecificMatchup(
-  league_id: string,
-  platform: string,
-  playoff_filter: string,
-  team1_id: string,
-  team2_id: string,
-  week_number: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['specified_matchup', league_id, platform, playoff_filter, team1_id, team2_id, week_number, season],
-    queryFn: () => fetchMatchups(
-      league_id,
-      platform,
-      playoff_filter,
-      team1_id,
-      team2_id,
-      week_number,
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id && !!team2_id && !!week_number && !!season, // only run if input args are available
-  });
-};
+import { getOutcomeByOwner } from '@/features/standings/utils';
 
 function H2HStandings() {
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-
-  const { data: rawStandings, isLoading: loadingStandings } = useFetchH2HStandings(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'h2h',
-  );
-
-  const { data: owners } = useFetchLeagueOwners(
-    leagueData!.leagueId,
-    leagueData!.platform
-  );
-
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(undefined);
-  const selectedOwnerName = owners?.data.find((m) => m.owner_id === selectedOwnerId)?.owner_full_name ?? null;
+  const { db } = useDatabase();
+  const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
   const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null);
-  const selectedOpponentId = owners?.data.find((m) => m.owner_full_name === selectedOpponentName)?.owner_id ?? undefined;
-  const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
-  const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
 
-  const { data: H2HMatchups, isLoading: loadingH2HMatchups } = useFetchMatchupsBetweenTeams(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'exclude',
-    selectedOwnerId!,
-    selectedOpponentId!,
-  )
+  const { data: owners, error: ownersQueryError, loading: loadingOwners } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+      owner_id,
+      MAX(owner_full_name) AS owner_full_name
+    FROM league_members
+    GROUP BY owner_id;
+    `
+  );
+  const members = owners ? owners.map(row => row.owner_full_name) : [];
+  const selectedOwnerId = owners?.find(s => s.owner_full_name === selectedOwnerName)?.owner_id;
+  const selectedOpponentId = owners?.find(s => s.owner_full_name === selectedOpponentName)?.owner_id;
 
-  const { data: specifiedMatchup } = useFetchSpecificMatchup(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'exclude',
-    selectedOwnerId!,
-    selectedOpponentId!,
-    String(selectedWeek!),
-    selectedSeason!,
-  )
+  const { data: standings, error: standingsQueryError } = useDuckDbQuery<any>(
+    selectedOwnerId ? db: null,
+    `
+    SELECT *
+    FROM league_h2h_standings
+    WHERE owner_id = '${selectedOwnerId}';
+    `
+  );
 
-  const columnsH2HStandings: ColumnDef<StandingsH2H>[] = [
+  const { data: matchups, error: matchupsQueryError } = useDuckDbQuery<any>(
+    selectedOwnerId && selectedOpponentId ? db: null,
+    `
+    SELECT *
+    FROM league_matchups
+    WHERE (home_team_owner_id = '${selectedOwnerId}' OR away_team_owner_id = '${selectedOwnerId}')
+    AND (home_team_owner_id = '${selectedOpponentId}' OR away_team_owner_id = '${selectedOpponentId}')
+    AND playoff_tier_type = 'NONE';
+    `
+  );
+
+  const scoresProcessed = useMemo(() => {
+    if (!matchups || !selectedOwnerId || !selectedOpponentId) return [];
+    return matchups.map((matchup) => {
+      // Determine if the selected owner is the Home or Away team
+      const isHome = matchup.home_team_owner_id === selectedOwnerId;
+
+      const ownerScore = isHome ? matchup.home_team_score : matchup.away_team_score;
+      const opponentScore = isHome ? matchup.away_team_score : matchup.home_team_score;
+      const opponentName = isHome ? matchup.away_team_full_name : matchup.home_team_full_name;
+
+      const outcome = getOutcomeByOwner(matchup, selectedOwnerId)
+
+      return {
+        ...matchup,
+        season: matchup.season,
+        week: Number(matchup.week),
+        opponent_full_name: opponentName,
+        result: `${ownerScore} - ${opponentScore}`,
+        outcome: outcome,
+      };
+    });
+  }, [matchups, selectedOwnerId, selectedOpponentId]);
+
+  // Open matchup box score whenever season/week are selected
+  useEffect(() => {
+    if (selectedSeason && selectedWeek) {
+      setExpandedBoxScoreOpen(true);
+    }
+  }, [selectedSeason, selectedWeek]);
+
+  // Reset opponent whenever new owner is selected
+  useEffect(() => {
+    setSelectedOpponentName(null);
+  }, [selectedOwnerName])
+
+  const { data: h2hMatchup, error: h2hMatchupQueryError } = useDuckDbQuery<Matchup>(
+    selectedSeason && selectedWeek && selectedOwnerName ? db: null,
+    `
+    SELECT *
+    FROM league_matchups
+    WHERE season = '${selectedSeason}'
+    AND week = '${selectedWeek}'
+    AND (home_team_full_name = '${selectedOwnerName}' OR away_team_full_name = '${selectedOwnerName}')
+    `
+  );
+
+  const activeMatchup = useMemo(() => {
+  if (!h2hMatchup || !selectedSeason || !selectedWeek) return null;
+    return h2hMatchup.find(m => 
+      String(m.season) === String(selectedSeason) && 
+      Number(m.week) === Number(selectedWeek)
+    );
+  }, [h2hMatchup, selectedSeason, selectedWeek]);
+
+  useEffect(() => {
+    if (selectedSeason && selectedWeek && h2hMatchup) {
+      setExpandedBoxScoreOpen(true);
+    }
+  }, [selectedSeason, selectedWeek, h2hMatchup]);
+
+  const columnsH2HStandings: ColumnDef<H2HStandingsData>[] = [
     {
       accessorKey: 'opponent_full_name',
       header: 'Opponent',
-      cell: ({ row }) => <div className="px-2 py-1">{row.original.opponent_full_name}</div>,
+      cell: ({ row }) => <div className="px-2 py-1">{row.original.opponent_name}</div>,
     },
     {
       accessorKey: 'games_played',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-22.5">
-          <SortableHeader column={column} label="GP" />
-        </div>
-      ),
-      cell: ({ row }) => <div className="text-center">{row.original.games_played}</div>,
+      header: () => <div className="w-full text-center">GP</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.matchups}</div>,
       minSize: 90,
     },
     {
@@ -141,32 +131,20 @@ function H2HStandings() {
     },
     {
       accessorKey: 'win_pct',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-25">
-          <SortableHeader column={column} label="Win %" />
-        </div>
-      ),
+      header: () => <div className="w-full text-center">Win %</div>,
       cell: ({ row }) => <div className="text-center">{row.original.win_pct.toFixed(3)}</div>,
       minSize: 100,
     },
     {
       accessorKey: 'points_for_per_game',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-32.5">
-          <SortableHeader column={column} label="PF / Game" />
-        </div>
-      ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_for_per_game.toFixed(1)}</div>,
+      header: () => <div className="w-full text-center">PF/Game</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.avg_pf.toFixed(1)}</div>,
       minSize: 130,
     },
     {
       accessorKey: 'points_against_per_game',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-32.5">
-          <SortableHeader column={column} label="PA / Game" />
-        </div>
-      ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_against_per_game.toFixed(1)}</div>,
+      header: () => <div className="w-full text-center">PA/Game</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.avg_pa.toFixed(1)}</div>,
       minSize: 130,
     },
   ];
@@ -217,159 +195,68 @@ function H2HStandings() {
     },
   ];
 
-  const columnsH2HMatchupTable = columnsH2HMatchups(setSelectedSeason, setSelectedWeek);
+  const activeError = (ownersQueryError || standingsQueryError || matchupsQueryError || h2hMatchupQueryError);
 
-  const standingsData = useMemo(() => {
-    if (!rawStandings?.data || !selectedOwnerName) return [];
-
-    return rawStandings.data
-      .filter((member) => member.owner_full_name === selectedOwnerName)
-      .map((team) => ({
-        ...team,
-        games_played: Number(team.games_played),
-        record: `${team.wins}-${team.losses}-${team.ties}`,
-        win_pct: parseFloat(team.win_pct),
-        points_for_per_game: parseFloat(team.points_for_per_game),
-        points_against_per_game: parseFloat(team.points_against_per_game),
-      }));
-  }, [rawStandings?.data, selectedOwnerName]);
-
-  const scoresData = useMemo(() => {
-    if (!H2HMatchups?.data) return [];
-
-    return H2HMatchups.data.map((matchup) => {
-      const isTeamA = matchup.team_a_owner_id === selectedOwnerId;
-      const ownerScore = isTeamA ? matchup.team_a_score : matchup.team_b_score;
-      const opponentScore = isTeamA ? matchup.team_b_score : matchup.team_a_score;
-      const ownerWon = matchup.winner === selectedOwnerId;
-
-      return {
-        ...matchup,
-        week: Number(matchup.week),
-        result: `${ownerScore} - ${opponentScore}`,
-        outcome: ownerWon ? 'W' : 'L',
-      };
-    });
-  }, [H2HMatchups?.data, selectedOwnerId]);
-
-  // Open matchup box score whenever season/week are selected
-  useEffect(() => {
-    if (selectedSeason && selectedWeek) {
-      setExpandedBoxScoreOpen(true);
-    }
-  }, [selectedSeason, selectedWeek]);
-
-  // Reset opponent whenever new owner is selected
-  useEffect(() => {
-    setSelectedOpponentName(null);
-  }, [selectedOwnerName])
+  if (loadingOwners) return <StandingsTableSkeleton/>;
+  
+  if (activeError) return (
+    <div className="p-8 text-center text-red-500">
+      <h2>Error loading league data</h2>
+      <p>{activeError instanceof Error ? activeError.message : activeError}</p>
+    </div>
+  )
 
   return (
-    <div className="space-y-4 my-4 px-4">
-      <div className="flex items-center space-x-4">
-        <label htmlFor="season" className="font-medium text-sm">
-          League Member Name:
-        </label>
-        <Select onValueChange={setSelectedOwnerId} value={selectedOwnerId}>
-          <SelectTrigger className="w-50">
-            <SelectValue placeholder="Select a league member" />
-          </SelectTrigger>
-          <SelectContent>
-            {owners!.data.length > 0 ? (
-              owners!.data.map((owner) => (
-                <SelectItem key={owner.owner_id} value={owner.owner_id}>
-                  {owner.owner_full_name}
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem disabled value="none">
-                No league members found
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      {selectedOwnerName && standingsData ? (
+    <div className="space-y-4 my-4 px-2">
+      <CustomSelect
+        title="Owner"
+        placeholder="Choose an owner"
+        items={members}
+        onValueChange={(val) => setSelectedOwnerName(val)}
+      />
+      <DataTable
+        columns={columnsH2HStandings}
+        data={standings || []}
+        initialSorting={[{ id: 'win_pct', desc: true }]}
+        selectedRow={standings?.find(team => team.opponent_name === selectedOpponentName) ?? null}
+        onRowClick={(row) => setSelectedOpponentName(row.opponent_name)}
+      />
+      <MatchupSheet
+        matchup={activeMatchup!}
+        open={expandedBoxScoreOpen && !!activeMatchup}
+        onClose={() => {
+          setSelectedWeek(null);
+          setExpandedBoxScoreOpen(false);
+        }}
+      />
+      {selectedOwnerName && selectedOpponentName ? (
         <>
-          {!selectedOpponentId && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground italic mt-2">
-                Click on an opponent's name in the table to view a table of matchup results against them.
-              </p>
-              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
-              {loadingStandings ? (
-                <StandingsTableSkeleton />
-              ) : (
-                <DataTable
-                  columns={columnsH2HStandings}
-                  data={standingsData}
-                  initialSorting={[{ id: 'win_pct', desc: true }]}
-                  onRowClick={(row) => setSelectedOpponentName(row.opponent_full_name)}
-                  selectedRow={standingsData.find(team => team.opponent_full_name === selectedOpponentName) ?? null}
-                />
-              )}
-            </div>
-          )}
-
-          {selectedOpponentId && (
-            <div className="space-y-2">
-              <h1 className="font-semibold">All-Time Standings vs. League Opponents</h1>
-              {loadingStandings ? (
-                <StandingsTableSkeleton />
-              ) : (
-                <DataTable
-                  columns={columnsH2HStandings}
-                  data={standingsData}
-                  initialSorting={[{ id: 'win_pct', desc: true }]}
-                  onRowClick={(row) => setSelectedOpponentName(row.opponent_full_name)}
-                  selectedRow={standingsData.find(team => team.opponent_full_name === selectedOpponentName) ?? null}
-                />
-              )}
-              <h1 className="font-semibold mt-6">All-Time Matchup Results vs {selectedOpponentName}</h1>
-              <p className="text-sm text-muted-foreground italic mt-2">
-                Click on a matchup to view the detailed box score.
-              </p>
-              {loadingH2HMatchups ? (
-                <StandingsTableSkeleton />
-              ) : (
-                <DataTable
-                  columns={columnsH2HMatchupTable}
-                  data={scoresData}
-                  initialSorting={[
-                    { id: 'season', desc: false },
-                    { id: 'week', desc: false },
-                  ]}
-                  onRowClick={(row) => {
-                    setSelectedSeason(row.season);
-                    setSelectedWeek(row.week);
-                  }}
-                  selectedRow={scoresData.find(
-                    (matchup) =>
-                      matchup.season === selectedSeason && matchup.week === selectedWeek,
-                  ) ?? null}
-                />
-              )}
-
-              {selectedSeason && selectedWeek && H2HMatchups && H2HMatchups.data.length > 0 && (
-                <MatchupSheet
-                  matchup={specifiedMatchup!.data[0]}
-                  open={expandedBoxScoreOpen}
-                  onClose={() => {
-                    setSelectedSeason(undefined);
-                    setSelectedWeek(undefined);
-                  }}
-                />
-              )}
-            </div>
-          )}
+        <h2 className="font-bold text-center">
+          All Time Matchup Results: {selectedOwnerName} vs. {selectedOpponentName}
+        </h2>
+        <DataTable
+          columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
+          data={scoresProcessed || []}
+          initialSorting={[
+            { id: 'season', desc: false },
+            { id: 'week', desc: false },
+          ]}
+          selectedRow={
+          selectedSeason && selectedWeek
+            ? matchups!.find((matchup) => matchup.season === selectedSeason && matchup.week === selectedWeek) ?? null
+            : null
+          }
+          onRowClick={(row) => {
+            setSelectedSeason(row.season);
+            setSelectedWeek(row.week);
+          }}
+        />
         </>
-      ) : (
-        <p className="text-sm text-muted-foreground italic">
-          Select a league member to view their all-time head to head standings against the rest of the league.
-        </p>
+      ): (
+        <></>
       )}
     </div>
-  );
-}
+  )
+};
 
 export default H2HStandings;

@@ -1,9 +1,8 @@
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import type { GetMatchups } from '@/api/matchups/types';
-import type { PlayerScoringDetails } from '@/features/standings/types';
+import type { Matchup, PlayerScoringDetails } from '@/features/scores/types';
 
 interface MatchupSheetProps {
-  matchup: GetMatchups['data'][number];
+  matchup: Matchup;
   open: boolean;
   onClose: () => void;
 }
@@ -13,7 +12,20 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
 
   const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'D/ST', 'K'];
 
-  const groupPlayersByPosition = (players: PlayerScoringDetails[]) => {
+  const groupPlayersByPosition = (playersData: any) => {
+    let players: PlayerScoringDetails[] = [];
+
+    try {
+      if (typeof playersData === 'string') {
+        players = JSON.parse(playersData);
+      } else if (Array.isArray(playersData)) {
+        players = playersData;
+      }
+    } catch (e) {
+      console.error("Failed to parse player data:", e);
+      players = [];
+    }
+
     return players.reduce<Record<string, PlayerScoringDetails[]>>((acc, player) => {
       const pos = player.position || 'Other';
       if (!acc[pos]) acc[pos] = [];
@@ -22,10 +34,10 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
     }, {});
   };
 
-  const teamAStartersGrouped = groupPlayersByPosition(matchup.team_a_starting_players || []);
-  const teamABenchGrouped = groupPlayersByPosition(matchup.team_a_bench_players || []);
-  const teamBStartersGrouped = groupPlayersByPosition(matchup.team_b_starting_players || []);
-  const teamBBenchGrouped = groupPlayersByPosition(matchup.team_b_bench_players || []);
+  const teamAStartersGrouped = groupPlayersByPosition(matchup.home_team_starting_players || []);
+  const teamABenchGrouped = groupPlayersByPosition(matchup.home_team_bench_players || []);
+  const teamBStartersGrouped = groupPlayersByPosition(matchup.away_team_starting_players || []);
+  const teamBBenchGrouped = groupPlayersByPosition(matchup.away_team_bench_players || []);
 
   return (
     <Sheet open={open} onOpenChange={(val) => !val && onClose()}>
@@ -33,22 +45,22 @@ export function MatchupSheet({ matchup, open, onClose }: MatchupSheetProps) {
         <div className="mt-4 flex-1 overflow-y-auto px-4">
           {/* Team Names and Scores */}
           <div className="flex justify-between text-center font-semibold mb-4">
-            {/* Team A */}
+            {/* Team A (Home team) */}
             <div className="w-1/2 flex flex-col items-center">
               <div className="flex items-center justify-center text-lg text-center min-h-12 leading-tight">
-                <span className="line-clamp-2 wrap-break-word">{matchup.team_a_team_name}</span>
+                <span className="line-clamp-2 wrap-break-word">{matchup.home_team_team_name}</span>
               </div>
-              <div className="text-2xl mt-1">{matchup.team_a_score}</div>
-              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.team_a_efficiency*100).toFixed(2)}%</div>
+              <div className="text-2xl mt-1">{matchup.home_team_score}</div>
+              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.home_team_efficiency*100).toFixed(2)}%</div>
             </div>
 
-            {/* Team B */}
+            {/* Team B (Away team) */}
             <div className="w-1/2 flex flex-col items-center">
               <div className="flex items-center justify-center text-lg text-center min-h-12 leading-tight">
-                <span className="line-clamp-2 wrap-break-word">{matchup.team_b_team_name}</span>
+                <span className="line-clamp-2 wrap-break-word">{matchup.away_team_team_name}</span>
               </div>
-              <div className="text-2xl mt-1">{matchup.team_b_score}</div>
-              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.team_b_efficiency*100).toFixed(2)}%</div>
+              <div className="text-2xl mt-1">{matchup.away_team_score}</div>
+              <div className="text-sm mt-4">Lineup Efficiency: {(matchup.away_team_efficiency*100).toFixed(2)}%</div>
             </div>
           </div>
 

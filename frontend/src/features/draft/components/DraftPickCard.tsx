@@ -54,7 +54,7 @@ function DraftPickCard({ pick }: DraftPickCardProps) {
             </TooltipTrigger>
 
             <TooltipContent>
-              <p><span className="font-semibold">Drafted As:</span> {pick.position}{pick.drafted_position_rank}</p>
+              <p><span className="font-semibold">Drafted As:</span> {pick.position}{pick.position_draft_rank}</p>
               <p><span className="font-semibold">Finished As:</span> {pick.position}{pick.position_rank}</p>
             </TooltipContent>
           </Tooltip>

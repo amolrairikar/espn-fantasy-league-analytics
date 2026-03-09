@@ -1,90 +1,125 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query'
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import type { LeagueData } from '@/components/types/league_data';
+import { useEffect, useMemo, useState } from 'react';
+import { useDatabase } from '@/components/utils/DatabaseContext';
+import { CustomSelect } from '@/components/utils/CustomSelectbox';
+import { useDuckDbQuery } from '@/components/hooks/useDuckDbQuery';
+import { ScoreboardCardSkeleton } from '@/features/scores/components/scoreboardCardSkeleton';
 import { MatchupSheet } from '@/components/utils/MatchupSheet';
 import { ScoreboardCard } from '@/components/utils/ScoreboardCard';
-import { ScoreboardCardSkeleton } from '@/features/scores/components/ScoresSkeleton';
-import { SeasonSelect } from '@/components/utils/SeasonSelect';
-import { WeekSelect } from '@/components/utils/WeekSelect';
-import type { GetMatchups } from '@/api/matchups/types';
-import { fetchMatchups } from '@/api/matchups/api_calls';
+import type { Matchup } from '@/features/scores/types';
 
-function useFetchWeeklyMatchups(
-  league_id: string,
-  platform: string,
-  playoff_filter: string,
-  week_number: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['weekly_matchups', league_id, platform, playoff_filter, week_number, season],
-    queryFn: () => fetchMatchups(
-      league_id,
-      platform,
-      playoff_filter,
-      undefined, // team1_id
-      undefined, // team2_id
-      week_number,
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!playoff_filter && !!week_number && !!season, // only run if input args are available
-  });
-};
 
 function Scores() {
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
+  const { db } = useDatabase();
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
+  const [selectedMatchup, setSelectedMatchup] = useState<Matchup | null>(null);
 
-  const [selectedSeason, setSelectedSeason] = useState<string>();
-  const [selectedWeek, setSelectedWeek] = useState<string | undefined>(undefined);
-  const [selectedMatchup, setSelectedMatchup] = useState<GetMatchups['data'][number] | null>(null);
-
-  const { data: matchupResponse, isLoading, isError } = useFetchWeeklyMatchups(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'include',
-    selectedWeek!,
-    selectedSeason!,
+  const { data: seasons, error: seasonsQueryError, loading: loadingSeasons } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT DISTINCT season FROM league_members ORDER BY SEASON DESC;
+    `
   );
+
+  const seasonOptions = seasons?.map(s => s.season) || [];
+  const defaultSeason = seasonOptions.length > 0 ? seasonOptions.at(0) : "Loading...";
+
+  const { data: weeks, error: weeksQueryError, loading: loadingWeeks } = useDuckDbQuery<any>(
+    selectedSeason ? db : null,
+    `
+    SELECT DISTINCT week FROM league_matchups WHERE season = '${selectedSeason}' ORDER BY WEEK ASC;
+    `
+  );
+
+  const weekOptions = weeks?.map(s => s.week) || [];
+  const defaultWeek = weekOptions.length > 0 ? weekOptions.at(0) : "Loading...";
+
+  // Sync defaults when data first arrives
+  useEffect(() => {
+    if (seasons && !selectedSeason) {
+      setSelectedSeason(defaultSeason);
+    }
+    if (weeks && !selectedWeek) {
+      setSelectedWeek(defaultWeek);
+    }
+  }, [seasons, weeks]);
+
+  const { data: matchups, error: matchupsQueryError, loading: loadingMatchups } = useDuckDbQuery<any>(
+    selectedSeason && selectedWeek ? db : null,
+    `SELECT * FROM league_matchups WHERE season = '${selectedSeason}' AND week = ${selectedWeek}`
+  );
+
+  const { data: weeklyRecords, error: weeklyRecordsQueryError, loading: loadingWeeklyRecords } = useDuckDbQuery<any>(
+    selectedSeason && selectedWeek ? db : null,
+    `SELECT * FROM league_weekly_standings WHERE season = '${selectedSeason}' AND week = ${selectedWeek}`
+  );
+
+
+  const isLoading = (loadingSeasons || loadingWeeks || loadingMatchups || loadingWeeklyRecords);
+  const activeError = (seasonsQueryError || weeksQueryError || matchupsQueryError|| weeklyRecordsQueryError);
 
   // Memoize the sorted data to prevent recalculating on every render
   const sortedMatchups = useMemo(() => {
-    if (!matchupResponse?.data) return [];
+    if (!matchups) return [];
     
-    return [...matchupResponse.data].sort((a, b) => {
+    return [...matchups].sort((a, b) => {
       const aIsPlayoff = a.playoff_tier_type === 'WINNERS_BRACKET';
       const bIsPlayoff = b.playoff_tier_type === 'WINNERS_BRACKET';
       return aIsPlayoff === bIsPlayoff ? 0 : aIsPlayoff ? -1 : 1;
     });
-  }, [matchupResponse]);
+  }, [matchups]);
 
   return (
-    <div className="space-y-6 my-6 px-4 md:px-0">
-      <div className="flex flex-col items-center space-y-4 md:flex-row md:justify-center md:space-x-6 md:space-y-0">
-        <SeasonSelect
-          leagueData={leagueData!}
-          selectedSeason={selectedSeason}
-          onSeasonChange={setSelectedSeason}
-          className="w-full max-w-xs md:w-auto"
-        />
-        <WeekSelect season={selectedSeason} onWeekChange={setSelectedWeek} className="w-full max-w-xs md:w-auto" />
+    <div className="space-y-4 mt-2 mb-6 px-4 md:px-0">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mx-auto">
+        <div className="w-full flex justify-center">
+          <div className="w-full max-w-50"> {/* Constrains width so they don't look like giant bars */}
+            <CustomSelect
+              title="Season"
+              placeholder={selectedSeason || defaultSeason!}
+              items={seasonOptions}
+              onValueChange={(val) => setSelectedSeason(val)}
+            />
+          </div>
+        </div>
+        <div className="w-full flex justify-center">
+          <div className="w-full max-w-50">
+            <CustomSelect
+              title="Week"
+              placeholder={selectedWeek || defaultWeek!}
+              items={weekOptions}
+              onValueChange={(val) => setSelectedWeek(val)}
+            />
+          </div>
+        </div>
       </div>
-      {isLoading && <ScoreboardCardSkeleton/>}
-      {isError && <p className="text-center text-red-500">Error loading data.</p>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center">
-        {sortedMatchups.map((matchup) => {
-          // Fallback key using index if IDs are missing
-          const matchupKey = `${matchup.team_a_owner_id}-${matchup.team_b_owner_id}-${matchup.week}`;
+
+      {isLoading && <ScoreboardCardSkeleton />}
+      
+      {activeError && (
+        <div className="p-8 text-center text-red-500">
+          <h2>Error loading league data</h2>
+          <p>{activeError instanceof Error ? activeError.message : activeError}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center max-w-4xl mx-auto">
+        {sortedMatchups.map((matchup, index) => {
+          const matchupKey = matchup.home_team_owner_id 
+            ? `${matchup.home_team_owner_id}-${matchup.away_team_owner_id}-${matchup.week}`
+            : `matchup-${index}`;
+
           return (
             <ScoreboardCard 
-              key={matchupKey} 
-              matchup={matchup} 
-              onClick={() => setSelectedMatchup(matchup)} 
+              key={matchupKey}
+              matchup={matchup}
+              team_records={weeklyRecords!}
+              onClick={() => setSelectedMatchup(matchup)}
             />
           );
         })}
       </div>
+
       {selectedMatchup && (
         <MatchupSheet 
           matchup={selectedMatchup} 

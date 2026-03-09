@@ -1,131 +1,136 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
-import type { MatchupTableView, StandingsSeason } from '@/features/standings/types';
-import type { LeagueData } from '@/components/types/league_data';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
+import { useDatabase } from '@/components/utils/DatabaseContext';
+import { useDuckDbQuery } from '@/components/hooks/useDuckDbQuery';
 import { DataTable } from '@/components/utils/dataTable';
 import { MatchupSheet } from '@/components/utils/MatchupSheet';
-import { SortableHeader } from '@/components/utils/sortableColumnHeader';
-import { SeasonSelect } from '@/components/utils/SeasonSelect';
-import { fetchSingleSeasonStandings } from '@/api/standings/api_calls';
-import { fetchMatchups } from '@/api/matchups/api_calls';
-import { useFetchLeagueOwners } from '@/components/hooks/fetchOwners';
+import { CustomSelect } from '@/components/utils/CustomSelectbox';
+import type { MatchupTableView, RegularSeasonStandingsData } from '@/features/standings/types';
+import type { Matchup } from '@/features/scores/types';
 import { StandingsTableSkeleton } from '@/features/standings/components/SkeletonStandingsTable';
 
-function useFetchSingleSeasonStandings(
-  league_id: string,
-  platform: string,
-  standings_type: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['single_season_standings', league_id, platform, standings_type, season],
-    queryFn: () => fetchSingleSeasonStandings(
-      league_id,
-      platform,
-      standings_type,
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!standings_type && !!season, // only run if input args are available
-  });
-};
-
-function useFetchSeasonMatchupsForOneTeam(
-  league_id: string,
-  platform: string,
-  playoff_filter: string,
-  team1_id: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['season_matchups_one_team', league_id, platform, playoff_filter, team1_id, season],
-    queryFn: () => fetchMatchups(
-      league_id,
-      platform,
-      playoff_filter,
-      team1_id,
-      undefined, // team2_id
-      undefined, // week_number
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id && !!season, // only run if input args are available
-  });
-};
-
-function useFetchSpecificMatchup(
-  league_id: string,
-  platform: string,
-  playoff_filter: string,
-  team1_id: string,
-  week_number: string,
-  season: string,
-) {
-  return useQuery({
-    queryKey: ['specified_matchup', league_id, platform, playoff_filter, team1_id, week_number, season],
-    queryFn: () => fetchMatchups(
-      league_id,
-      platform,
-      playoff_filter,
-      team1_id,
-      undefined, // team2_id
-      week_number,
-      season,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!playoff_filter && !!team1_id && !!week_number && !!season, // only run if input args are available
-  });
-};
-
 function SeasonStandings() {
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-
-  const [selectedSeason, setSelectedSeason] = useState<string | undefined>(undefined);
+  const { db } = useDatabase();
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedOwnerName, setSelectedOwnerName] = useState<string | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState<number | undefined>(undefined);
   const [expandedBoxScoreOpen, setExpandedBoxScoreOpen] = useState<boolean>(false);
 
-  const { data: rawStandings, isLoading: loadingStandings } = useFetchSingleSeasonStandings(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'season',
-    selectedSeason!,
+  const { data: seasons, error: seasonsQueryError, loading: loadingSeasons } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT DISTINCT season FROM league_members ORDER BY SEASON DESC;
+    `
   );
 
-  const { data: owners } = useFetchLeagueOwners(
-    leagueData!.leagueId,
-    leagueData!.platform
+  // Sync defaults when data first arrives
+  useEffect(() => {
+    if (seasons && !selectedSeason) {
+      setSelectedSeason(defaultSeason);
+    }
+  }, [seasons]);
+
+  const seasonOptions = seasons?.map(s => s.season) || [];
+  const defaultSeason = seasonOptions.length > 0 ? seasonOptions.at(0) : "Loading...";
+
+  const { data: standings, error: standingsQueryError, loading: loadingStandings } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT
+        s.*,
+        p.status AS playoff_status,
+        c.status AS championship_status,
+    FROM league_regular_season_standings s
+    LEFT JOIN league_postseason_teams p
+        ON s.season = p.season
+        AND s.owner_id = p.owner_id
+        AND p.status IN ('MADE_PLAYOFFS', 'CLINCHED_FIRST_ROUND_BYE')
+    LEFT JOIN league_postseason_teams c
+        ON s.season = c.season
+        AND s.owner_id = c.owner_id
+        AND c.status = 'LEAGUE_CHAMPION'
+    WHERE s.season = '${selectedSeason}'
+    ORDER BY wins DESC;
+    `
   );
 
-  const selectedOwnerId = owners?.data.find((m) => m.owner_full_name === selectedOwnerName)?.owner_id ?? undefined;
+  const selectedOwnerId = standings?.find(s => s.owner_name === selectedOwnerName)?.owner_id;
+  const selectedTeamId = standings?.find(s => s.owner_name === selectedOwnerName)?.team_id;
 
-  const { data: seasonMatchups, isLoading: loadingSeasonMatchups } = useFetchSeasonMatchupsForOneTeam(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'exclude',
-    selectedOwnerId!,
-    selectedSeason!,
-  )
+  const { data: scores, error: scoresQueryError, loading: loadingScores } = useDuckDbQuery<any>(
+    db,
+    `
+    SELECT *
+    FROM league_matchups
+    WHERE season = '${selectedSeason}'
+    AND (home_team_full_name = '${selectedOwnerName}' OR away_team_full_name = '${selectedOwnerName}')
+    AND playoff_tier_type = 'NONE';
+    `
+  );
 
-  const { data: specifiedMatchup } = useFetchSpecificMatchup(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'exclude',
-    selectedOwnerId!,
-    String(selectedWeek!),
-    selectedSeason!,
-  )
+  const scoresProcessed = useMemo(() => {
+    if (!scores || !selectedTeamId) return [];
+    return scores.map((matchup) => {
+      // Determine if the selected owner is the Home or Away team
+      const isHome = matchup.home_team_owner_id === selectedOwnerId;
 
-  const columns: ColumnDef<StandingsSeason>[] = [
+      const ownerScore = isHome ? matchup.home_team_score : matchup.away_team_score;
+      const opponentScore = isHome ? matchup.away_team_score : matchup.home_team_score;
+      const opponentName = isHome ? matchup.away_team_full_name : matchup.home_team_full_name;
+
+      // Logic for Outcome (Handles Wins, Losses, and Ties)
+      let outcome = 'L';
+      if (matchup.winner === selectedTeamId) {
+        outcome = 'W';
+      } else if (matchup.winner === null && matchup.home_team_score === matchup.away_team_score) {
+        // Optional: Handle ties if your league allows them
+        outcome = 'T';
+      }
+
+      return {
+        ...matchup,
+        season: matchup.season,
+        week: Number(matchup.week),
+        opponent_full_name: opponentName,
+        result: `${ownerScore} - ${opponentScore}`,
+        outcome: outcome,
+      };
+    });
+  }, [scores, selectedOwnerId, selectedTeamId]);
+
+  const { data: matchup, error: matchupQueryError } = useDuckDbQuery<Matchup>(
+    selectedSeason && selectedWeek && selectedOwnerName ? db: null,
+    `
+    SELECT *
+    FROM league_matchups
+    WHERE season = '${selectedSeason}'
+    AND week = '${selectedWeek}'
+    AND (home_team_full_name = '${selectedOwnerName}' OR away_team_full_name = '${selectedOwnerName}')
+    `
+  );
+
+  const activeMatchup = useMemo(() => {
+  if (!matchup || !selectedSeason || !selectedWeek) return null;
+    return matchup.find(m => 
+      String(m.season) === String(selectedSeason) && 
+      Number(m.week) === Number(selectedWeek)
+    );
+  }, [matchup, selectedSeason, selectedWeek]);
+
+  useEffect(() => {
+    if (selectedSeason && selectedWeek && matchup) {
+      setExpandedBoxScoreOpen(true);
+    }
+  }, [selectedSeason, selectedWeek, matchup]);
+
+  const columnsStandings: ColumnDef<RegularSeasonStandingsData>[] = [
     {
       accessorKey: 'owner_full_name',
       header: 'Owner',
       cell: ({ row }) => {
-        const isSelected = row.original.owner_full_name === selectedOwnerName;
+        const isSelected = row.original.owner_name === selectedOwnerName;
         const { playoff_status, championship_status } = row.original;
-        const crown = championship_status ? ' 👑' : '';
+        const crown = championship_status === 'LEAGUE_CHAMPION' ? ' 👑' : '';
 
         let suffix = '';
         if (playoff_status === 'CLINCHED_FIRST_ROUND_BYE') {
@@ -138,9 +143,9 @@ function SeasonStandings() {
           <div
             className={`cursor-pointer hover:bg-muted px-2 py-1 rounded transition 
                         ${isSelected ? 'outline-2 outline-ring' : ''}`}
-            onClick={() => setSelectedOwnerName(row.original.owner_full_name)}
+            onClick={() => setSelectedOwnerName(row.original.owner_name)}
           >
-            {row.original.owner_full_name}
+            {row.original.owner_name}
             {suffix && <span className="ml-3 lowercase font-semibold text-muted-foreground">{suffix}</span>}
             {crown && <span className="ml-2">{crown}</span>}
           </div>
@@ -154,43 +159,27 @@ function SeasonStandings() {
     },
     {
       accessorKey: 'win_pct',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-25">
-          <SortableHeader column={column} label="Win %" />
-        </div>
-      ),
+      header: () => <div className="w-full text-center">Win %</div>,
       cell: ({ row }) => <div className="text-center">{row.original.win_pct.toFixed(3)}</div>,
       minSize: 100,
     },
     {
       accessorKey: 'points_for',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-32.5">
-          <SortableHeader column={column} label="Points For" />
-        </div>
-      ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_for.toFixed(2)}</div>,
+      header: () => <div className="w-full text-center">Points For</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.total_pf.toFixed(2)}</div>,
       minSize: 130,
     },
     {
       accessorKey: 'points_against',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-32.5">
-          <SortableHeader column={column} label="Points Against" />
-        </div>
-      ),
-      cell: ({ row }) => <div className="text-center">{row.original.points_against.toFixed(2)}</div>,
+      header: () => <div className="w-full text-center">Points Against</div>,
+      cell: ({ row }) => <div className="text-center">{row.original.total_pa.toFixed(2)}</div>,
       minSize: 130,
     },
     {
       accessorKey: 'points_differential',
-      header: ({ column }) => (
-        <div className="w-full text-center min-w-32.5">
-          <SortableHeader column={column} label="Differential" />
-        </div>
-      ),
+      header: () => <div className="w-full text-center">Differential</div>,
       cell: ({ row }) => {
-        const value = row.original.points_differential;
+        const value = row.original.total_pf - row.original.total_pa;
 
         const formattedValue =
           value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
@@ -213,7 +202,9 @@ function SeasonStandings() {
     {
       accessorKey: 'record_vs_league',
       header: () => <div className="w-full text-center">Record vs. League</div>,
-      cell: ({ row }) => <div className="text-center">{row.original.record_vs_league}</div>,
+      cell: ({ row }) => <div className="text-center">
+        {`${row.original.total_vs_league_wins} - ${row.original.total_vs_league_losses}`}
+      </div>,
     },
   ];
 
@@ -268,136 +259,85 @@ function SeasonStandings() {
     },
   ];
 
-  const standingsData = useMemo(() => {
-    if (!rawStandings?.data) return [];
-    return rawStandings.data.map((team) => ({
-      ...team,
-      record: `${team.wins}-${team.losses}-${team.ties}`,
-      win_pct: parseFloat(team.win_pct),
-      points_for: parseFloat(team.points_for),
-      points_against: parseFloat(team.points_against),
-      points_differential: parseFloat(team.points_differential),
-      record_vs_league: `${team.all_play_wins}-${team.all_play_losses}`
-    }));
-  }, [rawStandings]);
+  const isLoading = (loadingSeasons || loadingStandings || loadingScores);
+  const activeError = (seasonsQueryError || standingsQueryError || scoresQueryError || matchupQueryError);
 
-  const scoresData = useMemo(() => {
-    if (!seasonMatchups?.data || !selectedOwnerId) return [];
-    return seasonMatchups.data.map((matchup) => {
-      const isTeamA = matchup.team_a_owner_id === selectedOwnerId;
-      const ownerScore = isTeamA ? matchup.team_a_score : matchup.team_b_score;
-      const opponentScore = isTeamA ? matchup.team_b_score : matchup.team_a_score;
-      const opponentName = isTeamA ? matchup.team_b_owner_full_name : matchup.team_a_owner_full_name;
-      const ownerWon = matchup.winner === selectedOwnerId;
-
-      return {
-        ...matchup,
-        season: matchup.season,
-        week: Number(matchup.week),
-        opponent_full_name: opponentName,
-        result: `${ownerScore} - ${opponentScore}`,
-        outcome: ownerWon ? 'W' : 'L',
-      };
-    });
-  }, [seasonMatchups, selectedOwnerId]);
-
-  useEffect(() => {
-    if (selectedSeason && selectedWeek && specifiedMatchup?.data && specifiedMatchup.data.length > 0) {
-      setExpandedBoxScoreOpen(true);
-    }
-  }, [selectedSeason, selectedWeek, specifiedMatchup]);
+  if (isLoading) return <StandingsTableSkeleton/>;
+  
+  if (activeError) return (
+    <div className="p-8 text-center text-red-500">
+      <h2>Error loading league data</h2>
+      <p>{activeError instanceof Error ? activeError.message : activeError}</p>
+    </div>
+  )
 
   return (
     <div className="space-y-4 my-4 px-2">
-      <SeasonSelect
-        leagueData={leagueData!}
-        selectedSeason={selectedSeason ? String(selectedSeason) : undefined}
-        onSeasonChange={(season) => {
-          setSelectedOwnerName(null);
-          setSelectedSeason(season);
-        }}
-        className="px-2"
+      <CustomSelect
+        title="Season"
+        placeholder={selectedSeason || defaultSeason!}
+        items={seasonOptions}
+        onValueChange={(val) => setSelectedSeason(val)}
       />
       {selectedOwnerName ? (
-        <div className="space-y-4 my-4 px-2">
-          <DataTable
-            columns={columns}
-            data={standingsData}
-            initialSorting={[
-              { id: 'win_pct', desc: true },
-              { id: 'points_for', desc: true },
-            ]}
-            selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
-            onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
-          />
-          <p className="text-sm text-muted-foreground italic mt-1">
-            z = first round bye | x = playoffs | 👑 = won the championship
-            <br />
-            Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
-          </p>
-          <h1 className="font-semibold mt-6">Season Schedule for {selectedOwnerName}</h1>
-          {loadingSeasonMatchups ? (
-            <StandingsTableSkeleton />
-          ) : (
-            <DataTable
-              columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
-              data={scoresData}
-              initialSorting={[
-                { id: 'season', desc: false },
-                { id: 'week', desc: false },
-              ]}
-              selectedRow={
-                selectedSeason && selectedWeek
-                  ? scoresData.find(
-                      (matchup) =>
-                        matchup.season === selectedSeason && matchup.week === selectedWeek,
-                    ) ?? null
-                  : null
-              }
-              onRowClick={(row) => {
-                setSelectedSeason(row.season);
-                setSelectedWeek(row.week);
-              }}
-            />
-          )}
-          {selectedSeason && selectedWeek && specifiedMatchup && specifiedMatchup.data.length > 0 && (
-            <MatchupSheet
-              matchup={specifiedMatchup.data[0]}
-              open={expandedBoxScoreOpen}
-              onClose={() => {
-                setSelectedWeek(undefined);
-              }}
-            />
-          )}
-        </div>
+        <>
+        <DataTable
+          columns={columnsStandings}
+          data={standings || []}
+          initialSorting={[{ id: 'win_pct', desc: true }]}
+          selectedRow={standings!.find(team => team.owner_name === selectedOwnerName) ?? null}
+          onRowClick={(row) => setSelectedOwnerName(row.owner_name)}
+        />
+        <p className="text-sm text-muted-foreground italic mt-1">
+          z = first round bye | x = playoffs | 👑 = won the championship
+          <br />
+          Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
+        </p>
+        <h1 className="font-semibold mt-6 text-center">Season Schedule for {selectedOwnerName}</h1>
+        <DataTable
+          columns={columnsH2HMatchups(setSelectedSeason, setSelectedWeek)}
+          data={scoresProcessed || []}
+          initialSorting={[
+            { id: 'season', desc: false },
+            { id: 'week', desc: false },
+          ]}
+          selectedRow={
+          selectedSeason && selectedWeek
+            ? scores!.find((matchup) => matchup.season === selectedSeason && matchup.week === selectedWeek) ?? null
+            : null
+          }
+          onRowClick={(row) => {
+            setSelectedSeason(row.season);
+            setSelectedWeek(row.week);
+          }}
+        />
+        </>
       ) : (
-        <div className="space-y-4 my-4 px-2">
-          <p className="text-sm text-muted-foreground italic">
-            Click on an owner's name to display a table with their regular season schedule results
-          </p>
-          {loadingStandings ? (
-            <StandingsTableSkeleton />
-          ) : (
-            <DataTable
-              columns={columns}
-              data={standingsData}
-              initialSorting={[
-                { id: 'win_pct', desc: true },
-                { id: 'points_for_per_game', desc: true },
-              ]}
-              selectedRow={standingsData.find(team => team.owner_full_name === selectedOwnerName) ?? null}
-              onRowClick={(row) => setSelectedOwnerName(row.owner_full_name)}
-            />
-          )}
-          <p className="text-sm text-muted-foreground italic mt-1">
-            z = first round bye | x = playoffs | 👑 = won the championship
-            <br />
-            Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
-          </p>
-        </div>
+        <>
+        <DataTable
+          columns={columnsStandings}
+          data={standings || []}
+          initialSorting={[{ id: 'win_pct', desc: true }]}
+          selectedRow={standings!.find(team => team.owner_name === selectedOwnerName) ?? null}
+          onRowClick={(row) => setSelectedOwnerName(row.owner_name)}
+        />
+        <p className="text-sm text-muted-foreground italic mt-1">
+          z = first round bye | x = playoffs | 👑 = won the championship
+          <br />
+          Note that playoff qualification status cannot be determined until the end of the season due to ESPN API limitations.
+        </p>
+        </>
       )}
+      <MatchupSheet
+        matchup={activeMatchup!}
+        open={expandedBoxScoreOpen && !!activeMatchup}
+        onClose={() => {
+          setSelectedWeek(null);
+          setExpandedBoxScoreOpen(false);
+      }}
+      />
     </div>
   );
-}
+};
 
-export default SeasonStandings;
+export default SeasonStandings

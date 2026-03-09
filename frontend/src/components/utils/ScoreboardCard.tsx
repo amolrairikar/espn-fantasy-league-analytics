@@ -1,82 +1,38 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchWeeklyStandings } from '@/api/standings/api_calls';
-import { useLocalStorage } from '@/components/hooks/useLocalStorage';
-import type { LeagueData } from '@/features/login/types';
-import type { GetMatchups } from '@/api/matchups/types';
-import type { GetWeeklyStandings } from '@/features/standings/types';
+import type { Matchup } from '@/features/scores/types';
+
+interface TeamWeeklyRecord {
+  owner_id: string;
+  wins: number;
+  losses: number;
+  ties: number;
+}
 
 interface ScoreboardCardProps {
-  matchup: GetMatchups['data'][number];
+  matchup: Matchup;
+  team_records: TeamWeeklyRecord[];
   onClick?: () => void;
 }
 
-function useFetchWeeklyStandings(
-  league_id: string,
-  platform: string,
-  standings_type: string,
-  season: string,
-  team: string,
-  week: string,
-) {
-  return useQuery({
-    queryKey: ['weekly', league_id, platform, standings_type, season, team, week],
-    queryFn: () => fetchWeeklyStandings(
-      league_id,
-      platform,
-      standings_type,
-      season,
-      team,
-      week,
-    ),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: !!league_id && !!platform && !!standings_type, // only run if input args are available
-  });
-};
-
-export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
-  const isTeamAWinner = matchup.winner === matchup.team_a_owner_id;
-  const isTeamBWinner = matchup.winner === matchup.team_b_owner_id;
+export function ScoreboardCard({ matchup, team_records, onClick }: ScoreboardCardProps) {
+  const isTeamAWinner = matchup.winner === matchup.home_team_id;
+  const isTeamBWinner = matchup.winner === matchup.away_team_id;
   const isPlayoff = matchup.playoff_tier_type === 'WINNERS_BRACKET';
-  const [leagueData] = useLocalStorage<LeagueData>('leagueData', null);
-
-  const { data: rawWeeklyStandingsTeamA } = useFetchWeeklyStandings(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'weekly',
-    matchup.season,
-    matchup.team_a_owner_id,
-    matchup.week,
+  const teamARecord = team_records.find(
+    (record) => record.owner_id === matchup.home_team_owner_id
   );
-
-  const { data: rawWeeklyStandingsTeamB } = useFetchWeeklyStandings(
-    leagueData!.leagueId,
-    leagueData!.platform,
-    'weekly',
-    matchup.season,
-    matchup.team_b_owner_id,
-    matchup.week,
+  const teamBRecord = team_records.find(
+    (record) => record.owner_id === matchup.away_team_owner_id
   );
+  const formatRecord = (rec?: TeamWeeklyRecord) => 
+    rec ? `${rec.wins}-${rec.losses}-${rec.ties}` : "0-0-0";
 
-  const teamAStandings = useMemo<GetWeeklyStandings['data'] | null>(() => {
-    if (!leagueData || !matchup) return null;
-    return rawWeeklyStandingsTeamA?.data ?? null;
-  }, [rawWeeklyStandingsTeamA, leagueData, matchup]);
-
-  const teamBStandings = useMemo<GetWeeklyStandings['data'] | null>(() => {
-    if (!leagueData || !matchup) return null;
-    return rawWeeklyStandingsTeamB?.data ?? null;
-  }, [rawWeeklyStandingsTeamB, leagueData, matchup]);
-
-  const teamARecord =
-    teamAStandings && teamAStandings.length > 0
-      ? `${teamAStandings[0].wins}-${teamAStandings[0].losses}-${teamAStandings[0].ties}`
-      : '--';
-
-  const teamBRecord =
-    teamBStandings && teamBStandings.length > 0
-      ? `${teamBStandings[0].wins}-${teamBStandings[0].losses}-${teamBStandings[0].ties}`
-      : '--';
+  console.log({
+    winner: matchup.winner,
+    winnerType: typeof matchup.winner,
+    homeId: matchup.home_team_id,
+    homeIdType: typeof matchup.home_team_id,
+    match: matchup.winner === matchup.home_team_id
+  });
 
   return (
     <div className="relative w-full max-w-md mx-auto cursor-pointer" onClick={onClick}>
@@ -89,35 +45,35 @@ export function ScoreboardCard({ matchup, onClick }: ScoreboardCardProps) {
 
       {/* Scoreboard card */}
       <div className="bg-card shadow rounded-md p-4 w-full">
-        {/* Team A */}
+        {/* Team A (Home team) */}
         <div className="flex justify-between items-center py-2 border-b border-border">
           <div className="text-left">
-            <div className={`text-lg ${isTeamAWinner ? 'font-bold' : ''}`}> {matchup.team_a_team_name} </div>
+            <div className={`text-lg ${isTeamAWinner ? 'font-bold' : ''}`}> {matchup.home_team_team_name} </div>
             <div className={`text-sm text-muted-foreground ${isTeamAWinner ? 'font-bold text-foreground' : ''}`}>
-              {matchup.team_a_owner_full_name}{' '}
+              {matchup.home_team_full_name}{' '}
               {matchup.playoff_tier_type === 'NONE' && (
-                <span className="text-xs text-muted-foreground">({teamARecord})</span>
+                <span className="text-xs text-muted-foreground">({formatRecord(teamARecord)})</span>
               )}
             </div>
           </div>
           <div className={`text-right text-lg ${isTeamAWinner ? 'font-bold' : ''}`}>
-            {Number(matchup.team_a_score).toFixed(2)}
+            {Number(matchup.home_team_score).toFixed(2)}
           </div>
         </div>
 
-        {/* Team B */}
+        {/* Team B (Away team) */}
         <div className="flex justify-between items-center py-2">
           <div className="text-left">
-            <div className={`text-lg ${isTeamBWinner ? 'font-bold' : ''}`}> {matchup.team_b_team_name} </div>
+            <div className={`text-lg ${isTeamBWinner ? 'font-bold' : ''}`}> {matchup.away_team_team_name} </div>
             <div className={`text-sm text-muted-foreground ${isTeamBWinner ? 'font-bold text-foreground' : ''}`}>
-              {matchup.team_b_owner_full_name}{' '}
+              {matchup.away_team_full_name}{' '}
               {matchup.playoff_tier_type === 'NONE' && (
-                <span className="text-xs text-muted-foreground">({teamBRecord})</span>
+                <span className="text-xs text-muted-foreground">({formatRecord(teamBRecord)})</span>
               )}
             </div>
           </div>
           <div className={`text-right text-lg ${isTeamBWinner ? 'font-bold' : ''}`}>
-            {Number(matchup.team_b_score).toFixed(2)}
+            {Number(matchup.away_team_score).toFixed(2)}
           </div>
         </div>
       </div>

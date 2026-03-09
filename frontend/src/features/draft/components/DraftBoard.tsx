@@ -1,9 +1,8 @@
 import DraftPickCard from '@/features/draft/components/DraftPickCard';
-import type { DraftResultItem } from '@/features/draft/types';
-import type { GetDraftResults } from '@/api/draft_results/types';
+import type { DraftResultItem, DraftResults } from '@/features/draft/types';
 
 interface DraftBoardProps {
-  draftResults: GetDraftResults['data'];
+  draftResults: DraftResults[];
 };
 
 function DraftBoard({ draftResults }: DraftBoardProps) {
@@ -12,7 +11,7 @@ function DraftBoard({ draftResults }: DraftBoardProps) {
   // Normalize numeric fields
   const normalized: DraftResultItem[] = draftResults.map((d) => ({
     ...d,
-    pick_number: Number(d.pick_number),
+    pick_number: Number(d.round_pick_number),
     round: Number(d.round),
     overall_pick_number: Number(d.overall_pick_number),
   }));
