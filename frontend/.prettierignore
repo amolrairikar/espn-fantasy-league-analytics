@@ -1,6 +1,0 @@
-node_modules
-public
-dist
-
-# Ignore dependency locks
-package-lock.json
