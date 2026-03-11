@@ -74,3 +74,17 @@ repos:
       #   pass_filenames: false
       #   types: [python]
       #   always_run: true
+      - id: npm-lint
+        name: Run NPM lint
+        description: Runs ESLint to lint code
+        entry: bash -c "cd frontend && npm run lint"
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+      - id: npm-format
+        name: Run NPM format
+        description: Runs Prettier code formatter
+        entry: bash -c "cd frontend && npm run format:fix"
+        language: system
+        files: ^frontend/
+        pass_filenames: false
