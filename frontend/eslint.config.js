@@ -12,7 +12,7 @@ import noSecrets from 'eslint-plugin-no-secrets';
 
 export default defineConfig([
   tseslint.configs.stylistic,
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'coverage']),
   {
     files: ['**/*.{ts,tsx}'],
     plugins: {
@@ -65,6 +65,18 @@ export default defineConfig([
       ],
       'tsdoc/syntax': 'warn',
       'no-secrets/no-secrets': 'error',
+    },
+  },
+  {
+    files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      // Disable strict type checking for tests
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ]);
