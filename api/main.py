@@ -7,15 +7,13 @@ from mangum import Mangum
 from api.routers import (
     fetch_database,
     health,
-    league_validation,
     onboarding,
     utils,
 )
 
 ORIGINS = [
-    "http://localhost:5173",  # LOCAL
-    "https://fantasy-recap-dev.com",  # DEV
-    "https://fantasy-recap.com",  # PROD
+    "http://localhost:8501",  # LOCAL/DEV
+    "https://fantasy-recap.com",  # TODO: Change to actual PROD URL
 ]
 
 app = FastAPI()
@@ -28,7 +26,6 @@ app.add_middleware(
 )
 app.include_router(fetch_database.router)
 app.include_router(health.router)
-app.include_router(league_validation.router)
 app.include_router(onboarding.router)
 app.include_router(utils.router)
 handler = Mangum(app)

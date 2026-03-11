@@ -36,12 +36,21 @@ load_dotenv()
 
 
 class LeagueOnboarder:
-    def __init__(self, league_id, platform, swid_cookie, espn_s2_cookie, seasons):
+    def __init__(
+        self,
+        league_id: str,
+        platform: str,
+        swid_cookie: str,
+        espn_s2_cookie: str,
+        seasons: list[str],
+        data_storage_location: str,
+    ):
         self.league_id = league_id
         self.platform = platform
         self.swid_cookie = swid_cookie
         self.espn_s2_cookie = espn_s2_cookie
         self.seasons = seasons
+        self.data_storage_location = data_storage_location
 
     def run_onboarding_process(self) -> dict:
         """
@@ -91,11 +100,12 @@ class LeagueOnboarder:
             ("league_top_player_performances", df_top_player_performances),
         ]
         bucket_name_add_on = "-dev" if os.environ["ENVIRONMENT"] == "DEV" else ""
-        bucket_name = f"{os.environ['ACCOUNT_NUMBER']}-fantasy-recap-app-duckdb-storage{bucket_name_add_on}"
+        bucket_name = f"{os.environ['ACCOUNT_NUMBER']}-fantasy-recap-app-database{bucket_name_add_on}"
         write_to_duckdb_table(data_to_write=output_data)
-        write_duckdb_file_to_s3(
-            bucket_name=bucket_name, bucket_key=f"{self.league_id}.duckdb"
-        )
+        if self.data_storage_location == "cloud":
+            write_duckdb_file_to_s3(
+                bucket_name=bucket_name, bucket_key=f"{self.league_id}.duckdb"
+            )
 
         return {
             "status": "success",
