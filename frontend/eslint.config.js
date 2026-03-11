@@ -28,7 +28,6 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
       prettier,
-      eslint
     ],
     languageOptions: {
       ecmaVersion: 2020,

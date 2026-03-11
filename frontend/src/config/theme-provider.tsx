@@ -1,5 +1,10 @@
+import {
+  createTheme,
+  ThemeProvider,
+  useMediaQuery,
+  CssBaseline,
+} from '@mui/material';
 import { useMemo } from 'react';
-import { createTheme, ThemeProvider, useMediaQuery, CssBaseline } from '@mui/material';
 
 export const CustomThemeProvider = ({ children }) => {
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -11,7 +16,7 @@ export const CustomThemeProvider = ({ children }) => {
           mode: prefersDarkMode ? 'dark' : 'light',
         },
       }),
-    [prefersDarkMode]
+    [prefersDarkMode],
   );
 
   return (
