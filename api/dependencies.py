@@ -3,11 +3,12 @@
 import json
 import logging
 import os
-from pathlib import Path
+import requests
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import HTTPException, Security
+from fastapi import HTTPException, Query, Security
 from fastapi.security.api_key import APIKeyHeader
 
 
@@ -80,3 +81,58 @@ def build_api_request_headers(cookies: dict[str, str]) -> dict[str, str]:
             detail="Missing required espn_s2 and swid cookies.",
         )
     return {"Cookie": f"espn_s2={cookies['espn_s2']}; SWID={cookies['swid']};"}
+
+
+def validate_espn_credentials(
+    league_id: str,
+    season: str,
+    swid_cookie: str,
+    espn_s2_cookie: str,
+) -> None:
+    """
+    Validates ESPN credentials by executing a simple Fantasy Football API request.
+
+    Args:
+        league_id (str): Unique ID for the league.
+        season (str): Season to validate league information for.
+        swid_cookie (str): SWID cookie from browser cookies.
+        espn_s2_cookie (str): ESPN S2 cookie from browser cookies.
+    """
+    url = f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{season}/segments/0/leagues/{league_id}"
+    headers = {}
+    headers = build_api_request_headers(
+        cookies={
+            "swid": swid_cookie,
+            "espn_s2": espn_s2_cookie,
+        },
+    )
+    logger.info("API headers: %s", headers)
+    response = requests.get(url=url, headers=headers)
+    response.raise_for_status()
+
+
+def verify_espn_access(
+    league_id: str = Query(description="Unique ID for the league."),
+    season: str = Query(description="Season to validate league information for."),
+    swid_cookie: str = Query(
+        default=None, description="SWID cookie from browser cookies."
+    ),
+    espn_s2_cookie: str = Query(
+        default=None, description="ESPN S2 cookie from browser cookies."
+    ),
+) -> None:
+    """
+    Wrapper dependency to validate ESPN credentials.
+
+    Args:
+        league_id (str): Unique ID for the league.
+        season (str): Season to validate league information for.
+        swid_cookie (str): SWID cookie from browser cookies.
+        espn_s2_cookie (str): ESPN S2 cookie from browser cookies.
+    """
+    validate_espn_credentials(
+        league_id=league_id,
+        season=season,
+        swid_cookie=swid_cookie,
+        espn_s2_cookie=espn_s2_cookie,
+    )

@@ -4,18 +4,22 @@ import json
 
 import boto3
 import botocore.exceptions
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from api.dependencies import (
     ENVIRONMENT,
     get_api_key,
     logger,
+    verify_espn_access,
 )
 from api.models import APIResponse, LeagueMetadata
 
 router = APIRouter(
     prefix="/onboard",
-    dependencies=[Depends(get_api_key)],
+    dependencies=[
+        Depends(get_api_key),
+        Depends(verify_espn_access),
+    ],
 )
 
 
@@ -24,14 +28,25 @@ def onboard_league(
     data: LeagueMetadata = Body(
         description="The league information (ID, cookies, platform) required for onboarding."
     ),
+    league_id: str = Query(description="Unique ID for the league."),
+    season: str = Query(description="Season to validate league information for."),
+    swid_cookie: str = Query(
+        default=None, description="SWID cookie from browser cookies."
+    ),
+    espn_s2_cookie: str = Query(
+        default=None, description="ESPN S2 cookie from browser cookies."
+    ),
 ) -> APIResponse:
     """
     Onboards a league by triggering a Lambda execution that retrieves league
     data such as matchups, scores, etc.
 
     Args:
-        league_id (str): ID of league to onboard.
         data (LeagueMetadata): The league information (ID, cookies, platform) required for onboarding.
+        league_id (str): Unique ID for the league.
+        season (str): Season to validate league information for.
+        swid_cookie (str): SWID cookie from browser cookies.
+        espn_s2_cookie (str): ESPN S2 cookie from browser cookies.
 
     Returns:
         APIResponse: A JSON response with a message field indicating success/failure

@@ -27,6 +27,7 @@ def handler(event, context) -> dict[str, str]:
         swid_cookie=event["body"]["swidCookie"],
         espn_s2_cookie=event["body"]["espnS2Cookie"],
         seasons=event["body"]["seasons"],
+        data_storage_location=event["body"]["dataStorageLocation"],
     )
 
     try:
