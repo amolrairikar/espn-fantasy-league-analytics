@@ -38,6 +38,19 @@ data "aws_iam_policy_document" "api_lambda_policy" {
         aws_lambda_function.league_onboarding_lambda.arn
     ]
   }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:HeadObject"
+    ]
+
+    resources = [
+        "${aws_s3_bucket.application_bucket.arn}/*"
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "api_lambda_role_policy" {

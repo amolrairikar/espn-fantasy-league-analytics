@@ -4,35 +4,27 @@ import json
 
 import boto3
 import botocore.exceptions
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, HTTPException, status
 
 from api.dependencies import (
+    BUCKET_NAME,
     ENVIRONMENT,
     logger,
-    verify_espn_access,
 )
 from api.models import APIResponse, LeagueMetadata
 
 router = APIRouter(
     prefix="/onboard",
-    dependencies=[
-        Depends(verify_espn_access),
-    ],
 )
+
+lambda_client = boto3.client("lambda")
+s3_client = boto3.client("s3")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def onboard_league(
     data: LeagueMetadata = Body(
         description="The league information (ID, cookies, platform) required for onboarding."
-    ),
-    league_id: str = Query(description="Unique ID for the league."),
-    season: str = Query(description="Season to validate league information for."),
-    swid_cookie: str = Query(
-        default=None, description="SWID cookie from browser cookies."
-    ),
-    espn_s2_cookie: str = Query(
-        default=None, description="ESPN S2 cookie from browser cookies."
     ),
 ) -> APIResponse:
     """
@@ -41,10 +33,6 @@ def onboard_league(
 
     Args:
         data (LeagueMetadata): The league information (ID, cookies, platform) required for onboarding.
-        league_id (str): Unique ID for the league.
-        season (str): Season to validate league information for.
-        swid_cookie (str): SWID cookie from browser cookies.
-        espn_s2_cookie (str): ESPN S2 cookie from browser cookies.
 
     Returns:
         APIResponse: A JSON response with a message field indicating success/failure
@@ -53,7 +41,6 @@ def onboard_league(
     Raises:
         HTTPException: 500 error if the onboarding lambda fails.
     """
-    lambda_client = boto3.client("lambda")
     try:
         event_input = {
             "event-id": "",
@@ -77,7 +64,23 @@ def onboard_league(
             "FunctionError" not in response_payload
             and response_payload["status"] == "success"
         ):
-            return APIResponse(detail="Successfully onboarded league")
+            # Generate presigned URL to S3 bucket with DuckDB file
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": BUCKET_NAME, "Key": f"{data.league_id}.duckdb"},
+                ExpiresIn=60,  # in seconds
+            )
+            db_file_metadata = s3_client.head_object(
+                Bucket=BUCKET_NAME, Key=f"{data.league_id}.duckdb"
+            )
+            return APIResponse(
+                detail="Successfully onboarded league",
+                data={
+                    "url": url,
+                    "version": db_file_metadata["ETag"],
+                    "size": db_file_metadata["ContentLength"],
+                },
+            )
         else:
             error_detail = response_payload["FunctionError"]
             error_message = f"Error occurred while onboarding league: {error_detail}"
