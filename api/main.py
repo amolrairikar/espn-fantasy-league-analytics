@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
 from api.routers import (
-    fetch_database,
     health,
     onboarding,
     utils,
@@ -24,7 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(fetch_database.router)
 app.include_router(health.router)
 app.include_router(onboarding.router)
 app.include_router(utils.router)
