@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.dependencies import (
     ENVIRONMENT,
-    get_api_key,
     logger,
     verify_espn_access,
 )
@@ -17,7 +16,6 @@ from api.models import APIResponse
 router = APIRouter(
     prefix="/database",
     dependencies=[
-        Depends(get_api_key),
         Depends(verify_espn_access),
     ],
 )

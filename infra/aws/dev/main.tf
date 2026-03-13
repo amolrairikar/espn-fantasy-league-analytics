@@ -12,8 +12,6 @@ provider "aws" {
 }
 
 module "app_infra" {
-  source = "../common_infrastructure"
-
-  api_key = var.api_key
+  source      = "../common_infrastructure"
   environment = var.environment
 }

@@ -8,8 +8,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import HTTPException, Query, Security
-from fastapi.security.api_key import APIKeyHeader
+from fastapi import HTTPException, Query
 
 
 class JsonFormatter(logging.Formatter):
@@ -45,24 +44,6 @@ BASE_PATH = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=BASE_PATH / ".env")
 
 ENVIRONMENT = os.environ["ENVIRONMENT"]
-
-API_KEY = os.getenv("API_KEY")
-if API_KEY is None:
-    error_message = "API_KEY environment variable not set."
-    logger.error(error_message)
-    raise RuntimeError(error_message)
-API_KEY_NAME = "x-api-key"
-
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-
-
-def get_api_key(api_key_header: str = Security(api_key_header)):
-    """
-    Dependency function to return the API key from the request header.
-    API Gateway will automatically reject requests with a 403 Forbidden error
-    if an API key is not provided.
-    """
-    return api_key_header
 
 
 def build_api_request_headers(cookies: dict[str, str]) -> dict[str, str]:

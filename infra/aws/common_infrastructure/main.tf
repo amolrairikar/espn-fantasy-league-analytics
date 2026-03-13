@@ -64,7 +64,6 @@ resource "aws_lambda_function" "api_lambda" {
   reserved_concurrent_executions = 100
   environment {
     variables = {
-      API_KEY             = var.api_key
       ACCOUNT_NUMBER      = data.aws_caller_identity.current.account_id
       ENVIRONMENT         = upper(var.environment)
     }
@@ -112,7 +111,7 @@ resource "aws_api_gateway_method" "proxy_any" {
   resource_id      = aws_api_gateway_resource.proxy.id
   http_method      = "ANY"
   authorization    = "NONE"
-  api_key_required = true
+  api_key_required = false
 }
 
 resource "aws_api_gateway_method_response" "proxy_response" {
@@ -171,7 +170,7 @@ resource "aws_api_gateway_integration_response" "proxy_options_integration_respo
   selection_pattern = "200"
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers"     = "'x-api-key,Content-Type'"
+    "method.response.header.Access-Control-Allow-Headers"     = "'Content-Type'"
     "method.response.header.Access-Control-Allow-Methods"     = "'OPTIONS,GET,POST,PUT,PATCH,DELETE'"
     "method.response.header.Access-Control-Allow-Origin"      = "'${var.environment == "prod" ? "https://fantasy-recap.com" : "https://fantasy-recap-dev.com"}'"
     "method.response.header.Access-Control-Allow-Credentials" = "'true'"
@@ -228,52 +227,13 @@ resource "aws_api_gateway_method_settings" "all_endpoint_method_settings" {
   }
 }
 
-resource "aws_api_gateway_api_key" "api_key" {
-  name    = var.environment == "prod" ? "react-app-api-key" : "react-app-api-key-dev"
-  enabled = true
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_api_gateway_usage_plan" "usage_plan" {
-  name = var.environment == "prod" ? "fantasy-recap-app-api-usage-plan" : "fantasy-recap-app-api-usage-plan-dev"
-
-  api_stages {
-    api_id = aws_api_gateway_rest_api.fastapi_api.id
-    stage  = aws_api_gateway_stage.development.stage_name
-  }
-
-  throttle_settings {
-    burst_limit = 10
-    rate_limit  = 5
-  }
-
-  quota_settings {
-    limit  = 2500
-    period = "DAY"
-  }
-
-  tags = {
-    Project     = "fantasy-analytics-app"
-    Environment = upper(var.environment)
-  }
-}
-
-resource "aws_api_gateway_usage_plan_key" "plan_key" {
-  key_id        = aws_api_gateway_api_key.api_key.id
-  key_type      = "API_KEY"
-  usage_plan_id = aws_api_gateway_usage_plan.usage_plan.id
-}
-
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.fastapi_api.id
 
-  # # Add this trigger block to force redeployment
-  # triggers = {
-  #   redeploy_forced = timestamp()
-  # }
+  # This forces a new deployment whenever the API configuration changes
+  triggers = {
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.fastapi_api.body))
+  }
 
   lifecycle {
     create_before_destroy = true
