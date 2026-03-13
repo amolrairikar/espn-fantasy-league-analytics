@@ -1,14 +1,8 @@
 """FastAPI router for utility endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from api.dependencies import (
-    get_api_key,
-)
-
-router = APIRouter(
-    dependencies=[Depends(get_api_key)],
-)
+router = APIRouter()
 
 # dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 # table = dynamodb.Table(table_name)

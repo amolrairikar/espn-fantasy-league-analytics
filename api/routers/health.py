@@ -1,13 +1,11 @@
 """FastAPI router for health check endpoints."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from api.dependencies import get_api_key
 from api.models import APIResponse
 
 router = APIRouter(
     prefix="/health",
-    dependencies=[Depends(get_api_key)],
 )
 
 
